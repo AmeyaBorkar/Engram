@@ -46,6 +46,8 @@ benchmarks/datasets/
 .env
 .env.*
 .envrc
+# But the public template gets committed.
+!.env.example
 
 # Editors / OS
 .vscode/

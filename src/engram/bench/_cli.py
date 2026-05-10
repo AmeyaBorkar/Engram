@@ -3,12 +3,41 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
 from engram.bench._provider import FakeProvider, Provider
 from engram.bench._real_provider import build_provider
 from engram.bench._runner import run as run_suite
+
+
+def _load_env_file(path: Path) -> bool:
+    """Best-effort `.env` loading. Existing env vars take precedence.
+
+    Returns True if `.env` was loaded, False otherwise. We use
+    `python-dotenv` when available (the `[bench]` extra installs it);
+    fall through to a tiny built-in parser otherwise so the CLI still
+    works without the dep.
+    """
+    if not path.exists():
+        return False
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        with path.open("r", encoding="utf-8") as f:
+            for raw in f:
+                line = raw.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, _, value = line.partition("=")
+                key = key.strip()
+                value = value.strip().strip('"').strip("'")
+                if key and key not in os.environ:
+                    os.environ[key] = value
+        return True
+    load_dotenv(path, override=False)
+    return True
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -64,6 +93,16 @@ def build_parser() -> argparse.ArgumentParser:
         default=Path("benchmarks/runs"),
         help="Directory in which to write the manifest (default: benchmarks/runs).",
     )
+    run.add_argument(
+        "--env-file",
+        type=Path,
+        default=Path(".env"),
+        help=(
+            "Path to a .env file to load before resolving the provider "
+            "(default: .env in cwd). Existing environment variables "
+            "always take precedence over .env values."
+        ),
+    )
 
     return parser
 
@@ -96,6 +135,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.command == "run":
+        if _load_env_file(args.env_file):
+            print(f"loaded {args.env_file}", file=sys.stderr)
         try:
             provider = _resolve_provider(args)
             manifest_path = run_suite(args.suite, provider=provider, runs_dir=args.runs_dir)

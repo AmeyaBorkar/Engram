@@ -12,37 +12,48 @@ HuggingFace into `benchmarks/datasets/`, which is gitignored.
 ## 1. Install the right extras
 
 ```powershell
-pip install -e ".[dev,openai,anthropic]"
+pip install -e ".[dev,openai,anthropic,bench]"
 ```
 
 `openai` is used as the embedder for every real-provider run (Anthropic
 and Moonshot don't ship public embedding models). `anthropic` is
 optional unless you plan to judge with Claude. Moonshot/Kimi reuses the
-OpenAI extra (Moonshot's API is OpenAI-compatible).
+OpenAI extra (Moonshot's API is OpenAI-compatible). The `bench` extra
+brings in `python-dotenv` for `.env` loading.
 
 ---
 
-## 2. Set up API keys
+## 2. Set up API keys via `.env`
 
-Engram reads keys from environment variables. Pick the ones you need:
+Copy the template and fill in the keys you need:
+
+```powershell
+Copy-Item .env.example .env
+notepad .env   # or your editor of choice
+```
+
+The keys you'll need:
 
 | Variable | Provider | Where to get one |
 |---|---|---|
 | `OPENAI_API_KEY` | OpenAI (embeddings + chat) | <https://platform.openai.com/api-keys> |
 | `ANTHROPIC_API_KEY` | Anthropic (chat only) | <https://console.anthropic.com/settings/keys> |
-| `MOONSHOT_API_KEY` | Moonshot/Kimi K2 (chat only) | <https://platform.moonshot.ai/> |
+| `MOONSHOT_API_KEY` | Moonshot / Kimi K2 (chat only) | <https://platform.moonshot.ai/> |
 
-PowerShell (current session only):
+`.env` is gitignored, so secrets stay out of the repo. The bench CLI
+auto-loads it from the project root every time it starts; existing
+environment variables override `.env` values.
+
+If you'd rather use shell exports (PowerShell session only):
 
 ```powershell
 $env:OPENAI_API_KEY    = "sk-..."
 $env:ANTHROPIC_API_KEY = "sk-ant-..."
-$env:MOONSHOT_API_KEY  = "ms-..."
 ```
 
-To persist across sessions, set the same variables in
-`Settings → System → Environment Variables` (User scope) or via
-`[Environment]::SetEnvironmentVariable("OPENAI_API_KEY", "sk-...", "User")`.
+To persist across PowerShell sessions without `.env`, set the same
+variables in `Settings → System → Environment Variables` (User scope)
+or via `[Environment]::SetEnvironmentVariable("OPENAI_API_KEY", "sk-...", "User")`.
 
 > Engram never logs API keys. Provider adapters apply the
 > `Redactor` pass before any structured log emission; CLI flags are
@@ -76,8 +87,15 @@ Always do a smoke run first. It catches:
   * Quota / rate-limit issues with your account.
   * Per-question prompt rendering bugs.
 
+Add the cap to your `.env` (or set in shell). With `.env`:
+
+```dotenv
+LONGMEMEVAL_MAX_QUESTIONS=10
+```
+
+Then run:
+
 ```powershell
-$env:LONGMEMEVAL_MAX_QUESTIONS = "10"
 python -m engram.bench run longmemeval `
   --embedder openai `
   --chat openai `
@@ -85,8 +103,9 @@ python -m engram.bench run longmemeval `
   --runs-dir benchmarks/runs/local
 ```
 
-You'll see one line per 10 questions logging the running accuracy.
-The manifest is written under `benchmarks/runs/local/`.
+You'll see `loaded .env` on stderr, one progress line per 10
+questions, and a final manifest path. The manifest is written under
+`benchmarks/runs/local/`.
 
 Inspect:
 
@@ -98,10 +117,10 @@ python -c "import json; from pathlib import Path; m = sorted(Path('benchmarks/ru
 
 ## 5. Full run (500 questions, ~$1)
 
-Clear the smoke cap and run the full split:
+Comment out (or delete) the `LONGMEMEVAL_MAX_QUESTIONS` line in
+`.env`, then run:
 
 ```powershell
-$env:LONGMEMEVAL_MAX_QUESTIONS = ""
 python -m engram.bench run longmemeval `
   --embedder openai `
   --chat openai `

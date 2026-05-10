@@ -44,6 +44,11 @@ consolidation = [
 bench = [
     # Baselines we measure against. Heavy install; opt in.
     "chromadb>=0.5",
+    # Loads .env files for local benchmark runs so users don't have to set
+    # OPENAI_API_KEY / ANTHROPIC_API_KEY / MOONSHOT_API_KEY in every shell.
+    # The CLI checks for python-dotenv at startup; if absent, env vars must
+    # be set the old-fashioned way.
+    "python-dotenv>=1.0",
 ]
 dev = [
     "pytest>=8",
@@ -58,6 +63,8 @@ dev = [
     "anthropic>=0.40",
     # Consolidation backend so the HDBSCAN tests run in CI as well.
     "hdbscan>=0.8.40",
+    # .env loading for local bench runs.
+    "python-dotenv>=1.0",
 ]
 
 [project.scripts]
