@@ -84,3 +84,49 @@ def test_cluster_cohesion_bounds() -> None:
         Cluster(cohesion=-0.1)
     with pytest.raises(ValidationError):
         Cluster(cohesion=1.5)
+
+
+def test_retrieval_result_basic() -> None:
+    from engram.schemas import RetrievalResult
+
+    item_id = new_id()
+    r = RetrievalResult(
+        item_id=item_id,
+        level=Level.EVENT,
+        content="hello",
+        confidence=0.9,
+        score=0.85,
+        supported_by=(item_id,),
+    )
+    assert r.item_id == item_id
+    assert r.level == Level.EVENT
+    assert r.confidence == 0.9
+
+
+def test_retrieval_result_confidence_bounds() -> None:
+    from engram.schemas import RetrievalResult
+
+    with pytest.raises(ValidationError):
+        RetrievalResult(
+            item_id=new_id(),
+            level=Level.EVENT,
+            content="x",
+            confidence=1.1,
+            score=0.5,
+            supported_by=(new_id(),),
+        )
+
+
+def test_retrieval_result_is_frozen() -> None:
+    from engram.schemas import RetrievalResult
+
+    r = RetrievalResult(
+        item_id=new_id(),
+        level=Level.EVENT,
+        content="x",
+        confidence=0.5,
+        score=0.5,
+        supported_by=(new_id(),),
+    )
+    with pytest.raises(ValidationError):
+        r.content = "y"  # type: ignore[misc]

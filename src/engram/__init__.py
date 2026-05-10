@@ -10,6 +10,7 @@ from engram.schemas import (
     Level,
     MemoryItem,
     ProvenanceLink,
+    RetrievalResult,
 )
 from engram.storage import SqliteStorage, Storage, StorageStats, stats
 
@@ -22,6 +23,7 @@ __all__ = [
     "Memory",
     "MemoryItem",
     "ProvenanceLink",
+    "RetrievalResult",
     "SqliteStorage",
     "Storage",
     "StorageStats",

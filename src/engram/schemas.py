@@ -115,3 +115,23 @@ class ProvenanceLink(BaseModel):
     event_id: UUID
     weight: float = Field(default=1.0, ge=0.0, le=1.0)
     created_at: datetime = Field(default_factory=_utcnow)
+
+
+class RetrievalResult(BaseModel):
+    """One result returned from `Memory.retrieve`.
+
+    Carries the same shape across hierarchy levels: at Stage 3 every result
+    is `level=EVENT`, the `confidence` is the cosine similarity to the
+    query, and `supported_by` is the singleton `[item_id]` (the event
+    itself is its only support). Stage 6 generalizes - abstractions return
+    the supporting event ids and a confidence derived from cluster cohesion.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    item_id: UUID
+    level: Level
+    content: str
+    confidence: float = Field(ge=0.0, le=1.0)
+    score: float
+    supported_by: tuple[UUID, ...]
