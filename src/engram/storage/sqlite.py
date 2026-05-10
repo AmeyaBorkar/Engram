@@ -15,7 +15,7 @@ from __future__ import annotations
 import contextlib
 import sqlite3
 import threading
-from collections.abc import Iterable, Iterator, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -674,3 +674,83 @@ class SqliteStorage:
             "corroboration_total": int(row["corroboration_total"] or 0),
             "contradiction_total": int(row["contradiction_total"] or 0),
         }
+
+    # --- consolidation helpers ---------------------------------------------
+
+    def iter_unconsolidated_events_with_embeddings(
+        self,
+        *,
+        model: str,
+        limit: int | None = None,
+        batch_size: int = 256,
+    ) -> Iterator[tuple[Event, list[float]]]:
+        if batch_size < 1:
+            raise ValueError(f"batch_size must be >= 1, got {batch_size}")
+        if limit is not None and limit < 0:
+            raise ValueError(f"limit must be >= 0, got {limit}")
+
+        sql = (
+            "SELECT e.id AS id, e.content AS content, e.metadata AS metadata, "
+            "       e.source AS source, e.created_at AS created_at, "
+            "       emb.vector AS vector, emb.dim AS dim "
+            "FROM events e "
+            "JOIN embeddings emb ON emb.item_id = e.id AND emb.item_kind = 'event' "
+            "WHERE emb.model = ? "
+            "  AND e.cold_at IS NULL "
+            "  AND NOT EXISTS (SELECT 1 FROM provenance_links p WHERE p.event_id = e.id) "
+            "ORDER BY e.created_at ASC, e.id ASC"
+        )
+        params: tuple[Any, ...] = (model,)
+        if limit is not None:
+            sql += " LIMIT ?"
+            params = (model, limit)
+        cursor = self._connect().execute(sql, params)
+        try:
+            while True:
+                rows = cursor.fetchmany(batch_size)
+                if not rows:
+                    return
+                for row in rows:
+                    event = Event(
+                        id=UUID(bytes=row["id"]),
+                        content=row["content"],
+                        metadata=loads_metadata(row["metadata"]),
+                        source=row["source"],
+                        created_at=parse_iso(row["created_at"]),
+                    )
+                    dim = int(row["dim"])
+                    vec = list(unpack_vector(row["vector"], dim))
+                    yield event, vec
+        finally:
+            cursor.close()
+
+    def insert_memory_item_with_provenance(
+        self,
+        item: MemoryItem,
+        supporting_event_ids: Sequence[UUID],
+        *,
+        cluster: Cluster | None = None,
+        embedding: Embedding | None = None,
+        provenance_weights: Mapping[UUID, float] | None = None,
+    ) -> list[ProvenanceLink]:
+        if item.level is not Level.EVENT and not supporting_event_ids:
+            raise ValueError(
+                f"memory item at level={item.level.value} requires at least one "
+                "supporting event id; none given"
+            )
+        if embedding is not None and embedding.item_id != item.id:
+            raise ValueError(
+                f"embedding.item_id {embedding.item_id} does not match item.id {item.id}"
+            )
+        weights = dict(provenance_weights) if provenance_weights else {}
+        links: list[ProvenanceLink] = []
+        with self.transaction():
+            if cluster is not None:
+                self.insert_cluster(cluster)
+            self.insert_memory_item(item)
+            if embedding is not None:
+                self.insert_embedding(embedding)
+            for event_id in supporting_event_ids:
+                weight = weights.get(event_id, 1.0)
+                links.append(self.link_provenance(item.id, event_id, weight))
+        return links

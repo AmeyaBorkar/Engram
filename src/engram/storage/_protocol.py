@@ -10,7 +10,7 @@ surface on top.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Iterator, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from contextlib import AbstractContextManager
 from datetime import datetime
 from typing import Protocol, runtime_checkable
@@ -172,4 +172,52 @@ class Storage(Protocol):
         active pool). Backends MUST compute this in the storage engine
         rather than streaming rows - the metrics surface is read on every
         scrape.
+        """
+
+    # --- consolidation helpers ---------------------------------------------
+
+    def iter_unconsolidated_events_with_embeddings(
+        self,
+        *,
+        model: str,
+        limit: int | None = None,
+        batch_size: int = 256,
+    ) -> Iterator[tuple[Event, list[float]]]:
+        """Stream `(event, vector)` pairs for events that have no
+        provenance link yet (i.e. have not been consolidated into any
+        memory item) and a stored embedding for `model`.
+
+        Cold events are excluded - they have already been pruned from the
+        active surface and consolidating them would resurrect them.
+
+        Order: `created_at` ascending, then `id` ascending. Stable across
+        replays so deterministic ordering of clusters and abstractions
+        falls out automatically.
+        """
+
+    def insert_memory_item_with_provenance(
+        self,
+        item: MemoryItem,
+        supporting_event_ids: Sequence[UUID],
+        *,
+        cluster: Cluster | None = None,
+        embedding: Embedding | None = None,
+        provenance_weights: Mapping[UUID, float] | None = None,
+    ) -> list[ProvenanceLink]:
+        """Atomically persist a consolidated memory item and its provenance.
+
+        Inserts (in this order, in one transaction):
+          * the optional `cluster` (so the item's `cluster_id` resolves)
+          * the `item` itself
+          * the optional `embedding` (typed as a `MEMORY_ITEM` embedding)
+          * one provenance link per id in `supporting_event_ids`
+
+        Raises:
+          * `ValueError` if `item.level` is anything other than `EVENT`
+            and `supporting_event_ids` is empty - non-event items must
+            cite at least one supporting event (the README's invariant).
+          * the usual storage errors on FK / CHECK violations.
+
+        Returns the created provenance links in the same order as
+        `supporting_event_ids`.
         """
