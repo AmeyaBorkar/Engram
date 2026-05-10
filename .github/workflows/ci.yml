@@ -78,6 +78,10 @@ jobs:
           python-version: "3.13"
       - name: Install project + extras + pip-audit
         run: |
+          # Upgrade pip first so CVEs against the runner's bundled pip
+          # itself (which we don't actually depend on at runtime) are fixed
+          # where upstream provides a patch.
+          python -m pip install --upgrade pip
           pip install -e ".[dev,openai,anthropic,postgres,duckdb]"
           pip install pip-audit
       - name: Audit
@@ -86,4 +90,8 @@ jobs:
         # pip-audit still exits non-zero if any of them has a known CVE.
         # `--strict` is intentionally absent: with it, the skipped editable
         # itself becomes a CI-blocking error.
-        run: pip-audit --skip-editable
+        #
+        # `--ignore-vuln CVE-2026-3219` — pip CLI CVE with no fix available
+        # at the time of writing. pip is not a runtime dependency of engram;
+        # remove this ignore once upstream ships a patch.
+        run: pip-audit --skip-editable --ignore-vuln CVE-2026-3219
