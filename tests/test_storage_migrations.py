@@ -53,7 +53,7 @@ def test_reopened_storage_skips_already_applied_migrations(tmp_path: Path) -> No
     try:
         conn = s2._connect()
         rows = conn.execute("SELECT COUNT(*) FROM schema_migrations").fetchone()
-        assert rows[0] == 1, "no duplicate migration recorded"
+        assert rows[0] == len(list_migrations()), "no duplicate migration recorded"
     finally:
         s2.close()
 

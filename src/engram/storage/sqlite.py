@@ -173,13 +173,20 @@ class SqliteStorage:
     # --- events -------------------------------------------------------------
 
     def insert_event(self, event: Event) -> None:
+        # `last_decayed_at` defaults to `created_at` so the first decay tick
+        # has a sane dt. `weight` defaults to 1.0 via the column default;
+        # we don't override it here because Stage 4 ships a single insert
+        # path that always starts items hot.
         self._connect().execute(
-            "INSERT INTO events (id, content, metadata, source, created_at) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO events "
+            "(id, content, metadata, source, created_at, last_decayed_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
             (
                 event.id.bytes,
                 event.content,
                 dumps_metadata(event.metadata),
                 event.source,
+                iso(event.created_at),
                 iso(event.created_at),
             ),
         )
@@ -192,13 +199,16 @@ class SqliteStorage:
                 dumps_metadata(e.metadata),
                 e.source,
                 iso(e.created_at),
+                iso(e.created_at),
             )
             for e in events
         ]
         if not rows:
             return 0
         self._connect().executemany(
-            "INSERT INTO events (id, content, metadata, source, created_at) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO events "
+            "(id, content, metadata, source, created_at, last_decayed_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
             rows,
         )
         return len(rows)
@@ -238,8 +248,9 @@ class SqliteStorage:
     def insert_memory_item(self, item: MemoryItem) -> None:
         self._connect().execute(
             "INSERT INTO memory_items "
-            "(id, level, content, weight, cluster_id, metadata, created_at, updated_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "(id, level, content, weight, cluster_id, metadata, "
+            "created_at, updated_at, last_decayed_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 item.id.bytes,
                 item.level.value,
@@ -248,6 +259,7 @@ class SqliteStorage:
                 item.cluster_id.bytes if item.cluster_id else None,
                 dumps_metadata(item.metadata),
                 iso(item.created_at),
+                iso(item.updated_at),
                 iso(item.updated_at),
             ),
         )
@@ -263,6 +275,7 @@ class SqliteStorage:
                 dumps_metadata(i.metadata),
                 iso(i.created_at),
                 iso(i.updated_at),
+                iso(i.updated_at),
             )
             for i in items
         ]
@@ -270,8 +283,9 @@ class SqliteStorage:
             return 0
         self._connect().executemany(
             "INSERT INTO memory_items "
-            "(id, level, content, weight, cluster_id, metadata, created_at, updated_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "(id, level, content, weight, cluster_id, metadata, "
+            "created_at, updated_at, last_decayed_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             rows,
         )
         return len(rows)
@@ -441,21 +455,20 @@ class SqliteStorage:
         *,
         k: int,
         model: str,
+        include_cold: bool = False,
     ) -> list[tuple[UUID, str, float]]:
         if k < 1:
             raise ValueError(f"k must be >= 1, got {k}")
-        rows = (
-            self._connect()
-            .execute(
-                "SELECT e.id AS event_id, e.content AS content, "
-                "       emb.vector AS vector, emb.dim AS dim "
-                "FROM embeddings emb "
-                "JOIN events e ON emb.item_id = e.id "
-                "WHERE emb.item_kind = 'event' AND emb.model = ?",
-                (model,),
-            )
-            .fetchall()
+        sql = (
+            "SELECT e.id AS event_id, e.content AS content, "
+            "       emb.vector AS vector, emb.dim AS dim "
+            "FROM embeddings emb "
+            "JOIN events e ON emb.item_id = e.id "
+            "WHERE emb.item_kind = 'event' AND emb.model = ?"
         )
+        if not include_cold:
+            sql += " AND e.cold_at IS NULL"
+        rows = self._connect().execute(sql, (model,)).fetchall()
         if not rows:
             return []
 

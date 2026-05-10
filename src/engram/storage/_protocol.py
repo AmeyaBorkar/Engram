@@ -105,11 +105,15 @@ class Storage(Protocol):
         *,
         k: int,
         model: str,
+        include_cold: bool = False,
     ) -> list[tuple[UUID, str, float]]:
         """Top-k events by cosine similarity to `query_vec`.
 
         Returns `(event_id, content, score)` triples sorted by score desc.
         Both `query_vec` and stored embedding vectors are assumed unit-norm,
         so cosine similarity reduces to a dot product. Only embeddings
-        matching `model` are considered.
+        matching `model` are considered. Items pruned by the decay engine
+        (`cold_at IS NOT NULL`) are excluded by default; pass
+        `include_cold=True` to surface them anyway (audit / inspection
+        flows).
         """
