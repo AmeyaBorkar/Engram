@@ -41,6 +41,8 @@ The numbers in this file are **pinned** to a specific source per row. They get r
 | `observe` | 10k events | < 50 ms | < 200 ms | **passing** (Stage 3, FakeEmbedder, local) |
 | `retrieve` (flat) | 10k events | < 100 ms | < 300 ms | **passing** (Stage 3, FakeEmbedder, local) |
 | `retrieve` (coarse-to-fine) | 100k items | < 150 ms | < 500 ms | not yet measurable |
+| `decay.record` | per-signal | < 5 ms | < 20 ms | **passing** (Stage 4, in-memory, local) |
+| `decay.tick` | 10k hot items | < 500 ms | < 2 s | **passing** (Stage 4, local) |
 | `consolidate` | per-event @ fake provider | n/a | n/a (≥ 100 / s throughput) | not yet measurable |
 | `consolidate` | per-event @ real provider | n/a | n/a (≥ 10 / s with batching) | not yet measurable |
 
@@ -77,3 +79,4 @@ A row without a source is a row we don't trust yet. **We do not claim to have cr
 |---|---|---|
 | 2026-05-10 | Initial scaffold. No measurements yet. | n/a |
 | 2026-05-10 | Stage 3: observe/retrieve P50 budgets verified locally (FakeEmbedder); recall-smoke against Chroma + Chroma+BM25 reaches the 1.0 floor on exact-text queries. | CI-uploaded |
+| 2026-05-10 | Stage 4: decay engine ships with 100% line+branch coverage on the math, end-to-end replayability (bit-identical weights across runs), and metrics surface (`DecayMetrics`). | CI-uploaded |
