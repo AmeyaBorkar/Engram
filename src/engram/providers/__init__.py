@@ -14,7 +14,21 @@ the public surface as it lands.
 """
 
 from engram.providers._cache import Cache, content_hash
+from engram.providers._fake import FakeChat, FakeEmbedder
+from engram.providers._message import Message, Role
+from engram.providers._protocols import ChatProvider, EmbeddingProvider
 from engram.providers._redactor import Redactor
 from engram.providers._retry import Retry
 
-__all__ = ["Cache", "Redactor", "Retry", "content_hash"]
+__all__ = [
+    "Cache",
+    "ChatProvider",
+    "EmbeddingProvider",
+    "FakeChat",
+    "FakeEmbedder",
+    "Message",
+    "Redactor",
+    "Retry",
+    "Role",
+    "content_hash",
+]
