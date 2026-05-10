@@ -119,6 +119,27 @@ class Storage(Protocol):
         flows).
         """
 
+    def search_memory_item_embeddings(
+        self,
+        query_vec: Sequence[float],
+        *,
+        k: int,
+        model: str,
+        levels: Sequence[Level] | None = None,
+        exclude_ids: Sequence[UUID] = (),
+        include_cold: bool = False,
+    ) -> list[tuple[UUID, str, float]]:
+        """Top-k memory items by cosine similarity to `query_vec`.
+
+        Returns `(item_id, content, score)` triples sorted by score desc.
+        `levels` filters to a subset of `Level` (None means any). The
+        contradiction detector passes `levels=[SUMMARY, ABSTRACTION]` -
+        it has no interest in event-level memory items. `exclude_ids`
+        is a small set of memory_item ids to skip (the engine excludes
+        the just-inserted abstraction when checking against existing
+        ones). Cold items are excluded by default.
+        """
+
     # --- decay state --------------------------------------------------------
 
     def get_decay_state(self, item_id: UUID, kind: ItemKind) -> DecayState | None:

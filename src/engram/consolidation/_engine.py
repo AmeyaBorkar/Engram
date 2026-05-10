@@ -55,6 +55,13 @@ from engram.consolidation._clustering import (
 from engram.consolidation._clustering import (
     cluster as cluster_vectors,
 )
+from engram.consolidation._contradiction import (
+    CandidateRow,
+    Conflict,
+    ContradictionParams,
+    conflicts_to_metadata,
+    detect_contradictions,
+)
 from engram.providers._protocols import ChatProvider, EmbeddingProvider
 from engram.schemas import (
     Cluster,
@@ -83,12 +90,18 @@ class ConsolidationParams:
     `level` is what the produced memory item lands at - in Stage 5
     everything is `Level.SUMMARY`; the promotion pass (later commit)
     elevates stable summaries to `Level.ABSTRACTION`.
+
+    `contradiction_params` configures the contradiction detector. By
+    default the detector is disabled - turning it on adds one LLM call
+    per surviving candidate per consolidate, so callers opt in
+    explicitly.
     """
 
     cluster_params: ClusterParams = field(default_factory=ClusterParams)
     support_weight: float = 0.5
     level: Level = Level.SUMMARY
     abstraction_max_retries: int = 1
+    contradiction_params: ContradictionParams = field(default_factory=ContradictionParams)
 
     def __post_init__(self) -> None:
         if not 0.0 <= self.support_weight <= 1.0:
@@ -107,7 +120,9 @@ class ConsolidationResult:
     (`abstractions_created`), and every abstraction that failed even
     after retries (`abstractions_failed`). `events_consolidated` is the
     number of events that ended up in some abstraction (i.e. now have a
-    provenance link).
+    provenance link). `conflicts_detected` is the number of CONTRADICT
+    verdicts the judge produced across all clusters (only non-zero
+    when contradiction detection is enabled).
     """
 
     started_at: datetime
@@ -117,6 +132,7 @@ class ConsolidationResult:
     abstractions_created: int
     abstractions_failed: int
     events_consolidated: int
+    conflicts_detected: int = 0
 
 
 class ConsolidationEngine:
@@ -185,13 +201,15 @@ class ConsolidationEngine:
         created = 0
         failed = 0
         events_consolidated = 0
+        conflicts_detected = 0
         for assignment in assignments:
-            ok = self._consolidate_one_cluster(events, vectors, assignment)
-            if ok:
+            outcome = self._consolidate_one_cluster(events, vectors, assignment)
+            if outcome is None:
+                failed += 1
+            else:
                 created += 1
                 events_consolidated += len(assignment.members)
-            else:
-                failed += 1
+                conflicts_detected += outcome
 
         return ConsolidationResult(
             started_at=started_at,
@@ -201,6 +219,7 @@ class ConsolidationEngine:
             abstractions_created=created,
             abstractions_failed=failed,
             events_consolidated=events_consolidated,
+            conflicts_detected=conflicts_detected,
         )
 
     def _consolidate_one_cluster(
@@ -208,11 +227,12 @@ class ConsolidationEngine:
         events: Sequence[Event],
         _vectors: FloatMatrix,
         assignment: ClusterAssignment,
-    ) -> bool:
+    ) -> int | None:
         """Run abstraction + atomic write for one cluster.
 
-        Returns True on success. False on parse/extraction failure (already
-        logged); the events stay unconsolidated for the next pass.
+        Returns the number of detected contradictions on success. Returns
+        None on parse/extraction failure (already logged); the events
+        stay unconsolidated for the next pass.
         """
         member_indices = list(assignment.members)
         cluster_events = [events[i] for i in member_indices]
@@ -233,15 +253,18 @@ class ConsolidationEngine:
                 "consolidation: abstraction failed after retries (cluster size=%d)",
                 len(member_indices),
             )
-            return False
+            return None
 
         # Embed the abstraction text via the same embedding model.
         ab_vec = self._embedder.embed([result.abstraction])[0]
         ab_unit = _normalize(ab_vec)
 
+        # Contradiction detection (vector recall + LLM judge).
+        conflicts = self._detect_conflicts(ab_unit, result.abstraction)
+
         # Build storage rows.
         cluster = Cluster(cohesion=_clamp01(assignment.cohesion))
-        metadata = _build_metadata(result, assignment, request)
+        metadata = _build_metadata(result, assignment, request, conflicts)
         item = MemoryItem(
             level=self._params.level,
             content=result.abstraction,
@@ -274,13 +297,43 @@ class ConsolidationEngine:
             embedding=embedding,
             provenance_weights=provenance_weights,
         )
-        return True
+        return len(conflicts)
+
+    def _detect_conflicts(
+        self,
+        new_vec: Sequence[float],
+        new_text: str,
+    ) -> list[Conflict]:
+        cp = self._params.contradiction_params
+        if not cp.enabled:
+            return []
+        # Vector recall: pull top-K candidates above threshold.
+        hits = self._storage.search_memory_item_embeddings(
+            new_vec,
+            k=cp.max_candidates,
+            model=self._embedder.model,
+            levels=(Level.SUMMARY, Level.ABSTRACTION),
+        )
+        candidates = [
+            CandidateRow(item_id=item_id, content=content, similarity=sim)
+            for item_id, content, sim in hits
+            if sim >= cp.similarity_threshold
+        ]
+        if not candidates:
+            return []
+        return detect_contradictions(
+            new_abstraction=new_text,
+            candidates=candidates,
+            chat=self._chat,
+            params=cp,
+        )
 
 
 def _build_metadata(
     result: AbstractionResult,
     assignment: ClusterAssignment,
     request: AbstractionRequest,
+    conflicts: list[Conflict],
 ) -> dict[str, Any]:
     """Provenance/audit fields stored on each consolidated memory item."""
     return {
@@ -290,6 +343,7 @@ def _build_metadata(
             "cohesion": _clamp01(assignment.cohesion),
             "supports": list(result.supports),
             "n_observations": len(request.observations),
+            "conflicts": conflicts_to_metadata(conflicts),
         }
     }
 

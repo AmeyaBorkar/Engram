@@ -42,6 +42,7 @@ PROMPT_FILENAME = f"{PROMPT_NAME}_{PROMPT_VERSION}.txt"
 # version reads this dict. We add an entry on every version bump.
 PROMPT_VERSIONS: dict[str, str] = {
     PROMPT_NAME: PROMPT_VERSION,
+    "judge": "v1",
 }
 
 

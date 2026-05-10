@@ -577,6 +577,63 @@ class SqliteStorage:
             for i in order
         ]
 
+    def search_memory_item_embeddings(
+        self,
+        query_vec: Sequence[float],
+        *,
+        k: int,
+        model: str,
+        levels: Sequence[Level] | None = None,
+        exclude_ids: Sequence[UUID] = (),
+        include_cold: bool = False,
+    ) -> list[tuple[UUID, str, float]]:
+        if k < 1:
+            raise ValueError(f"k must be >= 1, got {k}")
+        sql = (
+            "SELECT mi.id AS item_id, mi.content AS content, "
+            "       emb.vector AS vector, emb.dim AS dim "
+            "FROM embeddings emb "
+            "JOIN memory_items mi ON emb.item_id = mi.id "
+            "WHERE emb.item_kind = 'memory_item' AND emb.model = ?"
+        )
+        params: list[Any] = [model]
+        if not include_cold:
+            sql += " AND mi.cold_at IS NULL"
+        if levels:
+            placeholders = ",".join("?" for _ in levels)
+            sql += f" AND mi.level IN ({placeholders})"
+            params.extend(level.value for level in levels)
+        if exclude_ids:
+            placeholders = ",".join("?" for _ in exclude_ids)
+            sql += f" AND mi.id NOT IN ({placeholders})"
+            params.extend(item_id.bytes for item_id in exclude_ids)
+        rows = self._connect().execute(sql, params).fetchall()
+        if not rows:
+            return []
+
+        dim = int(rows[0]["dim"])
+        if len(query_vec) != dim:
+            raise ValueError(
+                f"query_vec dim {len(query_vec)} does not match stored embedding dim {dim}"
+            )
+        n = len(rows)
+        vecs = np.empty((n, dim), dtype=np.float32)
+        for i, row in enumerate(rows):
+            vecs[i] = np.frombuffer(row["vector"], dtype=np.float32, count=dim)
+        q = np.asarray(query_vec, dtype=np.float32)
+        scores = vecs @ q
+
+        k_eff = min(k, n)
+        if k_eff == n:
+            order = np.argsort(-scores)
+        else:
+            cand = np.argpartition(-scores, k_eff - 1)[:k_eff]
+            order = cand[np.argsort(-scores[cand])]
+        return [
+            (UUID(bytes=rows[i]["item_id"]), str(rows[i]["content"]), float(scores[i]))
+            for i in order
+        ]
+
     # --- decay state --------------------------------------------------------
 
     def get_decay_state(self, item_id: UUID, kind: ItemKind) -> DecayState | None:
