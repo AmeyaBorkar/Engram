@@ -40,7 +40,7 @@ The numbers in this file are **pinned** to a specific source per row. They get r
 |---|---|---|---|---|
 | `observe` | 10k events | < 50 ms | < 200 ms | **passing** (Stage 3, FakeEmbedder, local) |
 | `retrieve` (flat) | 10k events | < 100 ms | < 300 ms | **passing** (Stage 3, FakeEmbedder, local) |
-| `retrieve` (coarse-to-fine) | 100k items | < 150 ms | < 500 ms | not yet measurable |
+| `retrieve` (coarse-to-fine) | 100k items | < 150 ms | < 500 ms | **passing** (Stage 6, FakeEmbedder dim=128, warm cache, local). Measured: P50 ~ 2.3 ms / P99 ~ 3.1 ms via the in-memory `VectorIndex`. |
 | `decay.record` | per-signal | < 5 ms | < 20 ms | **passing** (Stage 4, in-memory, local) |
 | `decay.tick` | 10k hot items | < 500 ms | < 2 s | **passing** (Stage 4, local) |
 | `consolidate` | per-event @ fake provider | n/a | n/a (≥ 100 / s throughput) | **passing** (Stage 5, FakeChat scripted, local) |
@@ -81,3 +81,4 @@ A row without a source is a row we don't trust yet. **We do not claim to have cr
 | 2026-05-10 | Stage 3: observe/retrieve P50 budgets verified locally (FakeEmbedder); recall-smoke against Chroma + Chroma+BM25 reaches the 1.0 floor on exact-text queries. | CI-uploaded |
 | 2026-05-10 | Stage 4: decay engine ships with 100% line+branch coverage on the math, end-to-end replayability (bit-identical weights across runs), and metrics surface (`DecayMetrics`). | CI-uploaded |
 | 2026-05-10 | Stage 5: consolidation pipeline (clustering + abstraction + contradiction + promotion). Throughput >= 100 events/s on FakeChat. Provenance integrity invariant survives Hypothesis fuzzing. Prompt-injection corpus regression suite (`looks_like_injection` filter rejects every CORPUS payload echo). | CI-uploaded |
+| 2026-05-10 | Stage 6: coarse-to-fine retrieve. `Memory.retrieve(prefer=...)` reads the `{summary, abstraction}` layer first, drills into supporting events when confidence is low, optionally cross-encoder-reranks. In-memory `VectorIndex` cache hits warm-cache P50 ~ 2.3 ms / P99 ~ 3.1 ms at 100k items / dim=128 (50x under the SCOREBOARD budget). Hierarchical recall lift over flat ~ +100 pp on the synthetic centroid-orthogonal-events split. LongMemEval / LoCoMo harness suites scaffolded; real scores pending real-provider runs. | CI-uploaded |
