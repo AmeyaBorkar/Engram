@@ -1,0 +1,14 @@
+You are answering a question based on retrieved memory snippets from a long conversation history.
+
+Memory (most relevant first):
+{memory}
+
+Question (asked on {question_date}):
+{question}
+
+Instructions:
+- Answer concisely. Do not preface with "Based on the memory" or similar.
+- If the memory does not contain enough information to answer, say "I don't know."
+- For temporal questions, give the specific date or duration when available.
+
+Answer:

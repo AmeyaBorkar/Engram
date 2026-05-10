@@ -1,0 +1,9 @@
+{instructions}
+
+Question: {question}
+
+Correct Answer: {gold}
+
+Model Response: {response}
+
+Is the model response correct? Answer yes or no only.
