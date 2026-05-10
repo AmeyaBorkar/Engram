@@ -50,6 +50,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import math
 import os
 import time
 from collections.abc import Sequence
@@ -60,7 +61,7 @@ from typing import Any
 from engram import Memory, SqliteStorage
 from engram.bench import Provider, SuiteResult
 from engram.providers._message import Message
-from engram.schemas import Event
+from engram.schemas import Embedding, Event, ItemKind
 
 _LOG = logging.getLogger("engram.bench.longmemeval")
 
@@ -228,8 +229,21 @@ def _judge(
 
 
 def _ingest_haystack(memory: Memory, q: _Question) -> int:
-    """Observe every turn from the haystack into Memory. Returns turn count."""
-    n = 0
+    """Batch-embed every turn from the haystack and insert into storage.
+
+    `Memory.observe(...)` embeds and inserts ONE event at a time. For
+    LongMemEval that's ~500 single-text embedder calls per question --
+    sentence-transformers and OpenAI both pay a per-call overhead that
+    dominates at this granularity (model warm-up on GPU, HTTP round
+    trip on the API). Batching all turns in one `embedder.embed(...)`
+    call cuts per-question ingestion from ~5 min to ~5 s on GPU and
+    from ~30 min to ~30 s on CPU for the same haystack size.
+
+    We bypass `Memory.observe` deliberately and call storage directly
+    so the batch stays one transaction.
+    """
+    events: list[Event] = []
+    contents: list[str] = []
     for session_idx, session in enumerate(q.haystack_sessions):
         date = q.haystack_dates[session_idx] if session_idx < len(q.haystack_dates) else ""
         for turn in session:
@@ -238,9 +252,31 @@ def _ingest_haystack(memory: Memory, q: _Question) -> int:
                 continue
             role = turn.get("role", "unknown")
             framed = f"[{date}] [{role}] {content}" if date else f"[{role}] {content}"
-            memory.observe(Event(content=framed, source=role))
-            n += 1
-    return n
+            events.append(Event(content=framed, source=role))
+            contents.append(framed)
+    if not events:
+        return 0
+    embedder = memory.embedder
+    storage = memory.storage
+    vectors = embedder.embed(contents)
+    with storage.transaction():
+        storage.insert_events(events)
+        for event, raw_vec in zip(events, vectors, strict=True):
+            # L2-normalize so cosine similarity reduces to a dot product
+            # in storage. Already-normalized vectors (bge-* via
+            # `normalize_embeddings=True`) survive the pass intact.
+            norm = math.sqrt(sum(x * x for x in raw_vec))
+            vec = [x / norm for x in raw_vec] if norm > 0 else list(raw_vec)
+            storage.insert_embedding(
+                Embedding(
+                    item_id=event.id,
+                    item_kind=ItemKind.EVENT,
+                    model=embedder.model,
+                    dim=embedder.dim,
+                    vector=tuple(vec),
+                )
+            )
+    return len(events)
 
 
 class LongMemEvalSuite:
@@ -316,7 +352,9 @@ class LongMemEvalSuite:
             storage.initialize()
             try:
                 memory = Memory(storage=storage, embedder=embedder, chat=chat)
+                t_ingest = time.perf_counter()
                 turns = _ingest_haystack(memory, q)
+                ingest_ms = (time.perf_counter() - t_ingest) * 1000.0
 
                 t0 = time.perf_counter()
                 results = memory.retrieve(q.question, k=self._k, reinforce=False)
@@ -357,11 +395,16 @@ class LongMemEvalSuite:
                     correct_so_far = sum(s for vs in per_type_scores.values() for s in vs)
                     total = sum(len(vs) for vs in per_type_scores.values())
                     _LOG.info(
-                        "q %d/%d [%s] -> %s (acc so far = %.3f)",
+                        "q %d/%d [%s] -> %s "
+                        "(ingest %d turns in %.1fs, ans %.1fs, jud %.1fs; acc=%.3f)",
                         q_idx + 1,
                         len(questions),
                         q.qtype,
                         "PASS" if score == 1.0 else "FAIL",
+                        turns,
+                        ingest_ms / 1000.0,
+                        answer_ms[-1] / 1000.0,
+                        judge_ms[-1] / 1000.0,
                         correct_so_far / total if total else 0.0,
                     )
             finally:

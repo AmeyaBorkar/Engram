@@ -26,6 +26,7 @@ that's roughly 1.3 GiB on disk; the download happens once.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Sequence
 
 try:
@@ -35,6 +36,8 @@ except ImportError as _exc:  # pragma: no cover
         "sentence-transformers is not installed. Install with: "
         "pip install 'engram[bench]'   # or: pip install sentence-transformers"
     ) from _exc
+
+_LOG = logging.getLogger("engram.providers.local")
 
 
 def _detect_device() -> str:
@@ -66,7 +69,7 @@ class LocalEmbedder:
         model: str = "BAAI/bge-large-en-v1.5",
         *,
         device: str | None = None,
-        batch_size: int = 32,
+        batch_size: int = 64,
         dim: int | None = None,
         normalize: bool = True,
     ) -> None:
@@ -80,6 +83,22 @@ class LocalEmbedder:
         if dim is not None and dim != native_dim:
             raise ValueError(f"requested dim={dim} does not match model native dim={native_dim}")
         self.dim = native_dim
+        if chosen_device == "cpu":
+            _LOG.warning(
+                "LocalEmbedder running on CPU (model=%s, dim=%d). Expect ~50x slower "
+                "than CUDA. If you have an NVIDIA GPU, install CUDA-enabled torch via "
+                "`pip install torch --index-url https://download.pytorch.org/whl/cu124`.",
+                model,
+                native_dim,
+            )
+        else:
+            _LOG.info(
+                "LocalEmbedder ready: model=%s device=%s dim=%d batch=%d",
+                model,
+                chosen_device,
+                native_dim,
+                batch_size,
+            )
 
     def embed(self, texts: Sequence[str]) -> list[list[float]]:
         if not texts:
