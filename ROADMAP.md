@@ -44,6 +44,16 @@ These apply at every stage. A change cannot land if it regresses any of these.
 - **Metrics.** OpenTelemetry spans on every public call from Stage 9; counters/histograms for queue depth, batch size, decay tick duration, and provider latency.
 - **Backwards-compat.** Within a minor version, no breaking API changes. Deprecations carry a one-minor warning before removal.
 
+### SOTA discipline
+
+Beating state-of-the-art is the success criterion for this project, not a v1.0 nice-to-have. The full plan lives in `benchmarks/SOTA.md`; the running scoreboard lives in `benchmarks/SCOREBOARD.md`. The discipline that holds at every stage:
+
+- **Standing harness from Stage 1.** Even when there's no algorithm to test, the harness exists. The fake-provider smoke benchmark runs in CI on every PR.
+- **Pinned baselines.** Every benchmark run cites the specific paper / repo version of the system it's compared against. Stale comparisons don't count.
+- **Reproducibility manifests.** Every result has a manifest committed to `benchmarks/runs/` recording git commit, environment, config, dataset checksum, per-question scores, and bootstrap CIs.
+- **Public scoreboard.** `SCOREBOARD.md` is updated on every release and whenever a tracked baseline publishes new numbers. We don't hide losses.
+- **No vibes.** A claim of "we beat X" needs a manifest. Without one, the claim doesn't enter the README, the changelog, or marketing.
+
 ---
 
 ## Stages
@@ -80,6 +90,7 @@ A stage is "done" when its **Definition of Done** checks all pass. If a check is
 - Migrations as numbered SQL files under `src/engram/storage/migrations/`. Runtime applies pending migrations on first connect.
 - Indexes: `(created_at)`, `(weight)`, `(level)`, `(cluster_id)`. Vector similarity via `sqlite-vec` if installed; numpy fallback otherwise.
 - A read-only inspector helper for tests / debugging.
+- **Benchmark harness scaffold** (`benchmarks/harness/`) — CLI entry point, suite/baseline/run protocols, manifest writer. No algorithmic content; framework only. Runs end-to-end against a no-op suite using the fake provider in CI.
 
 **Out of scope.** Embedding generation, retrieval ranking, consolidation, decay updates.
 
@@ -89,6 +100,7 @@ A stage is "done" when its **Definition of Done** checks all pass. If a check is
 - Fuzz test: random byte payloads survive a roundtrip without panicking the layer.
 - Migration tests: each prior schema version upgrades cleanly to current.
 - Coverage ≥ 90% on the storage module.
+- `python -m engram.bench run noop --provider fake` succeeds in CI; produces a manifest in `benchmarks/runs/` with all required fields populated.
 
 ---
 
@@ -127,10 +139,10 @@ A stage is "done" when its **Definition of Done** checks all pass. If a check is
 **Out of scope.** Consolidation, decay scheduling, hierarchical retrieval.
 
 **Definition of done.**
-- P50 < 50 ms per `observe`, P50 < 100 ms per `retrieve` at 10k events on a laptop.
-- Recall@10 on a held-out conversational test set ≥ flat-vector-store baseline (Chroma).
+- P50 < 50 ms per `observe`, P50 < 100 ms per `retrieve` at 10k events on a laptop. Manifest committed.
+- Recall@10 on the held-out conversational split ≥ Chroma baseline. Adapters for Chroma and Chroma+BM25 land in `benchmarks/baselines/`. Manifest committed.
 - SIGKILL between calls leaves the store in a consistent state (tested).
-- 0 dropped events under concurrent observers (tested with 8 writers).
+- Zero dropped events under concurrent observers (tested with 8 writers).
 
 ---
 
@@ -185,9 +197,11 @@ A stage is "done" when its **Definition of Done** checks all pass. If a check is
 - `MemoryItem.level` faithfully reflects what the caller is reading.
 
 **Definition of done.**
-- Outperforms Stage 3 flat retrieval on **LongMemEval** recall@k by ≥ 10% on the chosen split.
-- Latency: P50 < 150 ms, P99 < 500 ms at 100k items on a laptop with `sqlite-vec`.
-- This stage tags **`v0.1.0`** — first PyPI release.
+- **LongMemEval:** meets or beats the best public number cited in `benchmarks/SCOREBOARD.md` at release time, on a single fixed split. Manifest committed.
+- **LoCoMo:** matches the best public RAG-class number on the temporal and adversarial splits. Manifests committed.
+- Outperforms Stage 3 flat retrieval on the same splits by ≥ 10% recall@k.
+- Latency: P50 < 150 ms, P99 < 500 ms at 100k items on a laptop with `sqlite-vec`. Manifest committed.
+- This stage tags **`v0.1.0`** — first PyPI release. The release blog post links to the manifests.
 
 ---
 
@@ -201,7 +215,8 @@ A stage is "done" when its **Definition of Done** checks all pass. If a check is
 - Integrations: LangGraph, LlamaIndex, raw OpenAI / Anthropic. Each integration has its own integration test that runs in CI.
 
 **Definition of done.**
-- Procedural transfer benchmark: an agent backed by Engram beats a no-memory baseline by ≥ 15% on a held-out task suite.
+- Procedural transfer benchmark defined and published in `benchmarks/suites/procedural/`.
+- An agent backed by Engram beats a no-memory baseline by ≥ 15% on a held-out task suite. Manifest committed.
 - Reinforcement-from-outcome path is exercised end-to-end in tests.
 
 ---
@@ -219,6 +234,7 @@ A stage is "done" when its **Definition of Done** checks all pass. If a check is
 **Definition of done.**
 - Adversarial test suite: contradicting events do not silently overwrite; the conflict is observable and resolvable.
 - Temporal queries return historically-correct state.
+- **LoCoMo temporal split:** Engram beats the best public RAG-class number cited in `benchmarks/SCOREBOARD.md`. Manifest committed.
 
 ---
 
@@ -254,6 +270,9 @@ A stage is "done" when its **Definition of Done** checks all pass. If a check is
 - All public symbols documented; doc build is part of CI.
 - Preprint accepted to arXiv; cited in README.
 - Public API has zero `# TODO` and no breaking changes since `v0.4.0`.
+- **LongMemEval:** ≥ 5 points absolute over best public number cited in `benchmarks/SCOREBOARD.md`. Manifest committed.
+- **LoCoMo adversarial:** ≥ 10 points absolute over best non-Engram approach. Manifest committed.
+- **Procedural transfer:** ≥ 10% lift over episodic-only Engram (i.e. abstraction layer is provably load-bearing). Manifest committed.
 
 ---
 

@@ -192,15 +192,17 @@ The headline difference is that Engram treats memory as a *living hierarchy that
 
 ## Benchmarks
 
-Evaluation is in progress. Planned benchmarks:
+The success criterion for Engram is **beating state-of-the-art on long-horizon memory benchmarks**, not just being correct in principle.
+
+Tracked suites:
 
 - **LongMemEval** — long-horizon conversational memory.
-- **LoCoMo** — multi-session dialogue with memory recall.
+- **LoCoMo** — multi-session dialogue with memory recall (especially the temporal and adversarial splits, where flat RAG breaks).
 - **Custom procedural transfer benchmark** — does an agent with Engram do better on tasks it has seen analogues of? (Constructed from agent traces.)
 
-Baselines: flat vector store (Chroma, Pinecone), mem0, Letta/MemGPT, full-context (where feasible).
+Tracked baselines: Chroma (flat dense), Chroma + BM25 (hybrid), Letta / MemGPT, Zep / Graphiti, Cognee, HippoRAG, mem0, A-MEM, full-context (as upper bound).
 
-Results will be published in the paper and tracked in [`/benchmarks`](./benchmarks).
+The full plan — targets, why-we-think-we-can-win, and the reproducibility discipline — is in [`benchmarks/SOTA.md`](./benchmarks/SOTA.md). The running comparison is in [`benchmarks/SCOREBOARD.md`](./benchmarks/SCOREBOARD.md). A claim of "we beat X" requires a committed manifest in `benchmarks/runs/`; without one it doesn't count.
 
 ---
 

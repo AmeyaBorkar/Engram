@@ -41,10 +41,10 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/ameyaborkar/engram"
-Repository = "https://github.com/ameyaborkar/engram"
-Issues = "https://github.com/ameyaborkar/engram/issues"
-Changelog = "https://github.com/ameyaborkar/engram/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/AmeyaBorkar/Engram"
+Repository = "https://github.com/AmeyaBorkar/Engram"
+Issues = "https://github.com/AmeyaBorkar/Engram/issues"
+Changelog = "https://github.com/AmeyaBorkar/Engram/blob/main/CHANGELOG.md"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/engram"]
