@@ -48,7 +48,7 @@ def _docs(n: int) -> list[str]:
 
 def _docs_checksum(n: int) -> str:
     h = hashlib.sha256()
-    h.update(f"latency-at-scale:n={n}".encode("utf-8"))
+    h.update(f"latency-at-scale:n={n}".encode())
     return h.hexdigest()
 
 
@@ -56,7 +56,7 @@ def _percentile(values: list[float], p: float) -> float:
     if not values:
         return 0.0
     s = sorted(values)
-    idx = int(round((p / 100.0) * (len(s) - 1)))
+    idx = round((p / 100.0) * (len(s) - 1))
     return s[idx]
 
 

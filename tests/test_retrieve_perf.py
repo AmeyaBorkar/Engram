@@ -38,7 +38,7 @@ COLD_REBUILD_BUDGET_MS = 1500.0
 
 def _percentile(values: list[float], p: float) -> float:
     s = sorted(values)
-    idx = int(round((p / 100.0) * (len(s) - 1)))
+    idx = round((p / 100.0) * (len(s) - 1))
     return s[idx]
 
 
