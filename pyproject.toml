@@ -41,6 +41,11 @@ dev = [
     "hypothesis>=6.100",
     "ruff>=0.5",
     "mypy>=1.10",
+    # Provider adapters are formally optional extras for end users; in dev
+    # we install them so mypy can typecheck the adapter modules and tests
+    # can use the real SDK types under mock.
+    "openai>=1.40",
+    "anthropic>=0.40",
 ]
 
 [project.scripts]
