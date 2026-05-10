@@ -149,6 +149,18 @@ def _openai_embedder(model: str | None, dim: int | None) -> EmbeddingProvider:
     )
 
 
+def _local_embedder(model: str | None, dim: int | None) -> EmbeddingProvider:
+    """sentence-transformers behind a GPU when available, CPU otherwise.
+
+    Default `BAAI/bge-large-en-v1.5` ships excellent retrieval quality
+    without an API key. The model downloads once into the HuggingFace
+    cache; subsequent runs are warm.
+    """
+    from engram.providers.local import LocalEmbedder
+
+    return LocalEmbedder(model=model or "BAAI/bge-large-en-v1.5", dim=dim)
+
+
 def _anthropic_chat(model: str | None) -> ChatProvider:
     from engram.providers.anthropic import AnthropicChat
 
@@ -170,6 +182,7 @@ _CHAT_BUILDERS: dict[str, Any] = {
 _EMBEDDER_BUILDERS: dict[str, Any] = {
     "fake": lambda model, dim: FakeEmbedder(dim=dim if dim is not None else 128),  # noqa: ARG005
     "openai": _openai_embedder,
+    "local": _local_embedder,
 }
 
 

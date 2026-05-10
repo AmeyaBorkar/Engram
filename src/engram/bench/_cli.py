@@ -82,8 +82,12 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument(
         "--embedder",
         default=None,
-        choices=("fake", "openai"),
-        help="Embedding provider (default: fake).",
+        choices=("fake", "openai", "local"),
+        help=(
+            "Embedding provider (default: fake). `local` runs "
+            "sentence-transformers on your GPU (CPU fallback) and "
+            "needs no API key; default model is BAAI/bge-large-en-v1.5."
+        ),
     )
     run.add_argument(
         "--chat",

@@ -15,11 +15,24 @@ HuggingFace into `benchmarks/datasets/`, which is gitignored.
 pip install -e ".[dev,openai,anthropic,bench]"
 ```
 
-`openai` is used as the embedder for every real-provider run (Anthropic
-and Moonshot don't ship public embedding models). `anthropic` is
-optional unless you plan to judge with Claude. Moonshot/Kimi reuses the
-OpenAI extra (Moonshot's API is OpenAI-compatible). The `bench` extra
-brings in `python-dotenv` for `.env` loading.
+`bench` brings in `python-dotenv` (`.env` loading) and
+`sentence-transformers` (the free local embedder).
+
+The embedder choices:
+
+  * `--embedder local` -- runs `sentence-transformers` on your GPU
+    (CPU fallback), no API key needed. Default model is
+    `BAAI/bge-large-en-v1.5` (1024-dim, near-OpenAI retrieval quality,
+    1.3 GiB download on first use). **Recommended when you have a GPU.**
+  * `--embedder openai` -- `text-embedding-3-small` via the OpenAI API
+    (~$0.30 per full LongMemEval-S run). Best apples-to-apples with
+    most published LongMemEval numbers.
+  * `--embedder fake` -- hash-based deterministic. Smoke runs only;
+    retrieval is random.
+
+`openai` extra is still useful if you want to mix real OpenAI chat
+into the answer or judge slot. `anthropic` is optional for the same
+reason. Moonshot/OpenCode reuse the OpenAI extra (OpenAI-compatible).
 
 ---
 
@@ -195,12 +208,22 @@ python -m engram.bench run longmemeval `
   --runs-dir benchmarks/runs/local
 ```
 
-**OpenCode Go as the answer model** (open-weight only — Kimi K2.x,
-GLM-5.x, DeepSeek V4, MiniMax M2.x, Qwen 3.x — covered by the Go
-subscription, no per-token billing):
+**OpenCode Go as the answer model + local embedder** (the fully-free
+path; needs a GPU for reasonable speed):
 
 ```powershell
-# Kimi K2.6 via OpenCode Go (default for --chat opencode-go)
+# Kimi K2.6 via OpenCode Go + BAAI/bge-large-en-v1.5 local embedder
+python -m engram.bench run longmemeval `
+  --embedder local `
+  --chat opencode-go `
+  --chat-model kimi-k2.6 `
+  --runs-dir benchmarks/runs/local
+```
+
+**OpenCode Go as the answer model + OpenAI embedder** (paid embedder
+path):
+
+```powershell
 python -m engram.bench run longmemeval `
   --embedder openai `
   --chat opencode-go `

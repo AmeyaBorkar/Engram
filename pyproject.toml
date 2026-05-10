@@ -49,6 +49,10 @@ bench = [
     # The CLI checks for python-dotenv at startup; if absent, env vars must
     # be set the old-fashioned way.
     "python-dotenv>=1.0",
+    # Local embedder for benchmarks. Pulls torch transitively. Pin loosely
+    # since sentence-transformers is conservative about transformers/torch
+    # compatibility and we don't want to over-constrain.
+    "sentence-transformers>=3.0",
 ]
 dev = [
     "pytest>=8",
