@@ -39,7 +39,7 @@ The keys you'll need:
 | `OPENAI_API_KEY` | OpenAI (embeddings + chat) | <https://platform.openai.com/api-keys> |
 | `ANTHROPIC_API_KEY` | Anthropic (chat only) | <https://console.anthropic.com/settings/keys> |
 | `MOONSHOT_API_KEY` | Moonshot / Kimi K2 (chat only) | <https://platform.moonshot.ai/> |
-| `OPENCODE_ZEN_API_KEY` | OpenCode Zen — Claude, GPT 5.x, Kimi all via one key (chat only) | <https://opencode.ai/> |
+| `OPENCODE_API_KEY` | OpenCode (Zen + Go) — single account key works for both plans (chat only) | <https://opencode.ai/> |
 
 `.env` is gitignored, so secrets stay out of the repo. The bench CLI
 auto-loads it from the project root every time it starts; existing
@@ -169,8 +169,8 @@ python -m engram.bench run longmemeval `
   --runs-dir benchmarks/runs/local
 ```
 
-**OpenCode Zen as the answer model** (one API key for Claude, GPT 5.x,
-or Kimi — billed through the OpenCode platform):
+**OpenCode Zen as the answer model** (Claude, GPT 5.x, Kimi K2.x —
+pay-as-you-go credits):
 
 ```powershell
 # Claude Haiku 4.5 via OpenCode Zen
@@ -194,6 +194,30 @@ python -m engram.bench run longmemeval `
   --chat-model kimi-k2.6 `
   --runs-dir benchmarks/runs/local
 ```
+
+**OpenCode Go as the answer model** (open-weight only — Kimi K2.x,
+GLM-5.x, DeepSeek V4, MiniMax M2.x, Qwen 3.x — covered by the Go
+subscription, no per-token billing):
+
+```powershell
+# Kimi K2.6 via OpenCode Go (default for --chat opencode-go)
+python -m engram.bench run longmemeval `
+  --embedder openai `
+  --chat opencode-go `
+  --chat-model kimi-k2.6 `
+  --runs-dir benchmarks/runs/local
+
+# Other Go-available models:
+#   kimi-k2.5
+#   glm-5.1
+#   deepseek-v4
+#   minimax-m2.7
+#   qwen3.6-plus
+# Pass the model id via --chat-model.
+```
+
+> The same OpenCode account API key works for both Zen and Go.
+> `OPENCODE_API_KEY` in your `.env` is enough.
 
 ---
 
@@ -220,8 +244,9 @@ checksum + provider hash.
 | OpenAI `gpt-4o` (answer + judge) + `text-embedding-3-small` | ~$8 |
 | Moonshot `kimi-k2.6` (answer + judge) + OpenAI `text-embedding-3-small` | ~$2 |
 | Anthropic `claude-haiku` (answer + judge) + OpenAI `text-embedding-3-small` | ~$3 |
-| OpenCode Zen `claude-haiku-4-5` (answer + judge) + OpenAI `text-embedding-3-small` | ~$2 + Zen credits |
-| OpenCode Zen `gpt-5.5-mini` (answer + judge) + OpenAI `text-embedding-3-small` | ~$1 + Zen credits |
+| OpenCode Zen `claude-haiku-4-5` (answer + judge) + OpenAI `text-embedding-3-small` | ~$0.30 OpenAI + Zen credits |
+| OpenCode Zen `gpt-5.5-mini` (answer + judge) + OpenAI `text-embedding-3-small` | ~$0.30 OpenAI + Zen credits |
+| OpenCode Go `kimi-k2.6` (answer + judge) + OpenAI `text-embedding-3-small` | ~$0.30 OpenAI; Go is flat-rate subscription |
 
 Numbers are rough and vary with rate-limit-induced retries and cache
 hits. The manifest's per-call latency histograms tell you the real

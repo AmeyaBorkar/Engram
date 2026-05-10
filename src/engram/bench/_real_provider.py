@@ -68,6 +68,28 @@ def _moonshot_chat(model: str | None) -> ChatProvider:
     )
 
 
+def _opencode_api_key() -> str:
+    """Resolve the OpenCode platform key.
+
+    OpenCode's Zen and Go plans share the same account-level API key;
+    most users have ONE key. We accept several env var names so the
+    setup reads naturally regardless of which plan you signed up for:
+
+      OPENCODE_API_KEY     -- primary (works for both Zen and Go).
+      OPENCODE_ZEN_API_KEY -- alias, common for Zen-only setups.
+      OPENCODE_GO_API_KEY  -- alias, common for Go-only setups.
+    """
+    for var in ("OPENCODE_API_KEY", "OPENCODE_ZEN_API_KEY", "OPENCODE_GO_API_KEY"):
+        value = os.environ.get(var)
+        if value:
+            return value
+    raise RuntimeError(
+        "OpenCode API key is not set. Add OPENCODE_API_KEY (or one of "
+        "OPENCODE_ZEN_API_KEY / OPENCODE_GO_API_KEY) to your .env. "
+        "Get a key from https://opencode.ai/"
+    )
+
+
 def _opencode_zen_chat(model: str | None) -> ChatProvider:
     """OpenCode Zen — multi-model gateway with OpenAI-compatible chat API.
 
@@ -78,13 +100,28 @@ def _opencode_zen_chat(model: str | None) -> ChatProvider:
     """
     from engram.providers.openai import OpenAIChat
 
-    api_key = os.environ.get("OPENCODE_ZEN_API_KEY")
-    if not api_key:
-        raise RuntimeError("OPENCODE_ZEN_API_KEY is not set. Get a key from https://opencode.ai/")
     return OpenAIChat(
         model=model or "claude-haiku-4-5",
-        api_key=api_key,
+        api_key=_opencode_api_key(),
         base_url="https://opencode.ai/zen/v1",
+    )
+
+
+def _opencode_go_chat(model: str | None) -> ChatProvider:
+    """OpenCode Go -- open-weight coding models behind one subscription.
+
+    Same OpenCode account / API key as Zen, but a different endpoint
+    that fronts open-weight models (Kimi K2.x, GLM-5.x, DeepSeek V4,
+    MiniMax M2.x, MiMo V2.x, Qwen 3.x). No Claude or GPT here.
+    Default model is `kimi-k2.6` because it's the strongest general
+    open-weight model on the plan at the time of writing.
+    """
+    from engram.providers.openai import OpenAIChat
+
+    return OpenAIChat(
+        model=model or "kimi-k2.6",
+        api_key=_opencode_api_key(),
+        base_url="https://opencode.ai/zen/go/v1",
     )
 
 
@@ -127,6 +164,7 @@ _CHAT_BUILDERS: dict[str, Any] = {
     "anthropic": _anthropic_chat,
     "moonshot": _moonshot_chat,
     "opencode-zen": _opencode_zen_chat,
+    "opencode-go": _opencode_go_chat,
 }
 
 _EMBEDDER_BUILDERS: dict[str, Any] = {

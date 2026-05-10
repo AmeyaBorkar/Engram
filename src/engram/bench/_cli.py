@@ -68,7 +68,7 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument(
         "--chat",
         default=None,
-        choices=("fake", "openai", "anthropic", "moonshot", "opencode-zen"),
+        choices=("fake", "openai", "anthropic", "moonshot", "opencode-zen", "opencode-go"),
         help="Chat provider (default: fake).",
     )
     run.add_argument(
