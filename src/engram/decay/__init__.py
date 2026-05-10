@@ -21,6 +21,7 @@ storage-aware engine that batches updates and prunes cold items lives in
 `engram.decay._engine` (Stage 4 will add it on top).
 """
 
+from engram.decay._engine import DecayEngine, PrunePolicy, TickResult
 from engram.decay._math import (
     DecayParams,
     apply,
@@ -29,7 +30,10 @@ from engram.decay._math import (
 )
 
 __all__ = [
+    "DecayEngine",
     "DecayParams",
+    "PrunePolicy",
+    "TickResult",
     "apply",
     "clamp01",
     "is_cold",
