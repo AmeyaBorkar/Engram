@@ -13,6 +13,9 @@ from engram.bench._suite import Suite
 def load_suite(name: str) -> Suite:
     """Look up a suite by name.
 
+    The lookup name is CLI-friendly (hyphens allowed); it is mapped to a
+    Python module name by replacing `-` with `_`.
+
     Search order:
       1. `engram.bench.suites.<name>`  - built-ins (e.g. noop).
       2. `benchmarks.suites.<name>`     - project-local suites.
@@ -20,8 +23,12 @@ def load_suite(name: str) -> Suite:
     The module must expose a `SUITE` attribute conforming to the `Suite`
     protocol.
     """
+    module_name = name.replace("-", "_")
     last_error: Exception | None = None
-    for module_path in (f"engram.bench.suites.{name}", f"benchmarks.suites.{name}"):
+    for module_path in (
+        f"engram.bench.suites.{module_name}",
+        f"benchmarks.suites.{module_name}",
+    ):
         try:
             module = importlib.import_module(module_path)
         except ImportError as exc:
