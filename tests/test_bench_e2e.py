@@ -16,6 +16,21 @@ def test_load_noop_suite() -> None:
     assert suite.dataset_version
 
 
+def test_fake_provider_exposes_embedder_and_chat() -> None:
+    from engram.providers import ChatProvider, EmbeddingProvider
+
+    p = FakeProvider()
+    assert isinstance(p.embedder, EmbeddingProvider)
+    assert isinstance(p.chat, ChatProvider)
+
+
+def test_fake_provider_manifest_hash_changes_with_dim() -> None:
+    a = FakeProvider(dim=64).manifest_hash()
+    b = FakeProvider(dim=128).manifest_hash()
+    assert a != b
+    assert a.startswith("fake/")
+
+
 def test_load_unknown_suite_raises() -> None:
     with pytest.raises(ValueError, match="not found"):
         load_suite("definitely-not-a-real-suite")
