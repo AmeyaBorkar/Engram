@@ -10,7 +10,7 @@ surface on top.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from contextlib import AbstractContextManager
 from datetime import datetime
 from typing import Protocol, runtime_checkable
@@ -96,3 +96,20 @@ class Storage(Protocol):
     def insert_cluster(self, cluster: Cluster) -> None: ...
     def get_cluster(self, cluster_id: UUID) -> Cluster | None: ...
     def count_clusters(self) -> int: ...
+
+    # --- search -------------------------------------------------------------
+
+    def search_event_embeddings(
+        self,
+        query_vec: Sequence[float],
+        *,
+        k: int,
+        model: str,
+    ) -> list[tuple[UUID, str, float]]:
+        """Top-k events by cosine similarity to `query_vec`.
+
+        Returns `(event_id, content, score)` triples sorted by score desc.
+        Both `query_vec` and stored embedding vectors are assumed unit-norm,
+        so cosine similarity reduces to a dot product. Only embeddings
+        matching `model` are considered.
+        """

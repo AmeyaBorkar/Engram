@@ -15,13 +15,15 @@ from __future__ import annotations
 import contextlib
 import sqlite3
 import threading
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable, Iterator, Sequence
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from types import TracebackType
 from typing import Any
 from uuid import UUID
+
+import numpy as np
 
 from engram.schemas import (
     Cluster,
@@ -430,3 +432,54 @@ class SqliteStorage:
 
     def count_clusters(self) -> int:
         return int(self._connect().execute("SELECT COUNT(*) FROM clusters").fetchone()[0])
+
+    # --- search -------------------------------------------------------------
+
+    def search_event_embeddings(
+        self,
+        query_vec: Sequence[float],
+        *,
+        k: int,
+        model: str,
+    ) -> list[tuple[UUID, str, float]]:
+        if k < 1:
+            raise ValueError(f"k must be >= 1, got {k}")
+        rows = (
+            self._connect()
+            .execute(
+                "SELECT e.id AS event_id, e.content AS content, "
+                "       emb.vector AS vector, emb.dim AS dim "
+                "FROM embeddings emb "
+                "JOIN events e ON emb.item_id = e.id "
+                "WHERE emb.item_kind = 'event' AND emb.model = ?",
+                (model,),
+            )
+            .fetchall()
+        )
+        if not rows:
+            return []
+
+        dim = int(rows[0]["dim"])
+        if len(query_vec) != dim:
+            raise ValueError(
+                f"query_vec dim {len(query_vec)} does not match stored embedding dim {dim}"
+            )
+
+        n = len(rows)
+        vecs = np.empty((n, dim), dtype=np.float32)
+        for i, row in enumerate(rows):
+            vecs[i] = np.frombuffer(row["vector"], dtype=np.float32, count=dim)
+        q = np.asarray(query_vec, dtype=np.float32)
+        scores = vecs @ q  # cosine sim if both sides are unit-norm
+
+        k_eff = min(k, n)
+        if k_eff == n:
+            order = np.argsort(-scores)
+        else:
+            cand = np.argpartition(-scores, k_eff - 1)[:k_eff]
+            order = cand[np.argsort(-scores[cand])]
+
+        return [
+            (UUID(bytes=rows[i]["event_id"]), str(rows[i]["content"]), float(scores[i]))
+            for i in order
+        ]
