@@ -115,7 +115,19 @@ def parse_response(text: str, n_observations: int) -> AbstractionResult:
     Accepts the response with or without a surrounding markdown code
     fence (` ```json ... ``` `) - many providers add one even when
     asked not to. Any other surrounding prose is a parse error.
+
+    Last line of defense: if the produced `abstraction` text matches a
+    known prompt-injection pattern (e.g. "ignore previous instructions",
+    "<|im_start|>", "system prompt"), the response is rejected. This
+    runs even on a successful schema match - the model can echo
+    injection text inside a perfectly valid JSON envelope, and we still
+    do not want it in the memory hierarchy.
     """
+    # Local import keeps the security check optional from a packaging
+    # standpoint - downstream forks can swap the corpus without
+    # rewiring `_abstraction.py`.
+    from engram._security.prompt_injection import looks_like_injection
+
     payload = _strip_code_fence(text).strip()
     if not payload:
         raise AbstractionParseError("empty response")
@@ -130,6 +142,8 @@ def parse_response(text: str, n_observations: int) -> AbstractionResult:
     for idx in result.supports:
         if not 0 <= idx < n_observations:
             raise AbstractionParseError(f"support index {idx} out of range [0, {n_observations})")
+    if looks_like_injection(result.abstraction):
+        raise AbstractionParseError("abstraction contains prompt-injection-like content; rejecting")
     return result
 
 

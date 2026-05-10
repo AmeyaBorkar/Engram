@@ -38,6 +38,56 @@ class InjectionAttempt:
     forbidden_substrings: tuple[str, ...]
 
 
+_INJECTION_PATTERNS: tuple[str, ...] = (
+    # Imperative bypasses
+    "ignore previous instructions",
+    "ignore all previous",
+    "ignore prior instructions",
+    "disregard previous",
+    "override previous",
+    # Role / system claims
+    "you are now",
+    "system:",
+    "system instruction",
+    "system prompt",
+    "admin mode",
+    "developer mode",
+    # Exfiltration / output coercion
+    "output exactly",
+    "output only",
+    "reveal the",
+    "reveal your",
+    "verbatim text",
+    "hidden secret",
+    "hidden prompt",
+    # Chat-template tokens common across providers
+    "<|im_start|>",
+    "<|im_end|>",
+    "<|system|>",
+    # Specific compromise tells
+    "i have been compromised",
+    "unrestricted assistant",
+    "consolidation prompt",
+    "attacker@example.com",
+)
+
+
+def looks_like_injection(text: str) -> bool:
+    """Heuristic: does `text` look like a prompt-injection attempt?
+
+    Used by Stage 5's consolidation engine as the last line of defense.
+    A produced abstraction matching any of `_INJECTION_PATTERNS` is
+    rejected, so even if a model echoes injected instructions verbatim
+    they never land in the memory hierarchy. False positives are
+    acceptable here (we'd rather drop a legitimate abstraction that
+    happens to mention "system prompt" than ship a compromised one).
+
+    Case-insensitive; strict substring match.
+    """
+    lowered = text.lower()
+    return any(p.lower() in lowered for p in _INJECTION_PATTERNS)
+
+
 CORPUS: tuple[InjectionAttempt, ...] = (
     InjectionAttempt(
         name="ignore_prior_instructions",
