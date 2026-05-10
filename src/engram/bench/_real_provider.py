@@ -149,16 +149,19 @@ def _openai_embedder(model: str | None, dim: int | None) -> EmbeddingProvider:
     )
 
 
-def _local_embedder(model: str | None, dim: int | None) -> EmbeddingProvider:
+def _local_embedder(
+    model: str | None, dim: int | None, device: str | None = None
+) -> EmbeddingProvider:
     """sentence-transformers behind a GPU when available, CPU otherwise.
 
     Default `BAAI/bge-large-en-v1.5` ships excellent retrieval quality
     without an API key. The model downloads once into the HuggingFace
-    cache; subsequent runs are warm.
+    cache; subsequent runs are warm. Pass `device="cpu"` to force CPU
+    when CUDA is detected but broken (driver/architecture mismatch).
     """
     from engram.providers.local import LocalEmbedder
 
-    return LocalEmbedder(model=model or "BAAI/bge-large-en-v1.5", dim=dim)
+    return LocalEmbedder(model=model or "BAAI/bge-large-en-v1.5", dim=dim, device=device)
 
 
 def _anthropic_chat(model: str | None) -> ChatProvider:
@@ -180,8 +183,12 @@ _CHAT_BUILDERS: dict[str, Any] = {
 }
 
 _EMBEDDER_BUILDERS: dict[str, Any] = {
-    "fake": lambda model, dim: FakeEmbedder(dim=dim if dim is not None else 128),  # noqa: ARG005
-    "openai": _openai_embedder,
+    # `_*` builders take (model, dim, device). The lambdas below ignore
+    # what they don't need so the call signature stays uniform.
+    "fake": lambda model, dim, device: FakeEmbedder(  # noqa: ARG005
+        dim=dim if dim is not None else 128
+    ),
+    "openai": lambda model, dim, device: _openai_embedder(model, dim),  # noqa: ARG005
     "local": _local_embedder,
 }
 
@@ -192,14 +199,16 @@ def build_provider(
     chat_name: str = "fake",
     embed_model: str | None = None,
     embed_dim: int | None = None,
+    embed_device: str | None = None,
     chat_model: str | None = None,
 ) -> _MixedProvider:
     """Construct a bench Provider from CLI flags.
 
     Defaults are `fake/fake` so the existing CI smoke benchmark keeps
-    working unchanged. Specify `embedder_name=openai` and `chat_name=
-    openai|anthropic|moonshot` for real runs; missing API keys surface
-    as actionable RuntimeError messages.
+    working unchanged. Specify `embedder_name=openai|local` and
+    `chat_name=openai|anthropic|moonshot|opencode-zen|opencode-go` for
+    real runs; missing API keys surface as actionable RuntimeError
+    messages. `embed_device` only applies to `embedder_name=local`.
     """
     if embedder_name not in _EMBEDDER_BUILDERS:
         raise ValueError(
@@ -208,7 +217,7 @@ def build_provider(
     if chat_name not in _CHAT_BUILDERS:
         raise ValueError(f"unknown chat {chat_name!r}; choose from {sorted(_CHAT_BUILDERS)}")
 
-    embedder = _EMBEDDER_BUILDERS[embedder_name](embed_model, embed_dim)
+    embedder = _EMBEDDER_BUILDERS[embedder_name](embed_model, embed_dim, embed_device)
     chat = _CHAT_BUILDERS[chat_name](chat_model)
     name = f"{embedder_name}+{chat_name}"
     return _MixedProvider(name=name, embedder=embedder, chat=chat)

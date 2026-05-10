@@ -107,6 +107,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="Override the embedding dimensionality.",
     )
     run.add_argument(
+        "--embed-device",
+        default=None,
+        help=(
+            "Force the device for `--embedder local`: cpu, cuda, mps, or "
+            "cuda:N. Defaults to auto-detect (CUDA > MPS > CPU). Useful when "
+            "CUDA is broken (driver/arch mismatch) and you want CPU explicitly."
+        ),
+    )
+    run.add_argument(
         "--chat-model",
         default=None,
         help=(
@@ -164,6 +173,7 @@ def _resolve_provider(args: argparse.Namespace) -> Provider:
         chat_name=chat,
         embed_model=args.embed_model,
         embed_dim=args.embed_dim,
+        embed_device=args.embed_device,
         chat_model=args.chat_model,
     )
 
