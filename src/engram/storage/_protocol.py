@@ -162,6 +162,25 @@ class Storage(Protocol):
         ones). Cold items are excluded by default.
         """
 
+    def score_events_by_ids(
+        self,
+        query_vec: Sequence[float],
+        event_ids: Sequence[UUID],
+        *,
+        model: str,
+        include_cold: bool = False,
+    ) -> list[tuple[UUID, str, float]]:
+        """Score the named events against `query_vec`, sorted by score desc.
+
+        Returns `(event_id, content, score)` triples for every event in
+        `event_ids` that has an embedding for `model`. Used by the Stage
+        6 retriever to drill into a low-confidence abstraction's
+        supporting events: it already has the event ids from the
+        provenance links, and just needs them re-scored against the
+        query. Cold events are excluded by default (matches
+        `search_event_embeddings`).
+        """
+
     # --- decay state --------------------------------------------------------
 
     def get_decay_state(self, item_id: UUID, kind: ItemKind) -> DecayState | None:
