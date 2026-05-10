@@ -13,6 +13,7 @@ Stage 2 is implemented one primitive at a time; this `__init__` re-exports
 the public surface as it lands.
 """
 
+from engram.providers._batcher import Batcher
 from engram.providers._cache import Cache, content_hash
 from engram.providers._fake import FakeChat, FakeEmbedder
 from engram.providers._message import Message, Role
@@ -21,6 +22,7 @@ from engram.providers._redactor import Redactor
 from engram.providers._retry import Retry
 
 __all__ = [
+    "Batcher",
     "Cache",
     "ChatProvider",
     "EmbeddingProvider",
