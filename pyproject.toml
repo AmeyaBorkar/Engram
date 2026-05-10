@@ -36,6 +36,11 @@ anthropic = ["anthropic>=0.40"]
 postgres = ["psycopg[binary]>=3.1"]
 duckdb = ["duckdb>=0.10"]
 sqlite-vec = ["sqlite-vec>=0.1.0"]
+consolidation = [
+    # Stage 5 clustering. Pure-numpy agglomerative fallback ships in core;
+    # production users install this extra to get the density-based path.
+    "hdbscan>=0.8.40",
+]
 bench = [
     # Baselines we measure against. Heavy install; opt in.
     "chromadb>=0.5",
@@ -51,6 +56,8 @@ dev = [
     # can use the real SDK types under mock.
     "openai>=1.40",
     "anthropic>=0.40",
+    # Consolidation backend so the HDBSCAN tests run in CI as well.
+    "hdbscan>=0.8.40",
 ]
 
 [project.scripts]
