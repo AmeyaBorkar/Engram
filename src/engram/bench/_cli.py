@@ -127,6 +127,16 @@ def build_parser() -> argparse.ArgumentParser:
             "always take precedence over .env values."
         ),
     )
+    run.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help=(
+            "Cap the number of items the suite processes. Useful for "
+            "smoke runs. Overrides any suite-specific cap env var "
+            "(LONGMEMEVAL_MAX_QUESTIONS, etc)."
+        ),
+    )
 
     return parser
 
@@ -164,6 +174,13 @@ def main(argv: list[str] | None = None) -> int:
         # `.env` may carry `ENGRAM_LOG_LEVEL=DEBUG`; load it before
         # configuring logging so user overrides take effect.
         _configure_logging(os.environ.get("ENGRAM_LOG_LEVEL", "INFO"))
+        # `--limit` overrides the suite-specific cap env vars. Set them
+        # BEFORE importing the suite -- the suite reads them at module
+        # import time in its `SUITE = ...()` line.
+        if args.limit is not None:
+            for var in ("LONGMEMEVAL_MAX_QUESTIONS", "LOCOMO_MAX_QUESTIONS"):
+                os.environ[var] = str(args.limit)
+            print(f"--limit {args.limit} applied", file=sys.stderr)
         try:
             provider = _resolve_provider(args)
             manifest_path = run_suite(args.suite, provider=provider, runs_dir=args.runs_dir)

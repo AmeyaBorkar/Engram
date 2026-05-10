@@ -304,10 +304,11 @@ class LongMemEvalSuite:
         log_interval = 1 if len(questions) <= 20 else 10
 
         _LOG.info(
-            "longmemeval: starting %d questions (k=%d, %d turn avg)",
+            "longmemeval: starting %d questions (k=%d, %d turn avg, cap=%s)",
             len(questions),
             self._k,
             sum(len(s) for q in questions for s in q.haystack_sessions) // max(len(questions), 1),
+            self._max if self._max is not None else "none",
         )
 
         for q_idx, q in enumerate(questions):
