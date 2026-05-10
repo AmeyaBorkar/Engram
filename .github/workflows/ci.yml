@@ -82,5 +82,8 @@ jobs:
           pip install pip-audit
       - name: Audit
         # `--skip-editable` skips the local editable install of engram itself
-        # (not yet published to PyPI). All real dependencies are still audited.
-        run: pip-audit --strict --skip-editable
+        # (not yet published to PyPI). All real dependencies are still audited;
+        # pip-audit still exits non-zero if any of them has a known CVE.
+        # `--strict` is intentionally absent: with it, the skipped editable
+        # itself becomes a CI-blocking error.
+        run: pip-audit --skip-editable
