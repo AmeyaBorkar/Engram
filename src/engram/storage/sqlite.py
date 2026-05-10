@@ -407,6 +407,42 @@ class SqliteStorage:
         if cursor.rowcount == 0:
             raise KeyError(f"memory_item {item_id} not found")
 
+    def update_memory_item_level(self, item_id: UUID, level: Level) -> None:
+        cursor = self._connect().execute(
+            "UPDATE memory_items SET level = ?, updated_at = ? WHERE id = ?",
+            (level.value, iso(datetime.now(tz=timezone.utc)), item_id.bytes),
+        )
+        if cursor.rowcount == 0:
+            raise KeyError(f"memory_item {item_id} not found")
+
+    def iter_memory_items(
+        self,
+        *,
+        level: Level | None = None,
+        include_cold: bool = False,
+        batch_size: int = 1000,
+    ) -> Iterator[MemoryItem]:
+        if batch_size < 1:
+            raise ValueError(f"batch_size must be >= 1, got {batch_size}")
+        sql = "SELECT * FROM memory_items WHERE 1=1"
+        params: list[Any] = []
+        if level is not None:
+            sql += " AND level = ?"
+            params.append(level.value)
+        if not include_cold:
+            sql += " AND cold_at IS NULL"
+        sql += " ORDER BY created_at ASC, id ASC"
+        cursor = self._connect().execute(sql, params)
+        try:
+            while True:
+                rows = cursor.fetchmany(batch_size)
+                if not rows:
+                    return
+                for row in rows:
+                    yield _row_to_memory_item(row)
+        finally:
+            cursor.close()
+
     def count_memory_items(self) -> int:
         return int(self._connect().execute("SELECT COUNT(*) FROM memory_items").fetchone()[0])
 

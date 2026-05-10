@@ -81,6 +81,46 @@ def _utcnow() -> datetime:
 
 
 @dataclass(frozen=True, slots=True)
+class PromotionParams:
+    """Parameters of the promotion pass (summary -> abstraction).
+
+    A summary becomes an abstraction when it has been corroborated at
+    least `min_corroboration` times, has zero recorded contradictions
+    (`max_contradiction == 0`), and its current weight is at or above
+    `min_weight`. Recorded conflicts in
+    `metadata['consolidation']['conflicts']` block promotion outright -
+    a contradicted summary should be reconciled (Stage 8) before it
+    rises in the hierarchy.
+
+    Off by default; opt in when the corpus has had time to accumulate
+    corroboration counts.
+    """
+
+    enabled: bool = False
+    min_corroboration: int = 3
+    max_contradiction: int = 0
+    min_weight: float = 0.5
+
+    def __post_init__(self) -> None:
+        if self.min_corroboration < 1:
+            raise ValueError(f"min_corroboration must be >= 1, got {self.min_corroboration}")
+        if self.max_contradiction < 0:
+            raise ValueError(f"max_contradiction must be >= 0, got {self.max_contradiction}")
+        if not 0.0 <= self.min_weight <= 1.0:
+            raise ValueError(f"min_weight must be in [0, 1], got {self.min_weight!r}")
+
+
+@dataclass(frozen=True, slots=True)
+class PromotionResult:
+    """Outcome of one `promote()` call."""
+
+    started_at: datetime
+    duration_ms: float
+    candidates_examined: int
+    promoted: int
+
+
+@dataclass(frozen=True, slots=True)
 class ConsolidationParams:
     """Parameters of one consolidate run.
 
@@ -94,7 +134,8 @@ class ConsolidationParams:
     `contradiction_params` configures the contradiction detector. By
     default the detector is disabled - turning it on adds one LLM call
     per surviving candidate per consolidate, so callers opt in
-    explicitly.
+    explicitly. `promotion_params` configures the summary -> abstraction
+    promotion pass; also off by default.
     """
 
     cluster_params: ClusterParams = field(default_factory=ClusterParams)
@@ -102,6 +143,7 @@ class ConsolidationParams:
     level: Level = Level.SUMMARY
     abstraction_max_retries: int = 1
     contradiction_params: ContradictionParams = field(default_factory=ContradictionParams)
+    promotion_params: PromotionParams = field(default_factory=PromotionParams)
 
     def __post_init__(self) -> None:
         if not 0.0 <= self.support_weight <= 1.0:
@@ -328,6 +370,58 @@ class ConsolidationEngine:
             params=cp,
         )
 
+    # --- promotion ---------------------------------------------------------
+
+    def promote(self, *, now: datetime | None = None) -> PromotionResult:
+        """Promote stable, frequently-corroborated summaries.
+
+        A summary clears the bar when:
+          * `corroboration_count >= min_corroboration`
+          * `contradiction_count <= max_contradiction` (default 0)
+          * its weight is >= `min_weight`
+          * its metadata records no recorded conflicts (Stage 5
+            contradiction detection blocks promotion outright)
+
+        Promoted items move from `Level.SUMMARY` to
+        `Level.ABSTRACTION`; their `cluster_id`, embedding, provenance,
+        and decay state stay intact (only the level changes).
+        """
+        started = now if now is not None else self._clock()
+        wall = time.perf_counter()
+        pp = self._params.promotion_params
+        if not pp.enabled:
+            return PromotionResult(
+                started_at=started,
+                duration_ms=(time.perf_counter() - wall) * 1000.0,
+                candidates_examined=0,
+                promoted=0,
+            )
+
+        candidates_examined = 0
+        promoted = 0
+        for item in self._storage.iter_memory_items(level=Level.SUMMARY):
+            candidates_examined += 1
+            state = self._storage.get_decay_state(item.id, ItemKind.MEMORY_ITEM)
+            if state is None:
+                continue
+            if state.corroboration_count < pp.min_corroboration:
+                continue
+            if state.contradiction_count > pp.max_contradiction:
+                continue
+            if state.weight < pp.min_weight:
+                continue
+            if _has_recorded_conflicts(item):
+                continue
+            self._storage.update_memory_item_level(item.id, Level.ABSTRACTION)
+            promoted += 1
+
+        return PromotionResult(
+            started_at=started,
+            duration_ms=(time.perf_counter() - wall) * 1000.0,
+            candidates_examined=candidates_examined,
+            promoted=promoted,
+        )
+
 
 def _build_metadata(
     result: AbstractionResult,
@@ -346,6 +440,15 @@ def _build_metadata(
             "conflicts": conflicts_to_metadata(conflicts),
         }
     }
+
+
+def _has_recorded_conflicts(item: MemoryItem) -> bool:
+    """True if `metadata['consolidation']['conflicts']` is non-empty."""
+    consolidation = item.metadata.get("consolidation") if item.metadata else None
+    if not isinstance(consolidation, dict):
+        return False
+    conflicts = consolidation.get("conflicts")
+    return bool(conflicts)
 
 
 def _normalize(vec: Sequence[float]) -> list[float]:

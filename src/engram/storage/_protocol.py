@@ -74,6 +74,28 @@ class Storage(Protocol):
         limit: int = 100,
     ) -> list[MemoryItem]: ...
     def update_memory_item_weight(self, item_id: UUID, weight: float) -> None: ...
+    def update_memory_item_level(self, item_id: UUID, level: Level) -> None:
+        """Move the item to a different hierarchy level.
+
+        Used by the consolidation engine's promotion pass: a stable,
+        frequently-corroborated `Level.SUMMARY` rises to `Level.ABSTRACTION`.
+        Raises `KeyError` if the item is missing.
+        """
+
+    def iter_memory_items(
+        self,
+        *,
+        level: Level | None = None,
+        include_cold: bool = False,
+        batch_size: int = 1000,
+    ) -> Iterator[MemoryItem]:
+        """Stream memory items, optionally filtered by `level`.
+
+        Cold items are excluded by default (they are not part of the
+        active surface). Pages via the backend's natural cursor; order
+        is `(created_at ASC, id ASC)`.
+        """
+
     def count_memory_items(self) -> int: ...
     def count_memory_items_by_level(self) -> dict[Level, int]: ...
 

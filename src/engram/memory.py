@@ -27,6 +27,7 @@ from engram.consolidation import (
     ConsolidationEngine,
     ConsolidationParams,
     ConsolidationResult,
+    PromotionResult,
 )
 from engram.decay import DecayEngine, DecayMetrics, DecayParams, PrunePolicy, TickResult
 from engram.decay._math import is_cold as _is_cold
@@ -256,6 +257,17 @@ class Memory:
         provider.
         """
         return self.consolidator.consolidate(max_events=max_events)
+
+    def promote(self, *, now: datetime | None = None) -> PromotionResult:
+        """Promote stable summaries to abstractions.
+
+        Iterates every `Level.SUMMARY` memory item and elevates those
+        that meet the corroboration / contradiction / weight criteria
+        configured on `ConsolidationParams.promotion_params`. Off by
+        default (`enabled=False`); turn on once the corpus has had time
+        to accumulate corroboration counts.
+        """
+        return self.consolidator.promote(now=now)
 
 
 def _normalize(vec: Sequence[float]) -> list[float]:

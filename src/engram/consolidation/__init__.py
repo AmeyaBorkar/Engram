@@ -49,6 +49,8 @@ from engram.consolidation._engine import (
     ConsolidationEngine,
     ConsolidationParams,
     ConsolidationResult,
+    PromotionParams,
+    PromotionResult,
 )
 
 __all__ = [
@@ -66,6 +68,8 @@ __all__ = [
     "ConsolidationResult",
     "ContradictionParams",
     "JudgeResponse",
+    "PromotionParams",
+    "PromotionResult",
     "Verdict",
     "cluster",
     "cohesion",
