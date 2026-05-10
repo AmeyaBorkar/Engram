@@ -8,13 +8,17 @@ in later stages — see `ROADMAP.md` and `benchmarks/SOTA.md`.
 from engram.bench._cli import main
 from engram.bench._manifest import Manifest, gather_environment, manifest_from_run
 from engram.bench._provider import FakeProvider, Provider
+from engram.bench._retriever import EngramRetriever, Hit, Retriever
 from engram.bench._runner import load_suite, run
 from engram.bench._suite import Suite, SuiteResult
 
 __all__ = [
+    "EngramRetriever",
     "FakeProvider",
+    "Hit",
     "Manifest",
     "Provider",
+    "Retriever",
     "Suite",
     "SuiteResult",
     "gather_environment",
