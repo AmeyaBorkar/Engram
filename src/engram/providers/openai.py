@@ -6,6 +6,14 @@ package installed raises a clear, actionable `ImportError`.
 
 Both adapters accept either an explicit `client` / `async_client` (handy
 for tests using `unittest.mock`) or construct their own from `api_key`.
+
+OpenAI-compatible endpoints (Moonshot/Kimi, OpenRouter, Together, vLLM,
+LM Studio, ...) work via the `base_url` parameter -- the SDK speaks the
+same wire protocol, and any provider that accepts an OpenAI-shaped
+request fits behind these adapters. Set `base_url` and `api_key`
+appropriately and the rest of Engram doesn't need to know which
+endpoint is on the other side. Manifest hashes include `base_url` so
+two runs at different endpoints stay distinguishable.
 """
 
 from __future__ import annotations
@@ -29,7 +37,11 @@ if TYPE_CHECKING:
 
 
 class OpenAIEmbedder:
-    """OpenAI embeddings adapter (`text-embedding-3-small` by default)."""
+    """OpenAI embeddings adapter (`text-embedding-3-small` by default).
+
+    Pass `base_url` to point at any OpenAI-compatible embeddings endpoint;
+    leaving it None uses OpenAI's official endpoint.
+    """
 
     name: str = "openai-embed"
 
@@ -39,6 +51,7 @@ class OpenAIEmbedder:
         dim: int = 1536,
         *,
         api_key: str | None = None,
+        base_url: str | None = None,
         client: OpenAI | None = None,
         async_client: AsyncOpenAI | None = None,
     ) -> None:
@@ -46,13 +59,13 @@ class OpenAIEmbedder:
             raise ValueError(f"dim must be >= 1, got {dim}")
         self.model = model
         self.dim = dim
-        self._client: OpenAI = (
-            client if client is not None else _openai_module.OpenAI(api_key=api_key)
-        )
+        self._base_url = base_url
+        sdk_kwargs: dict[str, Any] = {"api_key": api_key}
+        if base_url is not None:
+            sdk_kwargs["base_url"] = base_url
+        self._client: OpenAI = client if client is not None else _openai_module.OpenAI(**sdk_kwargs)
         self._aclient: AsyncOpenAI = (
-            async_client
-            if async_client is not None
-            else _openai_module.AsyncOpenAI(api_key=api_key)
+            async_client if async_client is not None else _openai_module.AsyncOpenAI(**sdk_kwargs)
         )
 
     def embed(self, texts: Sequence[str]) -> list[list[float]]:
@@ -70,11 +83,17 @@ class OpenAIEmbedder:
         return [list(item.embedding) for item in resp.data]
 
     def manifest_hash(self) -> str:
-        return f"openai-embed/{self.model}/dim={self.dim}/v1"
+        suffix = f"/base={self._base_url}" if self._base_url else ""
+        return f"openai-embed/{self.model}/dim={self.dim}{suffix}/v1"
 
 
 class OpenAIChat:
-    """OpenAI chat-completions adapter (`gpt-4o-mini` by default)."""
+    """OpenAI chat-completions adapter (`gpt-4o-mini` by default).
+
+    Pass `base_url` to point at any OpenAI-compatible chat endpoint
+    (Moonshot/Kimi at `https://api.moonshot.ai/v1`, OpenRouter at
+    `https://openrouter.ai/api/v1`, Together, vLLM, LM Studio, ...).
+    """
 
     name: str = "openai-chat"
 
@@ -83,19 +102,20 @@ class OpenAIChat:
         model: str = "gpt-4o-mini",
         *,
         api_key: str | None = None,
+        base_url: str | None = None,
         client: OpenAI | None = None,
         async_client: AsyncOpenAI | None = None,
         completion_kwargs: dict[str, Any] | None = None,
     ) -> None:
         self.model = model
         self._kwargs: dict[str, Any] = dict(completion_kwargs or {})
-        self._client: OpenAI = (
-            client if client is not None else _openai_module.OpenAI(api_key=api_key)
-        )
+        self._base_url = base_url
+        sdk_kwargs: dict[str, Any] = {"api_key": api_key}
+        if base_url is not None:
+            sdk_kwargs["base_url"] = base_url
+        self._client: OpenAI = client if client is not None else _openai_module.OpenAI(**sdk_kwargs)
         self._aclient: AsyncOpenAI = (
-            async_client
-            if async_client is not None
-            else _openai_module.AsyncOpenAI(api_key=api_key)
+            async_client if async_client is not None else _openai_module.AsyncOpenAI(**sdk_kwargs)
         )
 
     def chat(self, messages: Sequence[Message]) -> str:
@@ -119,7 +139,8 @@ class OpenAIChat:
     def manifest_hash(self) -> str:
         kwargs_blob = json.dumps(self._kwargs, sort_keys=True, default=str)
         h = hashlib.sha256(kwargs_blob.encode("utf-8")).hexdigest()[:16]
-        return f"openai-chat/{self.model}/{h}"
+        suffix = f"/base={self._base_url}" if self._base_url else ""
+        return f"openai-chat/{self.model}{suffix}/{h}"
 
 
 def _native_dim(model: str) -> int:
