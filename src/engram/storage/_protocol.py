@@ -10,7 +10,7 @@ surface on top.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Iterator, Sequence
 from contextlib import AbstractContextManager
 from datetime import datetime
 from typing import Protocol, runtime_checkable
@@ -18,6 +18,7 @@ from uuid import UUID
 
 from engram.schemas import (
     Cluster,
+    DecayState,
     Embedding,
     Event,
     ItemKind,
@@ -116,4 +117,47 @@ class Storage(Protocol):
         (`cold_at IS NOT NULL`) are excluded by default; pass
         `include_cold=True` to surface them anyway (audit / inspection
         flows).
+        """
+
+    # --- decay state --------------------------------------------------------
+
+    def get_decay_state(self, item_id: UUID, kind: ItemKind) -> DecayState | None:
+        """Return the per-item decay state, or `None` if the item is missing."""
+
+    def iter_decay_states(
+        self,
+        kind: ItemKind,
+        *,
+        include_cold: bool = False,
+        batch_size: int = 1000,
+    ) -> Iterator[DecayState]:
+        """Iterate every decay state for items of `kind`.
+
+        Backends MUST stream rows in batches of `batch_size` so the engine
+        can tick a multi-million-item store without holding everything in
+        memory. Order is unspecified.
+        """
+
+    def update_decay_state(self, state: DecayState) -> None:
+        """Persist the new decay state for the (item_id, kind) row.
+
+        Raises `KeyError` if the item does not exist.
+        """
+
+    def mark_cold(self, item_id: UUID, kind: ItemKind, *, at: datetime) -> None:
+        """Set `cold_at = at` on the item. Idempotent if already cold."""
+
+    def unmark_cold(self, item_id: UUID, kind: ItemKind) -> None:
+        """Clear `cold_at`. Used to restore an item to the hot pool (admin)."""
+
+    def count_cold(self, kind: ItemKind) -> int:
+        """Number of cold items of the given kind (`cold_at IS NOT NULL`)."""
+
+    def delete_cold_items(self, kind: ItemKind) -> int:
+        """Hard-delete every cold item of `kind`. Returns the number deleted.
+
+        For the `delete` prune policy. Memory items cascade through
+        provenance links; events that participate in provenance links cannot
+        be deleted (the storage layer raises) - those callers should use the
+        `cold` policy instead.
         """

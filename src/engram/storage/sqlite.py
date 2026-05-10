@@ -27,6 +27,7 @@ import numpy as np
 
 from engram.schemas import (
     Cluster,
+    DecayState,
     Embedding,
     Event,
     ItemKind,
@@ -97,6 +98,70 @@ def _row_to_provenance_link(row: sqlite3.Row) -> ProvenanceLink:
         weight=row["weight"],
         created_at=parse_iso(row["created_at"]),
     )
+
+
+def _row_to_decay_state(row: sqlite3.Row, kind: ItemKind) -> DecayState:
+    cold_at_raw = row["cold_at"]
+    return DecayState(
+        item_id=UUID(bytes=row["id"]),
+        item_kind=kind,
+        weight=row["weight"],
+        reinforcement_count=int(row["reinforcement_count"]),
+        corroboration_count=int(row["corroboration_count"]),
+        contradiction_count=int(row["contradiction_count"]),
+        last_decayed_at=parse_iso(row["last_decayed_at"]),
+        cold_at=parse_iso(cold_at_raw) if cold_at_raw is not None else None,
+    )
+
+
+# Per-kind SQL lookup tables. We pre-build every decay-state statement so
+# that the runtime path never interpolates a table name into SQL - that
+# keeps `ruff` S608 honest, and the closed `ItemKind` enum is a safer
+# boundary than an inline switch on the enum value.
+_DECAY_COLS = (
+    "id, weight, reinforcement_count, corroboration_count, "
+    "contradiction_count, last_decayed_at, cold_at"
+)
+_DECAY_TABLES: dict[ItemKind, str] = {
+    ItemKind.EVENT: "events",
+    ItemKind.MEMORY_ITEM: "memory_items",
+}
+_GET_DECAY_STATE_SQL: dict[ItemKind, str] = {
+    kind: f"SELECT {_DECAY_COLS} FROM {table} WHERE id = ?"  # noqa: S608
+    for kind, table in _DECAY_TABLES.items()
+}
+_ITER_DECAY_STATES_HOT_SQL: dict[ItemKind, str] = {
+    kind: f"SELECT {_DECAY_COLS} FROM {table} WHERE cold_at IS NULL ORDER BY id"  # noqa: S608
+    for kind, table in _DECAY_TABLES.items()
+}
+_ITER_DECAY_STATES_ALL_SQL: dict[ItemKind, str] = {
+    kind: f"SELECT {_DECAY_COLS} FROM {table} ORDER BY id"  # noqa: S608
+    for kind, table in _DECAY_TABLES.items()
+}
+_UPDATE_DECAY_STATE_SQL: dict[ItemKind, str] = {
+    kind: (
+        f"UPDATE {table} SET weight = ?, reinforcement_count = ?, "  # noqa: S608
+        "corroboration_count = ?, contradiction_count = ?, "
+        "last_decayed_at = ?, cold_at = ? WHERE id = ?"
+    )
+    for kind, table in _DECAY_TABLES.items()
+}
+_MARK_COLD_SQL: dict[ItemKind, str] = {
+    kind: f"UPDATE {table} SET cold_at = ? WHERE id = ?"  # noqa: S608
+    for kind, table in _DECAY_TABLES.items()
+}
+_UNMARK_COLD_SQL: dict[ItemKind, str] = {
+    kind: f"UPDATE {table} SET cold_at = NULL WHERE id = ?"  # noqa: S608
+    for kind, table in _DECAY_TABLES.items()
+}
+_COUNT_COLD_SQL: dict[ItemKind, str] = {
+    kind: f"SELECT COUNT(*) FROM {table} WHERE cold_at IS NOT NULL"  # noqa: S608
+    for kind, table in _DECAY_TABLES.items()
+}
+_DELETE_COLD_SQL: dict[ItemKind, str] = {
+    kind: f"DELETE FROM {table} WHERE cold_at IS NOT NULL"  # noqa: S608
+    for kind, table in _DECAY_TABLES.items()
+}
 
 
 class SqliteStorage:
@@ -496,3 +561,87 @@ class SqliteStorage:
             (UUID(bytes=rows[i]["event_id"]), str(rows[i]["content"]), float(scores[i]))
             for i in order
         ]
+
+    # --- decay state --------------------------------------------------------
+
+    def get_decay_state(self, item_id: UUID, kind: ItemKind) -> DecayState | None:
+        sql = _GET_DECAY_STATE_SQL[kind]
+        row = self._connect().execute(sql, (item_id.bytes,)).fetchone()
+        return _row_to_decay_state(row, kind) if row is not None else None
+
+    def iter_decay_states(
+        self,
+        kind: ItemKind,
+        *,
+        include_cold: bool = False,
+        batch_size: int = 1000,
+    ) -> Iterator[DecayState]:
+        if batch_size < 1:
+            raise ValueError(f"batch_size must be >= 1, got {batch_size}")
+        sql = _ITER_DECAY_STATES_ALL_SQL[kind] if include_cold else _ITER_DECAY_STATES_HOT_SQL[kind]
+        cursor = self._connect().execute(sql)
+        try:
+            while True:
+                rows = cursor.fetchmany(batch_size)
+                if not rows:
+                    return
+                for row in rows:
+                    yield _row_to_decay_state(row, kind)
+        finally:
+            cursor.close()
+
+    def update_decay_state(self, state: DecayState) -> None:
+        sql = _UPDATE_DECAY_STATE_SQL[state.item_kind]
+        cursor = self._connect().execute(
+            sql,
+            (
+                state.weight,
+                state.reinforcement_count,
+                state.corroboration_count,
+                state.contradiction_count,
+                iso(state.last_decayed_at),
+                iso(state.cold_at) if state.cold_at is not None else None,
+                state.item_id.bytes,
+            ),
+        )
+        if cursor.rowcount == 0:
+            raise KeyError(f"{state.item_kind.value} {state.item_id} not found")
+
+    def mark_cold(self, item_id: UUID, kind: ItemKind, *, at: datetime) -> None:
+        sql = _MARK_COLD_SQL[kind]
+        cursor = self._connect().execute(sql, (iso(at), item_id.bytes))
+        if cursor.rowcount == 0:
+            raise KeyError(f"{kind.value} {item_id} not found")
+
+    def unmark_cold(self, item_id: UUID, kind: ItemKind) -> None:
+        sql = _UNMARK_COLD_SQL[kind]
+        cursor = self._connect().execute(sql, (item_id.bytes,))
+        if cursor.rowcount == 0:
+            raise KeyError(f"{kind.value} {item_id} not found")
+
+    def count_cold(self, kind: ItemKind) -> int:
+        sql = _COUNT_COLD_SQL[kind]
+        return int(self._connect().execute(sql).fetchone()[0])
+
+    def delete_cold_items(self, kind: ItemKind) -> int:
+        # For events, refuse to delete rows that participate in provenance
+        # links - a foreign key with ON DELETE RESTRICT would raise a generic
+        # IntegrityError; we'd rather give the caller an actionable message.
+        if kind is ItemKind.EVENT:
+            blockers = (
+                self._connect()
+                .execute(
+                    "SELECT COUNT(*) FROM events e "
+                    "JOIN provenance_links p ON p.event_id = e.id "
+                    "WHERE e.cold_at IS NOT NULL"
+                )
+                .fetchone()[0]
+            )
+            if blockers:
+                raise RuntimeError(
+                    f"cannot delete {blockers} cold event(s) with provenance links; "
+                    "use the 'cold' prune policy instead"
+                )
+        sql = _DELETE_COLD_SQL[kind]
+        cursor = self._connect().execute(sql)
+        return int(cursor.rowcount)
