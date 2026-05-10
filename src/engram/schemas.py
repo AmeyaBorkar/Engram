@@ -135,3 +135,30 @@ class RetrievalResult(BaseModel):
     confidence: float = Field(ge=0.0, le=1.0)
     score: float
     supported_by: tuple[UUID, ...]
+
+
+class DecayState(BaseModel):
+    """Per-item mutable decay state.
+
+    Lives alongside the immutable observation (`Event` or `MemoryItem`) and
+    holds everything the decay engine needs to score, age, and prune the
+    item: the running weight, the running counts of reinforcement /
+    corroboration / contradiction signals, the timestamp of the last decay
+    application, and an optional `cold_at` marking when the item dropped
+    below the prune threshold.
+
+    The model is frozen because storage owns the row and re-fetches a fresh
+    `DecayState` after every mutation - a stale in-memory copy would silently
+    diverge from the database.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    item_id: UUID
+    item_kind: ItemKind
+    weight: float = Field(default=1.0, ge=0.0, le=1.0)
+    reinforcement_count: int = Field(default=0, ge=0)
+    corroboration_count: int = Field(default=0, ge=0)
+    contradiction_count: int = Field(default=0, ge=0)
+    last_decayed_at: datetime
+    cold_at: datetime | None = None
