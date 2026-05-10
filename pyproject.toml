@@ -94,7 +94,7 @@ select = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101", "B", "SIM", "ARG"]
+"tests/*" = ["S101", "S311", "B", "SIM", "ARG"]
 
 [tool.mypy]
 python_version = "3.10"
