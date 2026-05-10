@@ -17,6 +17,16 @@ not run consolidation in the background. Stage 9 introduces a worker
 that schedules consolidation alongside the decay tick.
 """
 
+from engram.consolidation._abstraction import (
+    PROMPT_VERSION,
+    PROMPT_VERSIONS,
+    AbstractionParseError,
+    AbstractionRequest,
+    AbstractionResult,
+    extract_abstraction,
+    parse_response,
+    render_prompt,
+)
 from engram.consolidation._clustering import (
     ClusterAssignment,
     ClusterParams,
@@ -25,8 +35,16 @@ from engram.consolidation._clustering import (
 )
 
 __all__ = [
+    "PROMPT_VERSION",
+    "PROMPT_VERSIONS",
+    "AbstractionParseError",
+    "AbstractionRequest",
+    "AbstractionResult",
     "ClusterAssignment",
     "ClusterParams",
     "cluster",
     "cohesion",
+    "extract_abstraction",
+    "parse_response",
+    "render_prompt",
 ]
