@@ -1,9 +1,10 @@
 """The `Memory` primitive.
 
-Stages 3 + 4 + 5 surface:
+Stages 3 + 4 + 5 + 6 surface:
   * `observe(content)` writes an event with its embedding
-  * `retrieve(query, k)` returns the top-k events by cosine similarity,
-    excluding pruned items by default
+  * `retrieve(query, k, *, prefer=...)` returns the top-k items via
+    coarse-to-fine retrieval over the hierarchy: abstractions first,
+    drilling into supporting events when confidence is low
   * `reinforce` / `corroborate` / `contradict` apply decay-since-last
     plus a fresh signal and update the per-row weight
   * `tick(now=None)` runs the periodic decay sweep across the whole store
@@ -12,8 +13,8 @@ Stages 3 + 4 + 5 surface:
     resulting memory items into the hierarchy through provenance
 
 Later stages layer in:
-  - hierarchical retrieve (Stage 6): coarse-to-fine reads
   - procedural memory (Stage 7): situation -> action -> outcome
+  - contradiction & temporal reasoning (Stage 8)
 """
 
 from __future__ import annotations
@@ -32,12 +33,17 @@ from engram.consolidation import (
 from engram.decay import DecayEngine, DecayMetrics, DecayParams, PrunePolicy, TickResult
 from engram.decay._math import is_cold as _is_cold
 from engram.providers._protocols import ChatProvider, EmbeddingProvider
+from engram.retrieve import (
+    HierarchicalRetriever,
+    Reranker,
+    RetrieveParams,
+    RetrievePrefer,
+)
 from engram.schemas import (
     DecayState,
     Embedding,
     Event,
     ItemKind,
-    Level,
     RetrievalResult,
 )
 from engram.storage._protocol import Storage
@@ -67,6 +73,8 @@ class Memory:
         decay_params: DecayParams | None = None,
         prune_policy: PrunePolicy = "cold",
         consolidation_params: ConsolidationParams | None = None,
+        retrieve_params: RetrieveParams | None = None,
+        reranker: Reranker | None = None,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
         self._storage = storage
@@ -92,6 +100,14 @@ class Memory:
             )
         else:
             self._consolidator = None
+        self._retrieve_params = retrieve_params if retrieve_params is not None else RetrieveParams()
+        self._default_reranker = reranker
+        self._retriever = HierarchicalRetriever(
+            storage,
+            embedder=embedder,
+            params=self._retrieve_params,
+            reinforce=self._engine.reinforce,
+        )
 
     @property
     def storage(self) -> Storage:
@@ -135,44 +151,60 @@ class Memory:
     def retrieve(
         self,
         query: str,
-        k: int = 10,
+        k: int | None = None,
         *,
-        include_cold: bool = False,
+        prefer: RetrievePrefer | None = None,
+        confidence_threshold: float | None = None,
+        drill_k: int | None = None,
+        include_cold: bool | None = None,
+        reinforce: bool | None = None,
+        reranker: Reranker | None = None,
     ) -> list[RetrievalResult]:
-        """Return the top-k events most similar to `query` by cosine.
+        """Return up to `k` items most relevant to `query`, coarse-to-fine.
 
-        Stage 3 is flat: every result is `level=EVENT`, `supported_by` is
-        the singleton `(event_id,)`, and `confidence` equals the cosine
-        score (already in `[0, 1]` for unit-norm vectors when both sides
-        are aligned; clamped here just in case).
+        Stage 6 reads the consolidation hierarchy: top-k generalizations
+        first, with optional drill-down into supporting events when the
+        generalization's confidence is below `confidence_threshold` or
+        the caller explicitly asked for `prefer="specific"`. The
+        returned `RetrievalResult.level` reflects what was actually
+        surfaced -- an abstraction, a summary, or a raw event.
 
-        Stage 4: items pruned by the decay engine are excluded by
-        default. Pass `include_cold=True` for audit / inspection flows.
+        Backwards compatible with the Stage 3 surface: `retrieve(q)`
+        and `retrieve(q, k=20)` work unchanged. The parameters override
+        the per-Memory defaults set on the constructor; missing values
+        fall back to those defaults.
+
+        Args:
+          query: free-text query.
+          k: number of results to return.
+          prefer: `"auto"` (default) / `"specific"` / `"general"`.
+          confidence_threshold: in `auto`, abstractions at or above this
+            score are returned as-is; below, the engine drills.
+          drill_k: per low-confidence abstraction, how many supporting
+            events to consider.
+          include_cold: include items pruned by the decay engine.
+          reinforce: fire reinforcement on every surfaced item. Off via
+            `False` even if the Memory's default has it on (e.g. for
+            an audit-style read that shouldn't influence weights).
+          reranker: optional cross-encoder reranker. Defaults to the
+            Memory-level reranker if one was passed to the constructor.
         """
-        if k < 1:
-            raise ValueError(f"k must be >= 1, got {k}")
-
-        query_vec = self._embedder.embed([query])[0]
-        normalized = _normalize(query_vec)
-
-        hits = self._storage.search_event_embeddings(
-            normalized,
-            k=k,
-            model=self._embedder.model,
-            include_cold=include_cold,
+        defaults = self._retrieve_params
+        params = RetrieveParams(
+            k=k if k is not None else defaults.k,
+            prefer=prefer if prefer is not None else defaults.prefer,
+            confidence_threshold=(
+                confidence_threshold
+                if confidence_threshold is not None
+                else defaults.confidence_threshold
+            ),
+            drill_k=drill_k if drill_k is not None else defaults.drill_k,
+            candidate_multiplier=defaults.candidate_multiplier,
+            include_cold=include_cold if include_cold is not None else defaults.include_cold,
+            reinforce_on_use=(reinforce if reinforce is not None else defaults.reinforce_on_use),
         )
-
-        return [
-            RetrievalResult(
-                item_id=event_id,
-                level=Level.EVENT,
-                content=content,
-                confidence=_clip01(score),
-                score=score,
-                supported_by=(event_id,),
-            )
-            for event_id, content, score in hits
-        ]
+        effective_reranker = reranker if reranker is not None else self._default_reranker
+        return self._retriever.retrieve(query, params=params, reranker=effective_reranker)
 
     # --- Stage 4: decay surface --------------------------------------------
 
@@ -275,11 +307,3 @@ def _normalize(vec: Sequence[float]) -> list[float]:
     if norm == 0.0:
         return list(vec)
     return [x / norm for x in vec]
-
-
-def _clip01(x: float) -> float:
-    if x < 0.0:
-        return 0.0
-    if x > 1.0:
-        return 1.0
-    return x

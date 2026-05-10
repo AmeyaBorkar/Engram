@@ -3,6 +3,13 @@
 from engram.decay import DecayParams
 from engram.ids import new_id
 from engram.memory import Memory
+from engram.retrieve import (
+    FakeReranker,
+    HierarchicalRetriever,
+    Reranker,
+    RetrieveParams,
+    RetrievePrefer,
+)
 from engram.schemas import (
     Cluster,
     DecayState,
@@ -22,12 +29,17 @@ __all__ = [
     "DecayState",
     "Embedding",
     "Event",
+    "FakeReranker",
+    "HierarchicalRetriever",
     "ItemKind",
     "Level",
     "Memory",
     "MemoryItem",
     "ProvenanceLink",
+    "Reranker",
     "RetrievalResult",
+    "RetrieveParams",
+    "RetrievePrefer",
     "SqliteStorage",
     "Storage",
     "StorageStats",
