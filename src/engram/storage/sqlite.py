@@ -43,6 +43,7 @@ from engram.storage._serialize import (
     parse_iso,
     unpack_vector,
 )
+from engram.storage._vector_index import VectorIndex
 from engram.storage.migrations import apply_migrations
 
 
@@ -179,42 +180,30 @@ _DECAY_TOTALS_SQL: dict[ItemKind, str] = {
 }
 
 
-def _topk_from_rows(
-    rows: Sequence[sqlite3.Row],
-    query_vec: Sequence[float],
-    *,
-    k: int,
-    id_col: str,
-) -> list[tuple[UUID, str, float]]:
-    """Bulk-materialize vectors and return top-k by cosine sim.
-
-    Pre-computes the `(n, d)` matrix via a single buffer concat -- the
-    per-row `np.frombuffer` + assignment loop is the bottleneck at 100k+
-    items, and replacing it with one `np.frombuffer` over a joined byte
-    buffer drops the inner-loop cost from ~tens of milliseconds to
-    sub-millisecond at d=1024 / n=100k on a laptop.
-    """
-    if not rows:
-        return []
-    dim = int(rows[0]["dim"])
-    if len(query_vec) != dim:
-        raise ValueError(
-            f"query_vec dim {len(query_vec)} does not match stored embedding dim {dim}"
-        )
-    n = len(rows)
-    # Single flat buffer: stored vectors are float32, dim==len consistent.
-    raw = b"".join(row["vector"] for row in rows)
-    vecs = np.frombuffer(raw, dtype=np.float32, count=n * dim).reshape(n, dim)
-    q = np.asarray(query_vec, dtype=np.float32)
-    scores = vecs @ q
-
-    k_eff = min(k, n)
-    if k_eff == n:
-        order = np.argsort(-scores)
-    else:
-        cand = np.argpartition(-scores, k_eff - 1)[:k_eff]
-        order = cand[np.argsort(-scores[cand])]
-    return [(UUID(bytes=rows[i][id_col]), str(rows[i]["content"]), float(scores[i])) for i in order]
+# Per-shard SELECT for the in-memory vector index. Returns the four
+# columns the index expects: `item_id`, `vector`, `cold` (0/1),
+# `level` (string). `cold` and `level` are computed at SQL time so the
+# shard can filter without a join.
+_INDEX_REBUILD_SQL: dict[str, str] = {
+    "event": (
+        "SELECT emb.item_id AS item_id, "
+        "       emb.vector  AS vector, "
+        "       (e.cold_at IS NOT NULL) AS cold, "
+        "       'event' AS level "
+        "FROM embeddings emb "
+        "JOIN events e ON emb.item_id = e.id "
+        "WHERE emb.item_kind = 'event' AND emb.model = ?"
+    ),
+    "memory_item": (
+        "SELECT emb.item_id AS item_id, "
+        "       emb.vector  AS vector, "
+        "       (mi.cold_at IS NOT NULL) AS cold, "
+        "       mi.level    AS level "
+        "FROM embeddings emb "
+        "JOIN memory_items mi ON emb.item_id = mi.id "
+        "WHERE emb.item_kind = 'memory_item' AND emb.model = ?"
+    ),
+}
 
 
 class SqliteStorage:
@@ -225,6 +214,7 @@ class SqliteStorage:
         self._lock = threading.Lock()
         self._connections: dict[int, sqlite3.Connection] = {}
         self._initialized = False
+        self._vector_index = VectorIndex()
 
     # --- lifecycle ----------------------------------------------------------
 
@@ -452,6 +442,7 @@ class SqliteStorage:
         )
         if cursor.rowcount == 0:
             raise KeyError(f"memory_item {item_id} not found")
+        self._vector_index.mark_dirty(kind=ItemKind.MEMORY_ITEM.value)
 
     def iter_memory_items(
         self,
@@ -512,6 +503,7 @@ class SqliteStorage:
                 iso(embedding.created_at),
             ),
         )
+        self._vector_index.mark_dirty(kind=embedding.item_kind.value, model=embedding.model)
 
     def get_embedding(self, item_id: UUID, item_kind: ItemKind, model: str) -> Embedding | None:
         row = (
@@ -613,17 +605,16 @@ class SqliteStorage:
     ) -> list[tuple[UUID, str, float]]:
         if k < 1:
             raise ValueError(f"k must be >= 1, got {k}")
-        sql = (
-            "SELECT e.id AS event_id, e.content AS content, "
-            "       emb.vector AS vector, emb.dim AS dim "
-            "FROM embeddings emb "
-            "JOIN events e ON emb.item_id = e.id "
-            "WHERE emb.item_kind = 'event' AND emb.model = ?"
+        hits = self._vector_index.search(
+            self._connect(),
+            query_vec,
+            kind=ItemKind.EVENT.value,
+            model=model,
+            rebuild_sql=_INDEX_REBUILD_SQL["event"],
+            include_cold=include_cold,
+            k=k,
         )
-        if not include_cold:
-            sql += " AND e.cold_at IS NULL"
-        rows = self._connect().execute(sql, (model,)).fetchall()
-        return _topk_from_rows(rows, query_vec, k=k, id_col="event_id")
+        return self._fetch_event_content(hits)
 
     def search_memory_item_embeddings(
         self,
@@ -637,26 +628,56 @@ class SqliteStorage:
     ) -> list[tuple[UUID, str, float]]:
         if k < 1:
             raise ValueError(f"k must be >= 1, got {k}")
-        sql = (
-            "SELECT mi.id AS item_id, mi.content AS content, "
-            "       emb.vector AS vector, emb.dim AS dim "
-            "FROM embeddings emb "
-            "JOIN memory_items mi ON emb.item_id = mi.id "
-            "WHERE emb.item_kind = 'memory_item' AND emb.model = ?"
+        level_values = [level.value for level in levels] if levels else None
+        excl_bytes = [iid.bytes for iid in exclude_ids]
+        hits = self._vector_index.search(
+            self._connect(),
+            query_vec,
+            kind=ItemKind.MEMORY_ITEM.value,
+            model=model,
+            rebuild_sql=_INDEX_REBUILD_SQL["memory_item"],
+            levels=level_values,
+            exclude_ids=excl_bytes,
+            include_cold=include_cold,
+            k=k,
         )
-        params: list[Any] = [model]
-        if not include_cold:
-            sql += " AND mi.cold_at IS NULL"
-        if levels:
-            placeholders = ",".join("?" for _ in levels)
-            sql += f" AND mi.level IN ({placeholders})"
-            params.extend(level.value for level in levels)
-        if exclude_ids:
-            placeholders = ",".join("?" for _ in exclude_ids)
-            sql += f" AND mi.id NOT IN ({placeholders})"
-            params.extend(item_id.bytes for item_id in exclude_ids)
-        rows = self._connect().execute(sql, params).fetchall()
-        return _topk_from_rows(rows, query_vec, k=k, id_col="item_id")
+        return self._fetch_memory_item_content(hits)
+
+    def _fetch_event_content(
+        self, hits: Sequence[tuple[UUID, int, float]]
+    ) -> list[tuple[UUID, str, float]]:
+        if not hits:
+            return []
+        ids = [u for u, _, _ in hits]
+        placeholders = ",".join("?" for _ in ids)
+        rows = (
+            self._connect()
+            .execute(
+                f"SELECT id, content FROM events WHERE id IN ({placeholders})",  # noqa: S608
+                [u.bytes for u in ids],
+            )
+            .fetchall()
+        )
+        content: dict[bytes, str] = {bytes(r["id"]): r["content"] for r in rows}
+        return [(u, content[u.bytes], score) for u, _, score in hits if u.bytes in content]
+
+    def _fetch_memory_item_content(
+        self, hits: Sequence[tuple[UUID, int, float]]
+    ) -> list[tuple[UUID, str, float]]:
+        if not hits:
+            return []
+        ids = [u for u, _, _ in hits]
+        placeholders = ",".join("?" for _ in ids)
+        rows = (
+            self._connect()
+            .execute(
+                f"SELECT id, content FROM memory_items WHERE id IN ({placeholders})",  # noqa: S608
+                [u.bytes for u in ids],
+            )
+            .fetchall()
+        )
+        content: dict[bytes, str] = {bytes(r["id"]): r["content"] for r in rows}
+        return [(u, content[u.bytes], score) for u, _, score in hits if u.bytes in content]
 
     def score_events_by_ids(
         self,
@@ -671,7 +692,8 @@ class SqliteStorage:
             return []
         # `id IN (...)` with up to ~1000 ids fits within sqlite's default
         # 32k variable limit; the drill path emits at most a few hundred,
-        # so we stay well clear.
+        # so we stay well clear. This path is small enough to bypass the
+        # vector index cache and just read its candidates inline.
         placeholders = ",".join("?" for _ in ids_list)
         sql = (
             "SELECT e.id AS event_id, e.content AS content, "
@@ -685,7 +707,26 @@ class SqliteStorage:
             sql += " AND e.cold_at IS NULL"
         params: list[Any] = [model, *(eid.bytes for eid in ids_list)]
         rows = self._connect().execute(sql, params).fetchall()
-        return _topk_from_rows(rows, query_vec, k=len(rows) or 1, id_col="event_id")
+        if not rows:
+            return []
+        dim = int(rows[0]["dim"])
+        if len(query_vec) != dim:
+            raise ValueError(
+                f"query_vec dim {len(query_vec)} does not match stored embedding dim {dim}"
+            )
+        raw = b"".join(row["vector"] for row in rows)
+        vecs = np.frombuffer(raw, dtype=np.float32, count=len(rows) * dim).reshape(len(rows), dim)
+        q = np.asarray(query_vec, dtype=np.float32)
+        scores = vecs @ q
+        order = np.argsort(-scores, kind="stable")
+        return [
+            (
+                UUID(bytes=rows[i]["event_id"]),
+                str(rows[i]["content"]),
+                float(scores[i]),
+            )
+            for i in order
+        ]
 
     # --- decay state --------------------------------------------------------
 
@@ -737,12 +778,14 @@ class SqliteStorage:
         cursor = self._connect().execute(sql, (iso(at), item_id.bytes))
         if cursor.rowcount == 0:
             raise KeyError(f"{kind.value} {item_id} not found")
+        self._vector_index.mark_dirty(kind=kind.value)
 
     def unmark_cold(self, item_id: UUID, kind: ItemKind) -> None:
         sql = _UNMARK_COLD_SQL[kind]
         cursor = self._connect().execute(sql, (item_id.bytes,))
         if cursor.rowcount == 0:
             raise KeyError(f"{kind.value} {item_id} not found")
+        self._vector_index.mark_dirty(kind=kind.value)
 
     def count_cold(self, kind: ItemKind) -> int:
         sql = _COUNT_COLD_SQL[kind]
@@ -769,7 +812,10 @@ class SqliteStorage:
                 )
         sql = _DELETE_COLD_SQL[kind]
         cursor = self._connect().execute(sql)
-        return int(cursor.rowcount)
+        deleted = int(cursor.rowcount)
+        if deleted:
+            self._vector_index.mark_dirty(kind=kind.value)
+        return deleted
 
     def decay_totals(self, kind: ItemKind) -> dict[str, int]:
         sql = _DECAY_TOTALS_SQL[kind]
