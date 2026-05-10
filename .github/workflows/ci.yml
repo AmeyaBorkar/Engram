@@ -51,12 +51,21 @@ jobs:
         run: pip install -e ".[dev]"
       - name: Pytest
         run: pytest --cov=engram --cov-report=term-missing --cov-report=xml
+      - name: Smoke benchmark (noop suite, fake provider)
+        run: python -m engram.bench run noop --provider fake --runs-dir benchmarks/runs/ci
       - name: Upload coverage
         if: matrix.os == 'ubuntu-latest' && matrix.python == '3.13'
         uses: actions/upload-artifact@v4
         with:
           name: coverage-xml
           path: coverage.xml
+          if-no-files-found: error
+      - name: Upload smoke-benchmark manifest
+        if: matrix.os == 'ubuntu-latest' && matrix.python == '3.13'
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-benchmark-manifest
+          path: benchmarks/runs/ci/*.json
           if-no-files-found: error
 
   audit:

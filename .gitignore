@@ -35,6 +35,9 @@ coverage.xml
 *.duckdb
 .engram/
 
+# CI-generated smoke benchmark manifests (release runs are committed to /runs/)
+benchmarks/runs/ci/
+
 # Environment / secrets
 .env
 .env.*

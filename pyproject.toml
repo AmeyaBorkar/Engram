@@ -25,13 +25,16 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Typing :: Typed",
 ]
-dependencies = []
+dependencies = [
+    "pydantic>=2.7",
+]
 
 [project.optional-dependencies]
 openai = ["openai>=1.40"]
 anthropic = ["anthropic>=0.40"]
 postgres = ["psycopg[binary]>=3.1"]
 duckdb = ["duckdb>=0.10"]
+sqlite-vec = ["sqlite-vec>=0.1.0"]
 dev = [
     "pytest>=8",
     "pytest-cov>=5",
@@ -39,6 +42,9 @@ dev = [
     "ruff>=0.5",
     "mypy>=1.10",
 ]
+
+[project.scripts]
+engram-bench = "engram.bench.__main__:main"
 
 [project.urls]
 Homepage = "https://github.com/AmeyaBorkar/Engram"
@@ -102,7 +108,10 @@ warn_unreachable = true
 minversion = "8.0"
 testpaths = ["tests"]
 pythonpath = ["src"]
-addopts = "-ra --strict-markers --strict-config"
+addopts = "-ra --strict-markers --strict-config -m 'not slow'"
+markers = [
+    "slow: opt-in performance tests (run with `pytest -m slow`)",
+]
 
 [tool.coverage.run]
 source = ["engram"]
