@@ -81,4 +81,6 @@ jobs:
           pip install -e ".[dev,openai,anthropic,postgres,duckdb]"
           pip install pip-audit
       - name: Audit
-        run: pip-audit --strict
+        # `--skip-editable` skips the local editable install of engram itself
+        # (not yet published to PyPI). All real dependencies are still audited.
+        run: pip-audit --strict --skip-editable
