@@ -1,0 +1,62 @@
+"""Parameters for `Memory.retrieve` / `HierarchicalRetriever.retrieve`.
+
+`RetrieveParams` is a frozen dataclass so two calls with the same
+parameters are reproducible by construction. Validation lives in
+`__post_init__` -- the model is small enough that pydantic would be
+overkill, and we save the per-call validation cost on a hot path.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Literal
+
+# `auto`     -- generalize when confident, drill when not (the default).
+# `specific` -- always surface events; abstractions are skipped.
+# `general`  -- always surface abstractions/summaries; never drill.
+RetrievePrefer = Literal["auto", "specific", "general"]
+
+
+@dataclass(frozen=True, slots=True)
+class RetrieveParams:
+    """Shape of one retrieval call.
+
+    `k`                    -- final result count.
+    `prefer`               -- specific / general / auto (see RetrievePrefer).
+    `confidence_threshold` -- in `auto` mode, hits at or above this score
+                              are surfaced as the abstraction; below it,
+                              the engine drills into supporting events.
+    `drill_k`              -- per low-confidence abstraction, how many
+                              supporting events to consider when drilling.
+    `candidate_multiplier` -- number of memory items to pull from the first
+                              stage = `k * candidate_multiplier`. The merge
+                              + rerank step picks the final `k`.
+    `include_cold`         -- include items pruned by the decay engine.
+    `reinforce_on_use`     -- after retrieval, fire reinforcement signals
+                              against every surfaced item (closes the loop
+                              between retrieval and decay).
+    """
+
+    k: int = 10
+    prefer: RetrievePrefer = "auto"
+    confidence_threshold: float = 0.7
+    drill_k: int = 3
+    candidate_multiplier: int = 3
+    include_cold: bool = False
+    reinforce_on_use: bool = True
+
+    def __post_init__(self) -> None:
+        if self.k < 1:
+            raise ValueError(f"k must be >= 1, got {self.k}")
+        if self.prefer not in ("auto", "specific", "general"):
+            raise ValueError(
+                f"prefer must be 'auto', 'specific', or 'general'; got {self.prefer!r}"
+            )
+        if not 0.0 <= self.confidence_threshold <= 1.0:
+            raise ValueError(
+                f"confidence_threshold must be in [0, 1], got {self.confidence_threshold!r}"
+            )
+        if self.drill_k < 0:
+            raise ValueError(f"drill_k must be >= 0, got {self.drill_k}")
+        if self.candidate_multiplier < 1:
+            raise ValueError(f"candidate_multiplier must be >= 1, got {self.candidate_multiplier}")
