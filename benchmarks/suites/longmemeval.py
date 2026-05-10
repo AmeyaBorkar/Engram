@@ -299,6 +299,16 @@ class LongMemEvalSuite:
         answer_ms: list[float] = []
         judge_ms: list[float] = []
         per_type_scores: dict[str, list[float]] = {}
+        # Log every question for small smoke runs; every 10 for full runs
+        # so 500-question manifests don't bury the user in INFO lines.
+        log_interval = 1 if len(questions) <= 20 else 10
+
+        _LOG.info(
+            "longmemeval: starting %d questions (k=%d, %d turn avg)",
+            len(questions),
+            self._k,
+            sum(len(s) for q in questions for s in q.haystack_sessions) // max(len(questions), 1),
+        )
 
         for q_idx, q in enumerate(questions):
             storage = SqliteStorage(":memory:")
@@ -342,13 +352,15 @@ class LongMemEvalSuite:
                         "turns_ingested": turns,
                     }
                 )
-                if (q_idx + 1) % 10 == 0:
+                if (q_idx + 1) % log_interval == 0 or q_idx == len(questions) - 1:
                     correct_so_far = sum(s for vs in per_type_scores.values() for s in vs)
                     total = sum(len(vs) for vs in per_type_scores.values())
                     _LOG.info(
-                        "longmemeval %d/%d, running accuracy = %.3f",
+                        "q %d/%d [%s] -> %s (acc so far = %.3f)",
                         q_idx + 1,
                         len(questions),
+                        q.qtype,
+                        "PASS" if score == 1.0 else "FAIL",
                         correct_so_far / total if total else 0.0,
                     )
             finally:

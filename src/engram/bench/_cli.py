@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 import sys
 from pathlib import Path
@@ -10,6 +11,25 @@ from pathlib import Path
 from engram.bench._provider import FakeProvider, Provider
 from engram.bench._real_provider import build_provider
 from engram.bench._runner import run as run_suite
+
+
+def _configure_logging(level_name: str) -> None:
+    """Attach a stderr handler so suite progress shows up by default.
+
+    The root logger is unconfigured in library code so import-time logs
+    don't surprise embedders. The CLI is the right place to wire it in.
+    `ENGRAM_LOG_LEVEL` overrides the default.
+    """
+    level = getattr(logging, level_name.upper(), logging.INFO)
+    if not logging.getLogger().handlers:
+        logging.basicConfig(
+            level=level,
+            format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+            datefmt="%H:%M:%S",
+            stream=sys.stderr,
+        )
+    else:
+        logging.getLogger().setLevel(level)
 
 
 def _load_env_file(path: Path) -> bool:
@@ -141,6 +161,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "run":
         if _load_env_file(args.env_file):
             print(f"loaded {args.env_file}", file=sys.stderr)
+        # `.env` may carry `ENGRAM_LOG_LEVEL=DEBUG`; load it before
+        # configuring logging so user overrides take effect.
+        _configure_logging(os.environ.get("ENGRAM_LOG_LEVEL", "INFO"))
         try:
             provider = _resolve_provider(args)
             manifest_path = run_suite(args.suite, provider=provider, runs_dir=args.runs_dir)
