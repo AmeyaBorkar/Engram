@@ -43,5 +43,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Onc
   - `dev` extra now installs `openai` and `anthropic` so mypy can typecheck adapter modules locally; end users still install via `[openai]` / `[anthropic]` extras.
 - **Stage 2 — Tests**: 106 new tests covering retry exponential growth + jitter determinism + async paths, cache LRU eviction + promotion + hit-rate accounting, redactor pattern coverage and nested-container traversal, fake-provider determinism + manifest-hash stability + protocol satisfaction, OpenAI / Anthropic adapters via `unittest.mock` (no network), batcher concurrency + exception propagation, prompt-injection corpus shape and FakeChat resistance.
 - **CI**: `pip-audit` job now uses `--skip-editable` so the (unpublished) editable `engram` install doesn't cause a 404 lookup; all third-party deps are still audited.
+- **Stage 3 — Observe and retrieve**:
+  - `engram.Memory(storage=..., embedder=...)` ships its public surface: `observe(content)` (string or `Event`) embeds, normalizes to unit-norm, and persists event + embedding atomically; `retrieve(query, k=10)` returns `RetrievalResult`s ranked by cosine similarity (every result is `level=EVENT` until Stage 5 adds abstractions).
+  - `engram.RetrievalResult` schema — frozen Pydantic model with `level`, `content`, `confidence` (clamped to `[0, 1]`), `score`, `supported_by`, `item_id`. The schema is the same shape Stage 6 uses for hierarchical results.
+  - `Storage.search_event_embeddings(query_vec, k, model)` — protocol method backing `Memory.retrieve`. SQLite implementation does an `O(N)` brute-force scan with `np.frombuffer` + `argpartition`. Stage 6 swaps to `sqlite-vec` behind the same protocol.
+  - `numpy>=1.26` is now a core runtime dependency.
+  - **Crash-safety**: `test_observe_durable_across_sigkill` spawns a writer subprocess, kills it (`SIGKILL` / `TerminateProcess`), and verifies the database is consistent on reopen.
+  - **Concurrent writers**: `test_concurrent_observers_no_drops` runs 8 threads × 50 observes each through one shared `Memory` and asserts all 400 events land with unique contents.
+  - **Perf budgets** (opt-in `pytest -m slow`): observe P50 < 50 ms and retrieve P50 < 100 ms at 10k events. Both pass locally.
+- **Stage 3 — Benchmark baselines**:
+  - `engram.bench.Retriever` protocol + `Hit` dataclass — common surface every benchmark baseline implements.
+  - `engram.bench.EngramRetriever` — adapter from `engram.Memory` to the protocol.
+  - `benchmarks/baselines/chroma.py` — Chroma adapter with custom `EmbeddingProvider` injection (apples-to-apples comparison against Engram on the same vectors).
+  - `benchmarks/baselines/chroma_bm25.py` — dense + sparse hybrid via Reciprocal Rank Fusion. Self-contained BM25 implementation in `_bm25.py` (no `rank_bm25` dependency).
+  - `[bench]` extra (`chromadb>=0.5`) for opt-in install.
+- **Stage 3 — Smoke benchmark suite**:
+  - `benchmarks/suites/recall_smoke.py` indexes a 30-doc synthetic conversational corpus into every available retriever and computes recall@10 on exact-text queries. Local run shows all three retrievers at recall@10 = 1.0 (the floor).
+  - CI now runs `engram-bench run recall-smoke --provider fake` on every PR (Ubuntu 3.13 only, with `[dev,bench]` extras).
+  - The runner's suite-name lookup now maps CLI-friendly hyphens to Python module underscores.
 
 [Unreleased]: https://github.com/AmeyaBorkar/Engram/compare/HEAD...HEAD

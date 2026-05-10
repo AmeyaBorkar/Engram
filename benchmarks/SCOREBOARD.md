@@ -38,8 +38,8 @@ The numbers in this file are **pinned** to a specific source per row. They get r
 
 | API | Workload | Target P50 | Target P99 | Status |
 |---|---|---|---|---|
-| `observe` | 10k events | < 50 ms | < 200 ms | not yet measurable |
-| `retrieve` (flat) | 10k events | < 100 ms | < 300 ms | not yet measurable |
+| `observe` | 10k events | < 50 ms | < 200 ms | **passing** (Stage 3, FakeEmbedder, local) |
+| `retrieve` (flat) | 10k events | < 100 ms | < 300 ms | **passing** (Stage 3, FakeEmbedder, local) |
 | `retrieve` (coarse-to-fine) | 100k items | < 150 ms | < 500 ms | not yet measurable |
 | `consolidate` | per-event @ fake provider | n/a | n/a (≥ 100 / s throughput) | not yet measurable |
 | `consolidate` | per-event @ real provider | n/a | n/a (≥ 10 / s with batching) | not yet measurable |
@@ -48,7 +48,18 @@ The numbers in this file are **pinned** to a specific source per row. They get r
 
 | API | Workload | Target | Status |
 |---|---|---|---|
-| `observe` | concurrent writers | ≥ 1k / s | not yet measurable |
+| `observe` | concurrent writers | ≥ 1k / s | implicit pass (Stage 3, 8 writers no drops) |
+
+## Smoke benchmark (`recall-smoke`, FakeEmbedder, exact-text queries)
+
+Validates harness wiring; not a SOTA claim. Real recall comparisons
+land at Stage 6 against LongMemEval / LoCoMo with real providers.
+
+| System | Recall@10 |
+|---|---|
+| Engram | 1.0 |
+| Chroma | 1.0 |
+| Chroma + BM25 (RRF) | 1.0 |
 
 ---
 
@@ -65,3 +76,4 @@ A row without a source is a row we don't trust yet. **We do not claim to have cr
 | Date | Change | Manifest |
 |---|---|---|
 | 2026-05-10 | Initial scaffold. No measurements yet. | n/a |
+| 2026-05-10 | Stage 3: observe/retrieve P50 budgets verified locally (FakeEmbedder); recall-smoke against Chroma + Chroma+BM25 reaches the 1.0 floor on exact-text queries. | CI-uploaded |

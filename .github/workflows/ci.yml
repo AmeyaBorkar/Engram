@@ -48,11 +48,13 @@ jobs:
           cache: pip
           cache-dependency-path: pyproject.toml
       - name: Install
-        run: pip install -e ".[dev]"
+        run: pip install -e ".[dev,bench]"
       - name: Pytest
         run: pytest --cov=engram --cov-report=term-missing --cov-report=xml
       - name: Smoke benchmark (noop suite, fake provider)
         run: python -m engram.bench run noop --provider fake --runs-dir benchmarks/runs/ci
+      - name: Recall-smoke benchmark (engram vs chroma vs hybrid)
+        run: python -m engram.bench run recall-smoke --provider fake --runs-dir benchmarks/runs/ci
       - name: Upload coverage
         if: matrix.os == 'ubuntu-latest' && matrix.python == '3.13'
         uses: actions/upload-artifact@v4
