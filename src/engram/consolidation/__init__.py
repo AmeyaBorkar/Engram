@@ -33,6 +33,11 @@ from engram.consolidation._clustering import (
     cluster,
     cohesion,
 )
+from engram.consolidation._engine import (
+    ConsolidationEngine,
+    ConsolidationParams,
+    ConsolidationResult,
+)
 
 __all__ = [
     "PROMPT_VERSION",
@@ -42,6 +47,9 @@ __all__ = [
     "AbstractionResult",
     "ClusterAssignment",
     "ClusterParams",
+    "ConsolidationEngine",
+    "ConsolidationParams",
+    "ConsolidationResult",
     "cluster",
     "cohesion",
     "extract_abstraction",

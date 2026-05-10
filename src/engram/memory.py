@@ -1,15 +1,17 @@
 """The `Memory` primitive.
 
-Stages 3 + 4 surface:
+Stages 3 + 4 + 5 surface:
   * `observe(content)` writes an event with its embedding
   * `retrieve(query, k)` returns the top-k events by cosine similarity,
     excluding pruned items by default
   * `reinforce` / `corroborate` / `contradict` apply decay-since-last
     plus a fresh signal and update the per-row weight
   * `tick(now=None)` runs the periodic decay sweep across the whole store
+  * `consolidate(...)` clusters unconsolidated events, extracts a
+    generalization per cluster via the chat provider, and links the
+    resulting memory items into the hierarchy through provenance
 
 Later stages layer in:
-  - consolidation (Stage 5): events cluster into abstractions
   - hierarchical retrieve (Stage 6): coarse-to-fine reads
   - procedural memory (Stage 7): situation -> action -> outcome
 """
@@ -21,9 +23,14 @@ from collections.abc import Callable, Sequence
 from datetime import datetime, timezone
 from uuid import UUID
 
+from engram.consolidation import (
+    ConsolidationEngine,
+    ConsolidationParams,
+    ConsolidationResult,
+)
 from engram.decay import DecayEngine, DecayMetrics, DecayParams, PrunePolicy, TickResult
 from engram.decay._math import is_cold as _is_cold
-from engram.providers._protocols import EmbeddingProvider
+from engram.providers._protocols import ChatProvider, EmbeddingProvider
 from engram.schemas import (
     DecayState,
     Embedding,
@@ -55,12 +62,15 @@ class Memory:
         *,
         storage: Storage,
         embedder: EmbeddingProvider,
+        chat: ChatProvider | None = None,
         decay_params: DecayParams | None = None,
         prune_policy: PrunePolicy = "cold",
+        consolidation_params: ConsolidationParams | None = None,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
         self._storage = storage
         self._embedder = embedder
+        self._chat = chat
         self._clock: Callable[[], datetime] = clock or _utcnow
         self._engine = DecayEngine(
             storage,
@@ -68,6 +78,19 @@ class Memory:
             prune_policy=prune_policy,
             clock=self._clock,
         )
+        self._consolidation_params = (
+            consolidation_params if consolidation_params is not None else ConsolidationParams()
+        )
+        if chat is not None:
+            self._consolidator: ConsolidationEngine | None = ConsolidationEngine(
+                storage,
+                embedder=embedder,
+                chat=chat,
+                params=self._consolidation_params,
+                clock=self._clock,
+            )
+        else:
+            self._consolidator = None
 
     @property
     def storage(self) -> Storage:
@@ -209,6 +232,30 @@ class Memory:
     def metrics(self) -> DecayMetrics:
         """Snapshot of the decay engine's observable counters."""
         return self._engine.metrics()
+
+    # --- Stage 5: consolidation surface ------------------------------------
+
+    @property
+    def consolidator(self) -> ConsolidationEngine:
+        """Underlying `ConsolidationEngine`. Raises if no chat provider was given."""
+        if self._consolidator is None:
+            raise RuntimeError(
+                "consolidation requires a chat provider; pass `chat=...` to Memory(...)"
+            )
+        return self._consolidator
+
+    def consolidate(self, *, max_events: int | None = None) -> ConsolidationResult:
+        """Run one consolidation pass.
+
+        Pulls up to `max_events` unconsolidated events (or everything if
+        None), clusters them, asks the chat provider for one
+        generalization per cluster, and atomically lands a `MemoryItem`
+        + provenance links per successful cluster.
+
+        Raises `RuntimeError` if `Memory` was constructed without a chat
+        provider.
+        """
+        return self.consolidator.consolidate(max_events=max_events)
 
 
 def _normalize(vec: Sequence[float]) -> list[float]:
