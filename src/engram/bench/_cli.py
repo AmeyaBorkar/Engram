@@ -68,7 +68,7 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument(
         "--chat",
         default=None,
-        choices=("fake", "openai", "anthropic", "moonshot"),
+        choices=("fake", "openai", "anthropic", "moonshot", "opencode-zen"),
         help="Chat provider (default: fake).",
     )
     run.add_argument(
@@ -85,7 +85,11 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument(
         "--chat-model",
         default=None,
-        help=("Override the chat model name (e.g. gpt-4o, claude-haiku-4-5-20251001, kimi-k2.6)."),
+        help=(
+            "Override the chat model name. Examples: gpt-4o, "
+            "claude-haiku-4-5-20251001 (Anthropic direct), kimi-k2.6 (Moonshot), "
+            "claude-haiku-4-5 / gpt-5.5-mini / kimi-k2.6 (OpenCode Zen)."
+        ),
     )
     run.add_argument(
         "--runs-dir",

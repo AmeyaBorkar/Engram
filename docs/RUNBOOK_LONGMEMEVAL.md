@@ -39,6 +39,7 @@ The keys you'll need:
 | `OPENAI_API_KEY` | OpenAI (embeddings + chat) | <https://platform.openai.com/api-keys> |
 | `ANTHROPIC_API_KEY` | Anthropic (chat only) | <https://console.anthropic.com/settings/keys> |
 | `MOONSHOT_API_KEY` | Moonshot / Kimi K2 (chat only) | <https://platform.moonshot.ai/> |
+| `OPENCODE_ZEN_API_KEY` | OpenCode Zen — Claude, GPT 5.x, Kimi all via one key (chat only) | <https://opencode.ai/> |
 
 `.env` is gitignored, so secrets stay out of the repo. The bench CLI
 auto-loads it from the project root every time it starts; existing
@@ -168,6 +169,32 @@ python -m engram.bench run longmemeval `
   --runs-dir benchmarks/runs/local
 ```
 
+**OpenCode Zen as the answer model** (one API key for Claude, GPT 5.x,
+or Kimi — billed through the OpenCode platform):
+
+```powershell
+# Claude Haiku 4.5 via OpenCode Zen
+python -m engram.bench run longmemeval `
+  --embedder openai `
+  --chat opencode-zen `
+  --chat-model claude-haiku-4-5 `
+  --runs-dir benchmarks/runs/local
+
+# Or GPT 5.5 Mini via OpenCode Zen
+python -m engram.bench run longmemeval `
+  --embedder openai `
+  --chat opencode-zen `
+  --chat-model gpt-5.5-mini `
+  --runs-dir benchmarks/runs/local
+
+# Or Kimi K2.6 via OpenCode Zen
+python -m engram.bench run longmemeval `
+  --embedder openai `
+  --chat opencode-zen `
+  --chat-model kimi-k2.6 `
+  --runs-dir benchmarks/runs/local
+```
+
 ---
 
 ## 6. Update the SCOREBOARD
@@ -193,6 +220,8 @@ checksum + provider hash.
 | OpenAI `gpt-4o` (answer + judge) + `text-embedding-3-small` | ~$8 |
 | Moonshot `kimi-k2.6` (answer + judge) + OpenAI `text-embedding-3-small` | ~$2 |
 | Anthropic `claude-haiku` (answer + judge) + OpenAI `text-embedding-3-small` | ~$3 |
+| OpenCode Zen `claude-haiku-4-5` (answer + judge) + OpenAI `text-embedding-3-small` | ~$2 + Zen credits |
+| OpenCode Zen `gpt-5.5-mini` (answer + judge) + OpenAI `text-embedding-3-small` | ~$1 + Zen credits |
 
 Numbers are rough and vary with rate-limit-induced retries and cache
 hits. The manifest's per-call latency histograms tell you the real

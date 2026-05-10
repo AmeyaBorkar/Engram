@@ -68,6 +68,26 @@ def _moonshot_chat(model: str | None) -> ChatProvider:
     )
 
 
+def _opencode_zen_chat(model: str | None) -> ChatProvider:
+    """OpenCode Zen — multi-model gateway with OpenAI-compatible chat API.
+
+    One API key, access to Claude (haiku/sonnet/opus 4.x), GPT 5.x, and
+    Kimi K2.x. No embedding model -- pair with `--embedder openai`.
+    Default model is `claude-haiku-4-5` because it's cheap, fast, and
+    matches what most LongMemEval-style reports use.
+    """
+    from engram.providers.openai import OpenAIChat
+
+    api_key = os.environ.get("OPENCODE_ZEN_API_KEY")
+    if not api_key:
+        raise RuntimeError("OPENCODE_ZEN_API_KEY is not set. Get a key from https://opencode.ai/")
+    return OpenAIChat(
+        model=model or "claude-haiku-4-5",
+        api_key=api_key,
+        base_url="https://opencode.ai/zen/v1",
+    )
+
+
 def _openai_chat(model: str | None) -> ChatProvider:
     from engram.providers.openai import OpenAIChat
 
@@ -106,6 +126,7 @@ _CHAT_BUILDERS: dict[str, Any] = {
     "openai": _openai_chat,
     "anthropic": _anthropic_chat,
     "moonshot": _moonshot_chat,
+    "opencode-zen": _opencode_zen_chat,
 }
 
 _EMBEDDER_BUILDERS: dict[str, Any] = {
