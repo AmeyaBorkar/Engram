@@ -84,7 +84,7 @@ jobs:
           # itself (which we don't actually depend on at runtime) are fixed
           # where upstream provides a patch.
           python -m pip install --upgrade pip
-          pip install -e ".[dev,openai,anthropic,postgres,duckdb]"
+          pip install -e ".[dev,openai,anthropic,postgres,duckdb,consolidation]"
           pip install pip-audit
       - name: Audit
         # `--skip-editable` skips the local editable install of engram itself
