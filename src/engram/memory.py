@@ -21,7 +21,7 @@ from collections.abc import Callable, Sequence
 from datetime import datetime, timezone
 from uuid import UUID
 
-from engram.decay import DecayEngine, DecayParams, PrunePolicy, TickResult
+from engram.decay import DecayEngine, DecayMetrics, DecayParams, PrunePolicy, TickResult
 from engram.decay._math import is_cold as _is_cold
 from engram.providers._protocols import EmbeddingProvider
 from engram.schemas import (
@@ -205,6 +205,10 @@ class Memory:
         if state.cold_at is not None:
             return True
         return _is_cold(state.weight, self._engine.params)
+
+    def metrics(self) -> DecayMetrics:
+        """Snapshot of the decay engine's observable counters."""
+        return self._engine.metrics()
 
 
 def _normalize(vec: Sequence[float]) -> list[float]:

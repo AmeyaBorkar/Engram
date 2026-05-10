@@ -162,6 +162,21 @@ _DELETE_COLD_SQL: dict[ItemKind, str] = {
     kind: f"DELETE FROM {table} WHERE cold_at IS NOT NULL"  # noqa: S608
     for kind, table in _DECAY_TABLES.items()
 }
+_DECAY_TOTALS_SQL: dict[ItemKind, str] = {
+    kind: (
+        "SELECT "  # noqa: S608
+        "SUM(CASE WHEN cold_at IS NULL THEN 1 ELSE 0 END) AS hot_items, "
+        "SUM(CASE WHEN cold_at IS NOT NULL THEN 1 ELSE 0 END) AS cold_items, "
+        "COALESCE(SUM(CASE WHEN cold_at IS NULL THEN reinforcement_count ELSE 0 END), 0) "
+        "  AS reinforcement_total, "
+        "COALESCE(SUM(CASE WHEN cold_at IS NULL THEN corroboration_count ELSE 0 END), 0) "
+        "  AS corroboration_total, "
+        "COALESCE(SUM(CASE WHEN cold_at IS NULL THEN contradiction_count ELSE 0 END), 0) "
+        "  AS contradiction_total "
+        f"FROM {table}"
+    )
+    for kind, table in _DECAY_TABLES.items()
+}
 
 
 class SqliteStorage:
@@ -645,3 +660,17 @@ class SqliteStorage:
         sql = _DELETE_COLD_SQL[kind]
         cursor = self._connect().execute(sql)
         return int(cursor.rowcount)
+
+    def decay_totals(self, kind: ItemKind) -> dict[str, int]:
+        sql = _DECAY_TOTALS_SQL[kind]
+        row = self._connect().execute(sql).fetchone()
+        # SUM over an empty table returns NULL; COALESCE in the SQL takes
+        # care of the *_total fields, but the bare CASE-SUM hot/cold
+        # gauges fall through as None when there are no rows at all.
+        return {
+            "hot_items": int(row["hot_items"] or 0),
+            "cold_items": int(row["cold_items"] or 0),
+            "reinforcement_total": int(row["reinforcement_total"] or 0),
+            "corroboration_total": int(row["corroboration_total"] or 0),
+            "contradiction_total": int(row["contradiction_total"] or 0),
+        }

@@ -33,6 +33,7 @@ from typing import Literal
 from uuid import UUID
 
 from engram.decay._math import DecayParams, apply, is_cold
+from engram.decay._metrics import DecayMetrics, KindCounters
 from engram.schemas import DecayState, ItemKind
 from engram.storage._protocol import Storage
 
@@ -105,6 +106,7 @@ class DecayEngine:
         self._clock = clock if callable(clock) else _utcnow
         self._kinds = tuple(kinds)
         self._batch_size = batch_size
+        self._last_tick: TickResult | None = None
 
     # --- introspection ------------------------------------------------------
 
@@ -262,7 +264,7 @@ class DecayEngine:
             total_deleted += kind_deleted
 
         duration_ms = (time.perf_counter() - wall_started) * 1000.0
-        return TickResult(
+        result = TickResult(
             started_at=moment,
             items_processed=total_processed,
             items_pruned=total_pruned,
@@ -270,6 +272,8 @@ class DecayEngine:
             duration_ms=duration_ms,
             per_kind=per_kind,
         )
+        self._last_tick = result
+        return result
 
     async def tick_async(self, *, now: datetime | None = None) -> TickResult:
         """Async wrapper around `tick`.
@@ -279,3 +283,44 @@ class DecayEngine:
         backend; until then this is the canonical async surface.
         """
         return await asyncio.to_thread(self.tick, now=now)
+
+    # --- metrics ------------------------------------------------------------
+
+    def metrics(self) -> DecayMetrics:
+        """Snapshot every counter the engine exposes.
+
+        Reads aggregates from storage (one cheap query per kind) and folds
+        in the cached `last_tick` so dashboards can show tick latency
+        without re-running the sweep.
+        """
+        per_kind: dict[ItemKind, KindCounters] = {}
+        hot_items = 0
+        cold_items = 0
+        reinforcement_total = 0
+        corroboration_total = 0
+        contradiction_total = 0
+        for kind in self._kinds:
+            totals = self._storage.decay_totals(kind)
+            counters = KindCounters(
+                kind=kind,
+                hot_items=totals["hot_items"],
+                cold_items=totals["cold_items"],
+                reinforcement_total=totals["reinforcement_total"],
+                corroboration_total=totals["corroboration_total"],
+                contradiction_total=totals["contradiction_total"],
+            )
+            per_kind[kind] = counters
+            hot_items += counters.hot_items
+            cold_items += counters.cold_items
+            reinforcement_total += counters.reinforcement_total
+            corroboration_total += counters.corroboration_total
+            contradiction_total += counters.contradiction_total
+        return DecayMetrics(
+            hot_items=hot_items,
+            cold_items=cold_items,
+            reinforcement_total=reinforcement_total,
+            corroboration_total=corroboration_total,
+            contradiction_total=contradiction_total,
+            last_tick=self._last_tick,
+            per_kind=per_kind,
+        )

@@ -28,10 +28,13 @@ from engram.decay._math import (
     clamp01,
     is_cold,
 )
+from engram.decay._metrics import DecayMetrics, KindCounters
 
 __all__ = [
     "DecayEngine",
+    "DecayMetrics",
     "DecayParams",
+    "KindCounters",
     "PrunePolicy",
     "TickResult",
     "apply",

@@ -161,3 +161,15 @@ class Storage(Protocol):
         be deleted (the storage layer raises) - those callers should use the
         `cold` policy instead.
         """
+
+    def decay_totals(self, kind: ItemKind) -> dict[str, int]:
+        """Aggregate decay-state counters for items of `kind`.
+
+        Returns a dict with keys `hot_items`, `cold_items`,
+        `reinforcement_total`, `corroboration_total`,
+        `contradiction_total`. The `*_total` figures sum over hot rows
+        only (cold rows would conflate previously-pruned items with the
+        active pool). Backends MUST compute this in the storage engine
+        rather than streaming rows - the metrics surface is read on every
+        scrape.
+        """
