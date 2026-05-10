@@ -37,6 +37,10 @@ coverage.xml
 
 # CI-generated smoke benchmark manifests (release runs are committed to /runs/)
 benchmarks/runs/ci/
+benchmarks/runs/local/
+
+# Externally-licensed benchmark datasets — fetched via scripts/, never vendored
+benchmarks/datasets/
 
 # Environment / secrets
 .env
