@@ -14,6 +14,7 @@ the public surface as it lands.
 """
 
 from engram.providers._cache import Cache, content_hash
+from engram.providers._redactor import Redactor
 from engram.providers._retry import Retry
 
-__all__ = ["Cache", "Retry", "content_hash"]
+__all__ = ["Cache", "Redactor", "Retry", "content_hash"]
