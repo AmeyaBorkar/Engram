@@ -315,6 +315,7 @@ class LongMemEvalSuite:
         self._verify: bool = False
         self._verify_max_retries: int = 1
         self._consolidate_chat: ChatProvider | None = None
+        self._consolidate: bool = False
         self._judge_chat: ChatProvider | None = None
         self._seed: int | None = None
 
@@ -334,6 +335,7 @@ class LongMemEvalSuite:
         verify: bool = False,
         verify_max_retries: int = 1,
         consolidate_chat: ChatProvider | None = None,
+        consolidate: bool = False,
         judge_chat: ChatProvider | None = None,
     ) -> None:
         """Wire Phase E knobs from the CLI into the suite.
@@ -360,6 +362,7 @@ class LongMemEvalSuite:
         self._verify = verify
         self._verify_max_retries = verify_max_retries
         self._consolidate_chat = consolidate_chat
+        self._consolidate = consolidate
         self._judge_chat = judge_chat
 
     def setup(self, provider: Provider) -> None:
@@ -439,6 +442,32 @@ class LongMemEvalSuite:
                 turns = _ingest_haystack(memory, q)
                 ingest_ms = (time.perf_counter() - t_ingest) * 1000.0
 
+                # Optional consolidation pass (Engram's novelty):
+                # cluster the haystack events and abstract each cluster
+                # into a Level.SUMMARY MemoryItem. The retrieve below
+                # then surfaces SUMMARY hits alongside raw EVENTs --
+                # higher-level memories outrank single turns when the
+                # confidence is high. Cost: ~1 chat call per cluster.
+                consolidate_ms = 0.0
+                if self._consolidate:
+                    t_consolidate = time.perf_counter()
+                    try:
+                        cons_result = memory.consolidate()
+                        consolidate_ms = (time.perf_counter() - t_consolidate) * 1000.0
+                        _LOG.info(
+                            "  consolidated: %d clusters -> %d abstractions in %.1fs",
+                            getattr(cons_result, "clusters_formed", 0),
+                            getattr(cons_result, "abstractions_created", 0),
+                            consolidate_ms / 1000.0,
+                        )
+                    except Exception as exc:
+                        _LOG.warning(
+                            "  consolidate failed for q %d/%d: %s",
+                            q_idx + 1,
+                            len(questions),
+                            exc,
+                        )
+
                 t0 = time.perf_counter()
                 # Per-call kwargs pick up Memory's defaults set above.
                 # Explicit reinforce=False keeps decay state unperturbed
@@ -480,6 +509,7 @@ class LongMemEvalSuite:
                         "score": score,
                         "k": self._k,
                         "turns_ingested": turns,
+                        "consolidate_ms": consolidate_ms,
                     }
                 )
                 if (q_idx + 1) % log_interval == 0 or q_idx == len(questions) - 1:

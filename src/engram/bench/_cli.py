@@ -251,6 +251,17 @@ def build_parser() -> argparse.ArgumentParser:
 
     # --- Secondary chat slots (consolidate, judge).
     run.add_argument(
+        "--consolidate",
+        action="store_true",
+        help=(
+            "Run memory.consolidate() between haystack ingest and retrieve. "
+            "Clusters the events and abstracts each cluster into a "
+            "Level.SUMMARY MemoryItem. This is Engram's core novelty "
+            "(hierarchical memory) -- without this flag the bench treats "
+            "Engram as a flat retriever."
+        ),
+    )
+    run.add_argument(
         "--consolidate-chat",
         default=None,
         choices=(
@@ -372,6 +383,8 @@ def _resolve_suite_config(args: argparse.Namespace) -> dict[str, Any]:
     if args.verify:
         cfg["verify"] = True
         cfg["verify_max_retries"] = args.verify_max_retries
+    if args.consolidate:
+        cfg["consolidate"] = True
     if args.consolidate_chat:
         cfg["consolidate_chat"] = build_chat(
             args.consolidate_chat, args.consolidate_chat_model
