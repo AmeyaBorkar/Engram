@@ -173,8 +173,9 @@ class Reconciler:
                 "Resolution.MERGE requires at least one parent with provenance; "
                 "neither parent has any supporting events"
             )
+        merged_level = _merge_level(source.level, target.level)
         merged_item = MemoryItem(
-            level=Level.SUMMARY,
+            level=merged_level,
             content=merged_content,
             created_at=when,
             valid_from=when,
@@ -278,3 +279,21 @@ def _pick_by_recency(source: MemoryItem, target: MemoryItem) -> UUID:
     if source.created_at != target.created_at:
         return source.id if source.created_at > target.created_at else target.id
     return source.id if source.id.bytes > target.id.bytes else target.id
+
+
+# Level ordering for MERGE: the merged item inherits the HIGHER tier
+# so merging two PREFERENCEs yields a PREFERENCE (not a SUMMARY) and
+# two GLOBALs yield a GLOBAL (singleton invariant preserved).
+_LEVEL_ORDER: dict[Level, int] = {
+    Level.EVENT: 0,
+    Level.SUMMARY: 1,
+    Level.TOPIC: 2,
+    Level.PREFERENCE: 3,
+    Level.ABSTRACTION: 4,
+    Level.GLOBAL: 5,
+}
+
+
+def _merge_level(a: Level, b: Level) -> Level:
+    """Pick the higher tier so the merge doesn't down-grade either parent."""
+    return a if _LEVEL_ORDER[a] >= _LEVEL_ORDER[b] else b

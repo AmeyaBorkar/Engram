@@ -365,11 +365,22 @@ class ConsolidationEngine:
         if not cp.enabled:
             return []
         # Vector recall: pull top-K candidates above threshold.
+        # Recall across every consolidated tier so that contradictions
+        # against a PREFERENCE / TOPIC / GLOBAL (Phase E levels) are
+        # also surfaced -- otherwise "user loves Python" stored as a
+        # PREFERENCE is invisible to a new ABSTRACTION saying
+        # "user dislikes Python".
         hits = self._storage.search_memory_item_embeddings(
             new_vec,
             k=cp.max_candidates,
             model=self._embedder.model,
-            levels=(Level.SUMMARY, Level.ABSTRACTION),
+            levels=(
+                Level.SUMMARY,
+                Level.ABSTRACTION,
+                Level.PREFERENCE,
+                Level.TOPIC,
+                Level.GLOBAL,
+            ),
         )
         candidates = [
             CandidateRow(item_id=item_id, content=content, similarity=sim)
