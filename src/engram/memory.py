@@ -49,6 +49,7 @@ from engram.retrieve import (
     RetrieveParams,
     RetrievePrefer,
 )
+from engram.retrieve._decompose import decompose_query
 from engram.retrieve._hyde import hyde_transform
 from engram.retrieve._multi_query import expand_queries, reciprocal_rank_fusion
 from engram.retrieve._react import react_judge
@@ -233,6 +234,7 @@ class Memory:
         as_of: datetime | None = None,
         hyde: bool | None = None,
         multi_query_n: int | None = None,
+        decompose: bool | None = None,
     ) -> list[RetrievalResult]:
         """Return up to `k` items most relevant to `query`, coarse-to-fine.
 
@@ -274,6 +276,10 @@ class Memory:
           multi_query_n: if >= 2 and a chat provider is configured,
             expand the query into N variants (original + paraphrases)
             and fuse the per-variant rankings via RRF. 1 = off.
+          decompose: if True and a chat provider is configured,
+            decompose the query into focused sub-queries via the chat
+            provider, retrieve each, and fuse via RRF. Use for
+            multi-hop questions that ask for several facts at once.
         """
         defaults = self._retrieve_params
         params = RetrieveParams(
@@ -294,6 +300,7 @@ class Memory:
                 multi_query_n if multi_query_n is not None else defaults.multi_query_n
             ),
             rrf_k=defaults.rrf_k,
+            decompose=decompose if decompose is not None else defaults.decompose,
         )
         effective_reranker = reranker if reranker is not None else self._default_reranker
         # HyDE: transform the query into a hypothetical answer before
@@ -308,7 +315,16 @@ class Memory:
             prefer=params.prefer,
         ) as s:
             t0 = time.perf_counter()
-            if params.multi_query_n >= 2 and self._chat is not None:
+            # decompose is mutually exclusive with multi_query_n>=2;
+            # if both are set, decompose wins (it's the more specific
+            # multi-query case).
+            if params.decompose and self._chat is not None:
+                results = self._decomposed_retrieve(
+                    effective_query,
+                    params=params,
+                    reranker=effective_reranker,
+                )
+            elif params.multi_query_n >= 2 and self._chat is not None:
                 results = self._multi_query_retrieve(
                     effective_query,
                     params=params,
@@ -561,6 +577,76 @@ class Memory:
         if result is None:  # pragma: no cover - raced delete
             raise KeyError(procedure_id)
         return result
+
+    def _decomposed_retrieve(
+        self,
+        query: str,
+        *,
+        params: RetrieveParams,
+        reranker: Reranker | None,
+    ) -> list[RetrievalResult]:
+        """Decomposition + RRF fusion.
+
+        Same fusion shape as `_multi_query_retrieve` but the queries
+        come from `decompose_query` rather than `expand_queries`. The
+        intent is different (split a complex question, not paraphrase
+        a simple one), but the pipeline is identical.
+        """
+        if self._chat is None:  # pragma: no cover - upstream guard
+            raise RuntimeError("decomposed retrieve requires a chat provider")
+        queries = decompose_query(query, self._chat)
+        leaf_params = RetrieveParams(
+            k=params.k,
+            prefer=params.prefer,
+            confidence_threshold=params.confidence_threshold,
+            drill_k=params.drill_k,
+            candidate_multiplier=params.candidate_multiplier,
+            include_cold=params.include_cold,
+            reinforce_on_use=False,
+            as_of=params.as_of,
+            hyde=False,
+            multi_query_n=1,
+            rrf_k=params.rrf_k,
+            decompose=False,
+        )
+        rankings: list[list[RetrievalResult]] = []
+        for q in queries:
+            rankings.append(
+                self._retriever.retrieve(q, params=leaf_params, reranker=None)
+            )
+        fused = reciprocal_rank_fusion(rankings, k=params.rrf_k)
+        if reranker is not None and fused:
+            from engram.retrieve._reranker import RerankCandidate
+
+            slice_size = min(len(fused), params.k * params.candidate_multiplier)
+            cands = [
+                RerankCandidate(result=r, prior_score=r.score)
+                for r in fused[:slice_size]
+            ]
+            rerank_scores = reranker.rerank(query, cands)
+            paired = sorted(
+                zip(fused[:slice_size], rerank_scores, strict=True),
+                key=lambda pair: pair[1],
+                reverse=True,
+            )
+            fused = [
+                RetrievalResult(
+                    item_id=r.item_id,
+                    level=r.level,
+                    content=r.content,
+                    confidence=r.confidence,
+                    score=score,
+                    supported_by=r.supported_by,
+                )
+                for r, score in paired
+            ]
+        sliced = fused[: params.k]
+        if params.reinforce_on_use:
+            for r in sliced:
+                with contextlib.suppress(KeyError, RuntimeError, ValueError):
+                    kind = ItemKind.EVENT if r.level is Level.EVENT else ItemKind.MEMORY_ITEM
+                    self._engine.reinforce(r.item_id, kind)
+        return sliced
 
     # --- E.9: iterative ReAct retrieval ------------------------------------
 
