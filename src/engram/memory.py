@@ -33,7 +33,6 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 from engram._otel import METRICS, span
-
 from engram.consolidation import (
     ConsolidationEngine,
     ConsolidationParams,
@@ -100,6 +99,7 @@ class Memory:
         storage: Storage,
         embedder: EmbeddingProvider,
         chat: ChatProvider | None = None,
+        consolidate_chat: ChatProvider | None = None,
         decay_params: DecayParams | None = None,
         prune_policy: PrunePolicy = "cold",
         consolidation_params: ConsolidationParams | None = None,
@@ -111,6 +111,12 @@ class Memory:
         self._storage = storage
         self._embedder = embedder
         self._chat = chat
+        # Use the stronger model for abstraction extraction +
+        # contradiction MERGE when provided. Abstraction quality is
+        # irreversible -- bad abstractions can't be recovered later.
+        # The cheap retrieval / answering path can run on the
+        # smaller `chat`.
+        self._consolidate_chat = consolidate_chat if consolidate_chat is not None else chat
         self._tenant_id = tenant_id
         self._clock: Callable[[], datetime] = clock or _utcnow
         self._engine = DecayEngine(
@@ -122,11 +128,11 @@ class Memory:
         self._consolidation_params = (
             consolidation_params if consolidation_params is not None else ConsolidationParams()
         )
-        if chat is not None:
+        if self._consolidate_chat is not None:
             self._consolidator: ConsolidationEngine | None = ConsolidationEngine(
                 storage,
                 embedder=embedder,
-                chat=chat,
+                chat=self._consolidate_chat,
                 params=self._consolidation_params,
                 clock=self._clock,
             )
@@ -140,10 +146,14 @@ class Memory:
             params=self._retrieve_params,
             reinforce=self._engine.reinforce,
         )
+        # MERGE resolution synthesizes a new memory item via the chat
+        # provider -- it's the same kind of abstraction work as
+        # consolidation, so it uses the same (potentially stronger)
+        # consolidate_chat.
         self._reconciler = Reconciler(
             storage,
             embedder=embedder,
-            chat=chat,
+            chat=self._consolidate_chat,
             clock=self._clock,
         )
 
