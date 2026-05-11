@@ -399,6 +399,20 @@ class TestEngineIntegration:
         assert len(conflicts) == 1
         assert conflicts[0]["candidate_id"] == str(existing.id)
         assert conflicts[0]["verdict"] == "contradict"
+        # Stage 8: the conflict is also a first-class storage row.
+        from engram import ConflictStatus
+
+        rows = storage.list_conflicts(memory_item_id=new_item.id)
+        assert len(rows) == 1
+        row = rows[0]
+        assert row.source_item_id == new_item.id
+        assert row.target_item_id == existing.id
+        assert row.status is ConflictStatus.OPEN
+        assert row.verdict.value == "contradict"
+        # Walking the graph from the existing item finds the same conflict.
+        rows_from_existing = storage.list_conflicts(memory_item_id=existing.id)
+        assert len(rows_from_existing) == 1
+        assert rows_from_existing[0].id == row.id
         storage.close()
 
 

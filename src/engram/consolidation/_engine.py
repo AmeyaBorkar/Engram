@@ -65,6 +65,7 @@ from engram.consolidation._contradiction import (
 from engram.providers._protocols import ChatProvider, EmbeddingProvider
 from engram.schemas import (
     Cluster,
+    Conflict,
     Embedding,
     Event,
     ItemKind,
@@ -332,13 +333,27 @@ class ConsolidationEngine:
             for local_idx in range(len(cluster_events))
         }
 
-        self._storage.insert_memory_item_with_provenance(
-            item,
-            [e.id for e in cluster_events],
-            cluster=cluster,
-            embedding=embedding,
-            provenance_weights=provenance_weights,
-        )
+        # Stage 5 wrote conflicts into metadata only. Stage 8 promotes
+        # them to first-class storage rows so the reconciler can manage
+        # their lifecycle. The metadata blob stays for back-compat (the
+        # promotion gate still reads it).
+        with self._storage.transaction():
+            self._storage.insert_memory_item_with_provenance(
+                item,
+                [e.id for e in cluster_events],
+                cluster=cluster,
+                embedding=embedding,
+                provenance_weights=provenance_weights,
+            )
+            for dc in conflicts:
+                self._storage.record_conflict(
+                    Conflict(
+                        source_item_id=item.id,
+                        target_item_id=dc.candidate_id,
+                        similarity=dc.similarity,
+                        verdict=dc.verdict,
+                    )
+                )
         return len(conflicts)
 
     def _detect_conflicts(
