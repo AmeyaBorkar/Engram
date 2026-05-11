@@ -83,18 +83,32 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument(
         "--embedder",
         default=None,
-        choices=("fake", "openai", "local"),
+        choices=("fake", "openai", "local", "openrouter"),
         help=(
             "Embedding provider (default: fake). `local` runs "
             "sentence-transformers on your GPU (CPU fallback) and "
-            "needs no API key; default model is BAAI/bge-large-en-v1.5."
+            "needs no API key; default model is BAAI/bge-large-en-v1.5. "
+            "`openrouter` defaults to qwen/qwen3-embedding-8b (MTEB ~70.6, "
+            "$0.01/M tokens) and reuses OPENROUTER_API_KEY for chat + embed."
         ),
     )
     run.add_argument(
         "--chat",
         default=None,
-        choices=("fake", "openai", "anthropic", "moonshot", "opencode-zen", "opencode-go"),
-        help="Chat provider (default: fake).",
+        choices=(
+            "fake",
+            "openai",
+            "anthropic",
+            "moonshot",
+            "opencode-zen",
+            "opencode-go",
+            "openrouter",
+        ),
+        help=(
+            "Chat provider (default: fake). `openrouter` exposes Claude / "
+            "GPT / Kimi / DeepSeek / Gemini behind one API key; default "
+            "model is anthropic/claude-haiku-4-5."
+        ),
     )
     run.add_argument(
         "--embed-model",
@@ -227,7 +241,15 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument(
         "--consolidate-chat",
         default=None,
-        choices=("fake", "openai", "anthropic", "moonshot", "opencode-zen", "opencode-go"),
+        choices=(
+            "fake",
+            "openai",
+            "anthropic",
+            "moonshot",
+            "opencode-zen",
+            "opencode-go",
+            "openrouter",
+        ),
         help=(
             "Separate chat provider for the irreversible consolidation step "
             "(abstraction + reconciliation). Falls back to --chat when omitted."
@@ -241,7 +263,15 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument(
         "--judge-chat",
         default=None,
-        choices=("fake", "openai", "anthropic", "moonshot", "opencode-zen", "opencode-go"),
+        choices=(
+            "fake",
+            "openai",
+            "anthropic",
+            "moonshot",
+            "opencode-zen",
+            "opencode-go",
+            "openrouter",
+        ),
         help=(
             "Separate chat provider for the LongMemEval judge. Falls back to "
             "--chat when omitted. Use an independent model to avoid "

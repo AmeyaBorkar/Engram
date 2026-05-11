@@ -134,6 +134,96 @@ def _openai_chat(model: str | None) -> ChatProvider:
     return OpenAIChat(model=model or "gpt-4o-mini", api_key=api_key)
 
 
+def _openrouter_headers() -> dict[str, str]:
+    """Optional ranking headers OpenRouter uses for its public leaderboards.
+
+    Both headers are optional but encouraged -- they let OpenRouter
+    attribute the call to the originating app. Overridable via the
+    standard env vars; default to Engram so SOTA-bench runs show up
+    correctly on the leaderboard.
+    """
+    return {
+        "HTTP-Referer": os.environ.get(
+            "OPENROUTER_HTTP_REFERER", "https://github.com/AmeyaBorkar/Engram"
+        ),
+        "X-Title": os.environ.get("OPENROUTER_X_TITLE", "Engram"),
+    }
+
+
+def _openrouter_chat(model: str | None) -> ChatProvider:
+    """OpenRouter chat (OpenAI-compatible) -- one API key, every frontier model.
+
+    Catalog includes `anthropic/claude-opus-4.7`, `openai/gpt-5.5`,
+    `moonshotai/kimi-k2.6`, `deepseek/deepseek-v4-pro`,
+    `google/gemini-3-pro`, `x-ai/grok-4.3`, etc. Default is
+    `anthropic/claude-haiku-4-5` because it matches what most
+    LongMemEval-style reports use and stays cheap. Override via
+    --chat-model.
+    """
+    from engram.providers.openai import OpenAIChat
+
+    api_key = os.environ.get("OPENROUTER_API_KEY")
+    if not api_key:
+        raise RuntimeError(
+            "OPENROUTER_API_KEY is not set. Get a key from https://openrouter.ai/keys "
+            "and add it to your .env."
+        )
+    return OpenAIChat(
+        model=model or "anthropic/claude-haiku-4-5",
+        api_key=api_key,
+        base_url="https://openrouter.ai/api/v1",
+        default_headers=_openrouter_headers(),
+    )
+
+
+def _openrouter_embedder(
+    model: str | None,
+    dim: int | None,
+    device: str | None = None,  # noqa: ARG001 - unused; uniform builder shape
+) -> EmbeddingProvider:
+    """OpenRouter embeddings -- one API key for both chat AND embeddings.
+
+    Default `qwen/qwen3-embedding-8b` (MTEB ~70.6, $0.01/M tokens,
+    4096-dim, normalized) is the strongest single-key option on
+    OpenRouter for benchmark runs. Other strong picks:
+      * `google/gemini-embedding-001` (3072 dim, multilingual)
+      * `openai/text-embedding-3-large` (3072 dim, supports
+        `dimensions=` truncation)
+      * `baai/bge-m3` (1024 dim, multilingual, cheap)
+
+    `dim` defaults to the model's native size; pass an explicit
+    `--embed-dim` only if you want truncation AND the chosen model
+    supports it (currently only the `openai/*` routes).
+    """
+    from engram.providers.openai import OpenAIEmbedder
+
+    api_key = os.environ.get("OPENROUTER_API_KEY")
+    if not api_key:
+        raise RuntimeError(
+            "OPENROUTER_API_KEY is not set. Get a key from https://openrouter.ai/keys "
+            "and add it to your .env."
+        )
+    chosen_model = model or "qwen/qwen3-embedding-8b"
+    # Auto-fill dim from the catalog so callers don't have to know it.
+    if dim is None:
+        from engram.providers.openai import _OPENAI_NATIVE_EMBED_DIMS
+
+        catalog_dim = _OPENAI_NATIVE_EMBED_DIMS.get(chosen_model, -1)
+        if catalog_dim < 0:
+            raise RuntimeError(
+                f"openrouter embedder {chosen_model!r} has an unknown native dim; "
+                f"pass --embed-dim N to set it explicitly."
+            )
+        dim = catalog_dim
+    return OpenAIEmbedder(
+        model=chosen_model,
+        dim=dim,
+        api_key=api_key,
+        base_url="https://openrouter.ai/api/v1",
+        default_headers=_openrouter_headers(),
+    )
+
+
 def _openai_embedder(model: str | None, dim: int | None) -> EmbeddingProvider:
     from engram.providers.openai import OpenAIEmbedder
 
@@ -180,6 +270,7 @@ _CHAT_BUILDERS: dict[str, Any] = {
     "moonshot": _moonshot_chat,
     "opencode-zen": _opencode_zen_chat,
     "opencode-go": _opencode_go_chat,
+    "openrouter": _openrouter_chat,
 }
 
 _EMBEDDER_BUILDERS: dict[str, Any] = {
@@ -190,6 +281,7 @@ _EMBEDDER_BUILDERS: dict[str, Any] = {
     ),
     "openai": lambda model, dim, device: _openai_embedder(model, dim),  # noqa: ARG005
     "local": _local_embedder,
+    "openrouter": _openrouter_embedder,
 }
 
 
