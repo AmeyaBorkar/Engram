@@ -54,20 +54,25 @@ from engram.storage.migrations import apply_migrations
 
 
 def _row_to_event(row: sqlite3.Row) -> Event:
+    keys = row.keys()
+    tenant_id = row["tenant_id"] if "tenant_id" in keys else None
     return Event(
         id=UUID(bytes=row["id"]),
         content=row["content"],
         metadata=loads_metadata(row["metadata"]),
         source=row["source"],
         created_at=parse_iso(row["created_at"]),
+        tenant_id=tenant_id,
     )
 
 
 def _row_to_memory_item(row: sqlite3.Row) -> MemoryItem:
+    keys = row.keys()
     valid_from_raw = row["valid_from"]
     valid_until_raw = row["valid_until"]
     invalidated_at_raw = row["invalidated_at"]
     invalidated_by_raw = row["invalidated_by"]
+    tenant_id = row["tenant_id"] if "tenant_id" in keys else None
     return MemoryItem(
         id=UUID(bytes=row["id"]),
         level=Level(row["level"]),
@@ -82,6 +87,7 @@ def _row_to_memory_item(row: sqlite3.Row) -> MemoryItem:
         invalidated_at=parse_iso(invalidated_at_raw) if invalidated_at_raw else None,
         invalidated_by=UUID(bytes=invalidated_by_raw) if invalidated_by_raw else None,
         source_trust=row["source_trust"],
+        tenant_id=tenant_id,
     )
 
 
@@ -107,6 +113,7 @@ def _memory_item_insert_row(item: MemoryItem) -> tuple[Any, ...]:
         iso(item.invalidated_at) if item.invalidated_at else None,
         item.invalidated_by.bytes if item.invalidated_by else None,
         item.source_trust,
+        item.tenant_id,
     )
 
 
@@ -132,6 +139,8 @@ def _row_to_cluster(row: sqlite3.Row) -> Cluster:
 
 
 def _row_to_procedure(row: sqlite3.Row) -> Procedure:
+    keys = row.keys()
+    tenant_id = row["tenant_id"] if "tenant_id" in keys else None
     return Procedure(
         id=UUID(bytes=row["id"]),
         situation=row["situation"],
@@ -141,6 +150,7 @@ def _row_to_procedure(row: sqlite3.Row) -> Procedure:
         metadata=loads_metadata(row["metadata"]),
         created_at=parse_iso(row["created_at"]),
         updated_at=parse_iso(row["updated_at"]),
+        tenant_id=tenant_id,
     )
 
 
@@ -372,8 +382,9 @@ class SqliteStorage:
         # path that always starts items hot.
         self._connect().execute(
             "INSERT INTO events "
-            "(id, content, metadata, source, created_at, last_decayed_at) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
+            "(id, content, metadata, source, created_at, last_decayed_at, "
+            " tenant_id) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
             (
                 event.id.bytes,
                 event.content,
@@ -381,6 +392,7 @@ class SqliteStorage:
                 event.source,
                 iso(event.created_at),
                 iso(event.created_at),
+                event.tenant_id,
             ),
         )
 
@@ -393,6 +405,7 @@ class SqliteStorage:
                 e.source,
                 iso(e.created_at),
                 iso(e.created_at),
+                e.tenant_id,
             )
             for e in events
         ]
@@ -400,8 +413,9 @@ class SqliteStorage:
             return 0
         self._connect().executemany(
             "INSERT INTO events "
-            "(id, content, metadata, source, created_at, last_decayed_at) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
+            "(id, content, metadata, source, created_at, last_decayed_at, "
+            " tenant_id) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
             rows,
         )
         return len(rows)
@@ -443,8 +457,9 @@ class SqliteStorage:
             "INSERT INTO memory_items "
             "(id, level, content, weight, cluster_id, metadata, "
             "created_at, updated_at, last_decayed_at, "
-            "valid_from, valid_until, invalidated_at, invalidated_by, source_trust) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "valid_from, valid_until, invalidated_at, invalidated_by, source_trust, "
+            "tenant_id) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             _memory_item_insert_row(item),
         )
 
@@ -456,8 +471,9 @@ class SqliteStorage:
             "INSERT INTO memory_items "
             "(id, level, content, weight, cluster_id, metadata, "
             "created_at, updated_at, last_decayed_at, "
-            "valid_from, valid_until, invalidated_at, invalidated_by, source_trust) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "valid_from, valid_until, invalidated_at, invalidated_by, source_trust, "
+            "tenant_id) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             rows,
         )
         return len(rows)
@@ -815,8 +831,8 @@ class SqliteStorage:
         self._connect().execute(
             "INSERT INTO procedures "
             "(id, situation, action, outcome, weight, metadata, "
-            " last_decayed_at, created_at, updated_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            " last_decayed_at, created_at, updated_at, tenant_id) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 procedure.id.bytes,
                 procedure.situation,
@@ -827,6 +843,7 @@ class SqliteStorage:
                 iso(procedure.created_at),
                 iso(procedure.created_at),
                 iso(procedure.updated_at),
+                procedure.tenant_id,
             ),
         )
 
@@ -835,7 +852,7 @@ class SqliteStorage:
             self._connect()
             .execute(
                 "SELECT id, situation, action, outcome, weight, metadata, "
-                "       created_at, updated_at "
+                "       created_at, updated_at, tenant_id "
                 "FROM procedures WHERE id = ?",
                 (procedure_id.bytes,),
             )
@@ -853,7 +870,7 @@ class SqliteStorage:
             raise ValueError(f"limit must be >= 1, got {limit}")
         sql = (
             "SELECT id, situation, action, outcome, weight, metadata, "
-            "       created_at, updated_at "
+            "       created_at, updated_at, tenant_id "
             "FROM procedures"
         )
         params: list[Any] = []

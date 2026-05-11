@@ -104,10 +104,12 @@ class Memory:
         retrieve_params: RetrieveParams | None = None,
         reranker: Reranker | None = None,
         clock: Callable[[], datetime] | None = None,
+        tenant_id: str | None = None,
     ) -> None:
         self._storage = storage
         self._embedder = embedder
         self._chat = chat
+        self._tenant_id = tenant_id
         self._clock: Callable[[], datetime] = clock or _utcnow
         self._engine = DecayEngine(
             storage,
@@ -155,6 +157,17 @@ class Memory:
     def decay(self) -> DecayEngine:
         return self._engine
 
+    @property
+    def tenant_id(self) -> str | None:
+        """Tenant scope this Memory was constructed with, if any.
+
+        When non-None, every write (`observe`, `record_procedure`,
+        consolidated abstractions) is tagged with this tenant. Stage 9a
+        ships the surface; read-side enforcement (filtering retrieves
+        by tenant) lands with the Postgres + RLS backend in v0.4.0.
+        """
+        return self._tenant_id
+
     def observe(self, content: str | Event) -> Event:
         """Record an event and its embedding.
 
@@ -166,6 +179,10 @@ class Memory:
         """
         with span("engram.memory.observe") as s:
             event = content if isinstance(content, Event) else Event(content=content)
+            # Inject tenant scope if Memory was constructed with one and
+            # the caller didn't pre-set it.
+            if self._tenant_id is not None and event.tenant_id is None:
+                event = event.model_copy(update={"tenant_id": self._tenant_id})
 
             vector = self._embedder.embed([event.content])[0]
             normalized = _normalize(vector)
@@ -405,6 +422,7 @@ class Memory:
             action=action,
             outcome=outcome,
             metadata=dict(metadata) if metadata else {},
+            tenant_id=self._tenant_id,
         )
         vector = self._embedder.embed([situation])[0]
         normalized = _normalize(vector)

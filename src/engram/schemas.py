@@ -123,6 +123,7 @@ class Event(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
     source: str | None = None
     created_at: datetime = Field(default_factory=_utcnow)
+    tenant_id: str | None = None
 
 
 class Cluster(BaseModel):
@@ -171,6 +172,7 @@ class MemoryItem(BaseModel):
     invalidated_at: datetime | None = None
     invalidated_by: UUID | None = None
     source_trust: float | None = Field(default=None, ge=0.0, le=1.0)
+    tenant_id: str | None = None
 
     @model_validator(mode="after")
     def _check_temporal_invariants(self) -> MemoryItem:
@@ -219,6 +221,7 @@ class Procedure(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: datetime = Field(default_factory=_utcnow)
+    tenant_id: str | None = None
 
 
 class ProcedureMatch(BaseModel):
