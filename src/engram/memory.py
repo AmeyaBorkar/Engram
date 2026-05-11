@@ -53,6 +53,7 @@ from engram.retrieve._decompose import decompose_query
 from engram.retrieve._hyde import hyde_transform
 from engram.retrieve._multi_query import expand_queries, reciprocal_rank_fusion
 from engram.retrieve._react import react_judge
+from engram.retrieve._temporal import compute_temporal_anchor
 from engram.schemas import (
     Conflict,
     ConflictStatus,
@@ -235,6 +236,7 @@ class Memory:
         hyde: bool | None = None,
         multi_query_n: int | None = None,
         decompose: bool | None = None,
+        temporal: bool = False,
     ) -> list[RetrievalResult]:
         """Return up to `k` items most relevant to `query`, coarse-to-fine.
 
@@ -280,8 +282,21 @@ class Memory:
             decompose the query into focused sub-queries via the chat
             provider, retrieve each, and fuse via RRF. Use for
             multi-hop questions that ask for several facts at once.
+          temporal: if True and a chat provider is configured, run a
+            cheap regex check for temporal cues; if present, compute
+            an `as_of` anchor via the chat provider and pass it to
+            the temporal-aware retrieve path. Explicit `as_of=...`
+            overrides this; pass either, never both.
         """
         defaults = self._retrieve_params
+        # Temporal scaffolding: when the caller didn't pass an explicit
+        # as_of AND temporal=True is set, compute one via the chat
+        # provider. Cheap regex gates the chat call.
+        effective_as_of = as_of
+        if effective_as_of is None and temporal and self._chat is not None:
+            effective_as_of = compute_temporal_anchor(
+                query, self._chat, now=self._clock()
+            )
         params = RetrieveParams(
             k=k if k is not None else defaults.k,
             prefer=prefer if prefer is not None else defaults.prefer,
@@ -294,7 +309,7 @@ class Memory:
             candidate_multiplier=defaults.candidate_multiplier,
             include_cold=include_cold if include_cold is not None else defaults.include_cold,
             reinforce_on_use=(reinforce if reinforce is not None else defaults.reinforce_on_use),
-            as_of=as_of if as_of is not None else defaults.as_of,
+            as_of=effective_as_of if effective_as_of is not None else defaults.as_of,
             hyde=hyde if hyde is not None else defaults.hyde,
             multi_query_n=(
                 multi_query_n if multi_query_n is not None else defaults.multi_query_n
