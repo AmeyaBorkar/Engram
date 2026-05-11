@@ -1,6 +1,6 @@
 """The `Memory` primitive.
 
-Stages 3 + 4 + 5 + 6 surface:
+Stages 3 + 4 + 5 + 6 + 7 surface:
   * `observe(content)` writes an event with its embedding
   * `retrieve(query, k, *, prefer=...)` returns the top-k items via
     coarse-to-fine retrieval over the hierarchy: abstractions first,
@@ -11,14 +11,20 @@ Stages 3 + 4 + 5 + 6 surface:
   * `consolidate(...)` clusters unconsolidated events, extracts a
     generalization per cluster via the chat provider, and links the
     resulting memory items into the hierarchy through provenance
+  * `record_procedure(situation, action, outcome)` writes a procedure
+    with its situation embedding; `retrieve_procedures(situation, k)`
+    returns analogous past procedures ranked by similarity x outcome
+    x weight; `update_outcome(procedure_id, outcome)` flips the
+    outcome and routes the change through the decay engine (success
+    -> reinforce, failure -> contradict).
 
 Later stages layer in:
-  - procedural memory (Stage 7): situation -> action -> outcome
   - contradiction & temporal reasoning (Stage 8)
 """
 
 from __future__ import annotations
 
+import contextlib
 import math
 from collections.abc import Callable, Sequence
 from datetime import datetime, timezone
@@ -44,9 +50,23 @@ from engram.schemas import (
     Embedding,
     Event,
     ItemKind,
+    Outcome,
+    Procedure,
+    ProcedureMatch,
     RetrievalResult,
 )
 from engram.storage._protocol import Storage
+
+# How each outcome maps to a decay-engine signal. SUCCESS / PARTIAL
+# both reinforce (the procedure worked at least partly); FAILURE
+# contradicts (it didn't work in this situation, weight it down);
+# UNKNOWN is a no-op (no observation yet).
+_OUTCOME_SIGNAL: dict[Outcome, str] = {
+    Outcome.SUCCESS: "reinforce",
+    Outcome.PARTIAL: "reinforce",
+    Outcome.FAILURE: "contradict",
+    Outcome.UNKNOWN: "noop",
+}
 
 
 def _utcnow() -> datetime:
@@ -300,6 +320,166 @@ class Memory:
         to accumulate corroboration counts.
         """
         return self.consolidator.promote(now=now)
+
+    # --- Stage 7: procedural surface ---------------------------------------
+
+    def record_procedure(
+        self,
+        situation: str,
+        action: str,
+        *,
+        outcome: Outcome = Outcome.UNKNOWN,
+        metadata: dict[str, object] | None = None,
+    ) -> Procedure:
+        """Record a procedure: "in this situation, this action had that outcome".
+
+        Embeds `situation` and inserts the procedure plus its embedding
+        atomically. If `outcome` is `SUCCESS`/`PARTIAL`, fires a
+        reinforcement signal so the new procedure already carries the
+        positive weight from the start; `FAILURE` fires a contradiction
+        (so a known-bad pattern starts heavier on the cold side).
+        `UNKNOWN` (the default) records with no signal -- typical when
+        the agent will learn the outcome later and call `update_outcome`.
+
+        Returns the persisted `Procedure` (with its assigned id and
+        timestamps).
+        """
+        procedure = Procedure(
+            situation=situation,
+            action=action,
+            outcome=outcome,
+            metadata=dict(metadata) if metadata else {},
+        )
+        vector = self._embedder.embed([situation])[0]
+        normalized = _normalize(vector)
+        embedding = Embedding(
+            item_id=procedure.id,
+            item_kind=ItemKind.PROCEDURE,
+            model=self._embedder.model,
+            dim=self._embedder.dim,
+            vector=tuple(normalized),
+        )
+        with self._storage.transaction():
+            self._storage.insert_procedure(procedure)
+            self._storage.insert_embedding(embedding)
+        self._fire_outcome_signal(procedure.id, outcome)
+        return procedure
+
+    def retrieve_procedures(
+        self,
+        situation: str,
+        k: int = 5,
+        *,
+        outcomes: Sequence[Outcome] | None = None,
+        include_cold: bool = False,
+        reinforce: bool = True,
+    ) -> list[ProcedureMatch]:
+        """Find procedures whose situation matches the query, ranked.
+
+        The ranking score is `similarity * weight * outcome_boost`:
+
+          * `similarity` is the cosine of `situation` query vs stored.
+          * `weight` is the procedure's decay-engine weight in [0, 1].
+          * `outcome_boost`: SUCCESS=1.0, PARTIAL=0.8, FAILURE=0.6,
+            UNKNOWN=0.7. Failures aren't suppressed -- the agent
+            benefits from "this didn't work" lessons -- but successes
+            outrank failures at equal similarity.
+
+        Optional `outcomes` filter narrows the search at the index level
+        (e.g. `outcomes=(Outcome.SUCCESS,)` to only return positive
+        patterns).
+
+        Reinforces every surfaced procedure if `reinforce=True` (the
+        default): retrieval-as-use closes the loop between "the agent
+        consulted this procedure" and "this procedure stays warm."
+        """
+        if k < 1:
+            raise ValueError(f"k must be >= 1, got {k}")
+        query_vec = self._embedder.embed([situation])[0]
+        normalized = _normalize(query_vec)
+        hits = self._storage.search_procedure_embeddings(
+            normalized,
+            k=k,
+            model=self._embedder.model,
+            outcomes=outcomes,
+            include_cold=include_cold,
+        )
+        matches: list[ProcedureMatch] = []
+        for pid, _situation_text, similarity in hits:
+            procedure = self._storage.get_procedure(pid)
+            if procedure is None:  # pragma: no cover - raced delete
+                continue
+            score = _clip01(similarity) * procedure.weight * _outcome_boost(procedure.outcome)
+            matches.append(
+                ProcedureMatch(
+                    procedure=procedure,
+                    score=score,
+                    similarity=similarity,
+                )
+            )
+        matches.sort(key=lambda m: m.score, reverse=True)
+        if reinforce:
+            for m in matches:
+                with contextlib.suppress(KeyError, RuntimeError, ValueError):
+                    self._engine.reinforce(m.procedure.id, ItemKind.PROCEDURE)
+        return matches
+
+    def update_outcome(
+        self,
+        procedure_id: UUID,
+        outcome: Outcome,
+        *,
+        now: datetime | None = None,
+    ) -> Procedure:
+        """Update a procedure's outcome and route the change through decay.
+
+        Successful outcomes (SUCCESS / PARTIAL) call `reinforce`;
+        FAILURE calls `contradict`; UNKNOWN is a no-op. Returns the
+        updated `Procedure` (refetched from storage so the caller sees
+        the bumped `updated_at`).
+
+        Raises `KeyError` if the procedure id doesn't exist.
+        """
+        self._storage.update_procedure_outcome(procedure_id, outcome)
+        self._fire_outcome_signal(procedure_id, outcome, now=now)
+        result = self._storage.get_procedure(procedure_id)
+        if result is None:  # pragma: no cover - raced delete
+            raise KeyError(procedure_id)
+        return result
+
+    def _fire_outcome_signal(
+        self,
+        procedure_id: UUID,
+        outcome: Outcome,
+        *,
+        now: datetime | None = None,
+    ) -> None:
+        """Route an outcome change through the decay engine."""
+        signal = _OUTCOME_SIGNAL[outcome]
+        if signal == "reinforce":
+            self._engine.reinforce(procedure_id, ItemKind.PROCEDURE, now=now)
+        elif signal == "contradict":
+            self._engine.contradict(procedure_id, ItemKind.PROCEDURE, now=now)
+        # signal == "noop" for UNKNOWN -- intentional.
+
+
+def _outcome_boost(outcome: Outcome) -> float:
+    """Multiplier applied to procedure retrieval scores by outcome.
+
+    Successes outrank failures at equal similarity, but failures stay
+    surfaced (the agent can learn "this didn't work" too). The boost
+    spread matters less than the relative ordering.
+    """
+    return {
+        Outcome.SUCCESS: 1.0,
+        Outcome.PARTIAL: 0.8,
+        Outcome.UNKNOWN: 0.7,
+        Outcome.FAILURE: 0.6,
+    }[outcome]
+
+
+def _clip01(x: float) -> float:
+    return 0.0 if x < 0.0 else (1.0 if x > 1.0 else x)
 
 
 def _normalize(vec: Sequence[float]) -> list[float]:

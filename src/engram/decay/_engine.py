@@ -44,8 +44,14 @@ from engram.storage._protocol import Storage
 PrunePolicy = Literal["cold", "delete"]
 
 # Kinds the engine sweeps in `tick`. Frozen so a user can't smuggle a
-# bogus item kind in by mutating a default.
-_DEFAULT_KINDS: tuple[ItemKind, ...] = (ItemKind.EVENT, ItemKind.MEMORY_ITEM)
+# bogus item kind in by mutating a default. Stage 7 adds PROCEDURE;
+# the storage layer's per-kind SQL templates handle it identically to
+# the others, so no extra wiring is required.
+_DEFAULT_KINDS: tuple[ItemKind, ...] = (
+    ItemKind.EVENT,
+    ItemKind.MEMORY_ITEM,
+    ItemKind.PROCEDURE,
+)
 
 
 def _utcnow() -> datetime:

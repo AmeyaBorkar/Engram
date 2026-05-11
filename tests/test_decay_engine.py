@@ -267,10 +267,16 @@ class TestTick:
             _seed_memory_item(storage)
             engine = DecayEngine(storage)
             result = engine.tick(now=_now())
+            # Every kind the engine sweeps appears in the per-kind dict.
             assert ItemKind.EVENT in result.per_kind
             assert ItemKind.MEMORY_ITEM in result.per_kind
-            for kind, summary in result.per_kind.items():
-                assert summary["processed"] >= 1, kind
+            assert ItemKind.PROCEDURE in result.per_kind
+            # Seeded kinds have at least one processed row; empty kinds
+            # (procedures here -- we didn't seed any) report processed=0
+            # cleanly.
+            assert result.per_kind[ItemKind.EVENT]["processed"] >= 1
+            assert result.per_kind[ItemKind.MEMORY_ITEM]["processed"] >= 1
+            assert result.per_kind[ItemKind.PROCEDURE]["processed"] == 0
 
     def test_tick_idempotent_at_same_moment(self, tmp_path: Path) -> None:
         # Calling tick twice with the same `now` should leave the table
