@@ -765,7 +765,11 @@ class SqliteStorage:
                 f"conflict {conflict_id} is already resolved "
                 f"(resolution={existing.resolution})"
             )
-        if resolution is not Resolution.KEEP_BOTH and resolved_winner_id is None:
+        # KEEP_BOTH and MERGE legitimately leave the winner field NULL.
+        if (
+            resolution not in (Resolution.KEEP_BOTH, Resolution.MERGE)
+            and resolved_winner_id is None
+        ):
             raise ValueError(
                 f"resolution={resolution.value} requires resolved_winner_id"
             )

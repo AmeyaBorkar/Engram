@@ -132,7 +132,12 @@ class Memory:
             params=self._retrieve_params,
             reinforce=self._engine.reinforce,
         )
-        self._reconciler = Reconciler(storage, clock=self._clock)
+        self._reconciler = Reconciler(
+            storage,
+            embedder=embedder,
+            chat=chat,
+            clock=self._clock,
+        )
 
     @property
     def storage(self) -> Storage:

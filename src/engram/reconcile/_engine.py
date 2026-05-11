@@ -31,14 +31,19 @@ truth. The engine is per-`Memory` instance.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+import math
+from collections.abc import Callable, Sequence
 from datetime import datetime, timezone
 from uuid import UUID
 
+from engram.providers._protocols import ChatProvider, EmbeddingProvider
+from engram.reconcile._merge import merge as run_merge
 from engram.schemas import (
     Conflict,
     ConflictStatus,
+    Embedding,
     ItemKind,
+    Level,
     MemoryItem,
     Resolution,
 )
@@ -49,16 +54,33 @@ def _utcnow() -> datetime:
     return datetime.now(tz=timezone.utc)
 
 
+def _normalize(vec: Sequence[float]) -> list[float]:
+    norm = math.sqrt(sum(x * x for x in vec))
+    if norm == 0.0:
+        return list(vec)
+    return [x / norm for x in vec]
+
+
 class Reconciler:
-    """Conflict resolver."""
+    """Conflict resolver.
+
+    `embedder` and `chat` are only required for `Resolution.MERGE`,
+    which needs an LLM call to synthesize the merged content and an
+    embedder for the new memory item. Other policies operate purely
+    on storage state.
+    """
 
     def __init__(
         self,
         storage: Storage,
         *,
+        embedder: EmbeddingProvider | None = None,
+        chat: ChatProvider | None = None,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
         self._storage = storage
+        self._embedder = embedder
+        self._chat = chat
         self._clock: Callable[[], datetime] = clock or _utcnow
 
     def reconcile(
@@ -90,6 +112,10 @@ class Reconciler:
             )
 
         when = now if now is not None else self._clock()
+
+        if resolution is Resolution.MERGE:
+            return self._reconcile_merge(conflict, when)
+
         winner_id = self._pick_winner(
             conflict, resolution, manual_winner_id=manual_winner_id
         )
@@ -103,6 +129,91 @@ class Reconciler:
             resolved_at=when,
         )
 
+    def _reconcile_merge(self, conflict: Conflict, when: datetime) -> Conflict:
+        """Resolve via `Resolution.MERGE`.
+
+        Synthesizes a new `MemoryItem` whose content captures both
+        sides via the chat provider, links the merged item to the
+        union of both parents' supporting events, invalidates both
+        originals pointing to the merged item, and marks the conflict
+        RESOLVED with `resolved_winner_id=None`.
+        """
+        if self._chat is None:
+            raise ValueError(
+                "Resolution.MERGE requires the Reconciler to have a chat provider"
+            )
+        if self._embedder is None:
+            raise ValueError(
+                "Resolution.MERGE requires the Reconciler to have an embedder"
+            )
+        source = self._fetch_or_raise(conflict.source_item_id)
+        target = self._fetch_or_raise(conflict.target_item_id)
+        # Order so `b` is the newer side (the safe fallback when the
+        # LLM fails to produce parseable output is the newer text).
+        if source.created_at <= target.created_at:
+            a_item, b_item = source, target
+        else:
+            a_item, b_item = target, source
+        merged_content = run_merge(
+            a=a_item.content,
+            b=b_item.content,
+            chat=self._chat,
+            max_retries=1,
+        )
+        # Gather provenance from both parents and union the event ids.
+        event_ids: list[UUID] = []
+        seen: set[UUID] = set()
+        for parent in (source, target):
+            for ev in self._storage.get_supporting_events(parent.id):
+                if ev.id not in seen:
+                    seen.add(ev.id)
+                    event_ids.append(ev.id)
+        if not event_ids:
+            raise ValueError(
+                "Resolution.MERGE requires at least one parent with provenance; "
+                "neither parent has any supporting events"
+            )
+        merged_item = MemoryItem(
+            level=Level.SUMMARY,
+            content=merged_content,
+            created_at=when,
+            valid_from=when,
+            metadata={
+                "reconcile": {
+                    "merged_from": [str(source.id), str(target.id)],
+                    "merged_at": when.isoformat(),
+                    "merge_prompt_version": "v1",
+                }
+            },
+        )
+        vec = self._embedder.embed([merged_content])[0]
+        normalized = _normalize(vec)
+        embedding = Embedding(
+            item_id=merged_item.id,
+            item_kind=ItemKind.MEMORY_ITEM,
+            model=self._embedder.model,
+            dim=self._embedder.dim,
+            vector=tuple(normalized),
+        )
+        with self._storage.transaction():
+            self._storage.insert_memory_item_with_provenance(
+                merged_item,
+                event_ids,
+                embedding=embedding,
+            )
+            self._storage.invalidate_memory_item(
+                source.id, at=when, by=merged_item.id
+            )
+            self._storage.invalidate_memory_item(
+                target.id, at=when, by=merged_item.id
+            )
+            return self._storage.resolve_conflict(
+                conflict.id,
+                resolution=Resolution.MERGE,
+                resolved_winner_id=None,
+                resolved_at=when,
+            )
+
     def _pick_winner(
         self,
         conflict: Conflict,
@@ -112,6 +223,8 @@ class Reconciler:
     ) -> UUID | None:
         if resolution is Resolution.KEEP_BOTH:
             return None
+        if resolution is Resolution.MERGE:  # pragma: no cover - handled upstream
+            raise RuntimeError("MERGE is handled by _reconcile_merge, not _pick_winner")
         if resolution is Resolution.MANUAL:
             if manual_winner_id is None:
                 raise ValueError(

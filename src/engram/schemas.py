@@ -81,6 +81,11 @@ class Resolution(str, Enum):
       * `KEEP_BOTH` - no winner; both items stay valid. The conflict is
         still marked resolved so it stops surfacing on every audit pass.
       * `MANUAL` - the caller specified the winner explicitly.
+      * `MERGE` - the reconciler calls the chat provider to synthesize a
+        new memory item that captures both sides. Both originals are
+        invalidated pointing to the merged item; the conflict carries
+        `resolved_winner_id=None` (the new item is reachable via either
+        original's `invalidated_by`).
     """
 
     PREFER_RECENT = "prefer_recent"
@@ -88,6 +93,7 @@ class Resolution(str, Enum):
     PREFER_FREQUENT = "prefer_frequent"
     KEEP_BOTH = "keep_both"
     MANUAL = "manual"
+    MERGE = "merge"
 
 
 class ConflictStatus(str, Enum):
@@ -314,8 +320,12 @@ class Conflict(BaseModel):
                 raise ValueError("resolved conflict requires a resolution")
             if self.resolved_at is None:
                 raise ValueError("resolved conflict requires resolved_at")
+            # KEEP_BOTH and MERGE both legitimately have no winner: KEEP_BOTH
+            # because both stay valid, MERGE because the merged-into id is
+            # tracked via the `invalidated_by` field on both originals.
             if (
-                self.resolution is not Resolution.KEEP_BOTH
+                self.resolution
+                not in (Resolution.KEEP_BOTH, Resolution.MERGE)
                 and self.resolved_winner_id is None
             ):
                 raise ValueError(
