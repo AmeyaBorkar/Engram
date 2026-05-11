@@ -55,9 +55,7 @@ class TestRecordProcedure:
 
     def test_writes_situation_embedding(self, memory: Memory) -> None:
         p = memory.record_procedure("s", "a")
-        emb = memory.storage.get_embedding(
-            p.id, ItemKind.PROCEDURE, model=memory.embedder.model
-        )
+        emb = memory.storage.get_embedding(p.id, ItemKind.PROCEDURE, model=memory.embedder.model)
         assert emb is not None
         assert emb.dim == memory.embedder.dim
 
@@ -94,9 +92,7 @@ class TestRecordProcedure:
 
 
 class TestRetrieveProcedures:
-    def test_returns_procedure_match_with_score_and_similarity(
-        self, memory: Memory
-    ) -> None:
+    def test_returns_procedure_match_with_score_and_similarity(self, memory: Memory) -> None:
         p = memory.record_procedure("user reports flaky test", "rerun with -p no:cov")
         results = memory.retrieve_procedures("user reports flaky test", k=1)
         assert len(results) == 1
@@ -153,9 +149,7 @@ class TestRetrieveProcedures:
 class TestUpdateOutcome:
     def test_unknown_to_success_fires_reinforce(self, memory: Memory) -> None:
         p = memory.record_procedure("s", "a")  # UNKNOWN -> no signal
-        assert (
-            memory.storage.get_decay_state(p.id, ItemKind.PROCEDURE).reinforcement_count == 0
-        )
+        assert memory.storage.get_decay_state(p.id, ItemKind.PROCEDURE).reinforcement_count == 0
         updated = memory.update_outcome(p.id, Outcome.SUCCESS)
         assert updated.outcome is Outcome.SUCCESS
         state = memory.storage.get_decay_state(p.id, ItemKind.PROCEDURE)
@@ -181,9 +175,7 @@ class TestUpdateOutcome:
         with pytest.raises(KeyError):
             memory.update_outcome(uuid4(), Outcome.SUCCESS)
 
-    def test_returned_procedure_has_new_outcome_and_bumped_updated_at(
-        self, memory: Memory
-    ) -> None:
+    def test_returned_procedure_has_new_outcome_and_bumped_updated_at(self, memory: Memory) -> None:
         p = memory.record_procedure("s", "a")
         before = p.updated_at
         updated = memory.update_outcome(p.id, Outcome.SUCCESS)
