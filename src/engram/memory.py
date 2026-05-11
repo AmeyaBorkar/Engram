@@ -58,6 +58,8 @@ from engram.schemas import (
     Embedding,
     Event,
     ItemKind,
+    Level,
+    MemoryItem,
     Outcome,
     Procedure,
     ProcedureMatch,
@@ -572,7 +574,8 @@ class Memory:
         provider, retrieves each (with multi-query disabled to avoid
         recursion), and fuses the rankings via Reciprocal Rank Fusion.
         """
-        assert self._chat is not None
+        if self._chat is None:  # pragma: no cover - upstream guard
+            raise RuntimeError("multi-query retrieve requires a chat provider")
         queries = expand_queries(query, params.multi_query_n, self._chat)
         # Per-query params: turn multi-query off + the reranker off
         # (we rerank ONCE post-fusion if a reranker is given).
@@ -866,6 +869,104 @@ class Memory:
                 status=status, memory_item_id=memory_item_id, limit=limit
             )
         )
+
+    # --- E.6: preference layer ---------------------------------------------
+
+    def record_preference(
+        self,
+        content: str,
+        *,
+        source: str | None = None,
+        weight: float = 1.0,
+    ) -> tuple[Event, MemoryItem]:
+        """Record a preference statement.
+
+        Stores the raw `content` as an Event AND creates a
+        `Level.PREFERENCE` MemoryItem with provenance to it. The
+        preference layer outranks generic summaries when the caller
+        retrieves with `Memory.retrieve_preferences`.
+
+        Use when the caller knows the content is a preference. The
+        `engram._preference.is_preference(text)` heuristic is exposed
+        for users who want to auto-detect; this method assumes the
+        decision has already been made.
+
+        Returns `(event, preference_item)`.
+        """
+        event = Event(content=content, source=source, tenant_id=self._tenant_id)
+        vector = self._embedder.embed([content])[0]
+        normalized = _normalize(vector)
+        event_emb = Embedding(
+            item_id=event.id,
+            item_kind=ItemKind.EVENT,
+            model=self._embedder.model,
+            dim=self._embedder.dim,
+            vector=tuple(normalized),
+        )
+        pref = MemoryItem(
+            level=Level.PREFERENCE,
+            content=content,
+            weight=weight,
+            tenant_id=self._tenant_id,
+            metadata={"preference": {"source_event_id": str(event.id)}},
+        )
+        pref_emb = Embedding(
+            item_id=pref.id,
+            item_kind=ItemKind.MEMORY_ITEM,
+            model=self._embedder.model,
+            dim=self._embedder.dim,
+            vector=tuple(normalized),
+        )
+        with self._storage.transaction():
+            self._storage.insert_event(event)
+            self._storage.insert_embedding(event_emb)
+            self._storage.insert_memory_item_with_provenance(
+                pref,
+                [event.id],
+                embedding=pref_emb,
+            )
+        return event, pref
+
+    def retrieve_preferences(
+        self,
+        query: str,
+        k: int = 5,
+        *,
+        include_cold: bool = False,
+        reinforce: bool = True,
+    ) -> list[RetrievalResult]:
+        """Retrieve top-k preference items only.
+
+        Symmetric with `retrieve_procedures` (Stage 7). Filters to
+        `Level.PREFERENCE` at the index level.
+        """
+        if k < 1:
+            raise ValueError(f"k must be >= 1, got {k}")
+        query_vec = self._embedder.embed([query])[0]
+        normalized = _normalize(query_vec)
+        hits = self._storage.search_memory_item_embeddings_as_of(
+            normalized,
+            k=k,
+            model=self._embedder.model,
+            levels=[Level.PREFERENCE],
+            include_cold=include_cold,
+        )
+        results = [
+            RetrievalResult(
+                item_id=item_id,
+                level=Level.PREFERENCE,
+                content=content,
+                confidence=_clip01(score),
+                score=score,
+                supported_by=(),
+            )
+            for item_id, content, score in hits
+        ]
+        if reinforce:
+            for r in results:
+                with contextlib.suppress(KeyError, RuntimeError, ValueError):
+                    self._engine.reinforce(r.item_id, ItemKind.MEMORY_ITEM)
+        return results
 
     def _fire_outcome_signal(
         self,

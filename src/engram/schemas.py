@@ -18,11 +18,18 @@ from engram.ids import new_id
 
 
 class Level(str, Enum):
-    """Hierarchy level a `MemoryItem` occupies."""
+    """Hierarchy level a `MemoryItem` occupies.
+
+    Stage 6 shipped `event` / `summary` / `abstraction`. Stage 9 (E.6)
+    adds `preference` -- a first-class layer for sentiment-laden /
+    explicit-preference statements that should outrank generic
+    summaries when the query is about user preferences.
+    """
 
     EVENT = "event"
     SUMMARY = "summary"
     ABSTRACTION = "abstraction"
+    PREFERENCE = "preference"
 
 
 class ItemKind(str, Enum):
