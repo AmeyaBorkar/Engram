@@ -51,6 +51,7 @@ from engram.retrieve import (
 )
 from engram.retrieve._hyde import hyde_transform
 from engram.retrieve._multi_query import expand_queries, reciprocal_rank_fusion
+from engram.retrieve._react import react_judge
 from engram.schemas import (
     Conflict,
     ConflictStatus,
@@ -560,6 +561,73 @@ class Memory:
         if result is None:  # pragma: no cover - raced delete
             raise KeyError(procedure_id)
         return result
+
+    # --- E.9: iterative ReAct retrieval ------------------------------------
+
+    def retrieve_iterative(
+        self,
+        query: str,
+        k: int = 10,
+        *,
+        max_steps: int = 3,
+        per_step_k: int | None = None,
+        as_of: datetime | None = None,
+        reinforce: bool = False,
+    ) -> list[RetrievalResult]:
+        """Multi-step retrieve with LLM-driven query refinement.
+
+        Pipeline:
+          1. Run base `retrieve(query)` to get an initial result set.
+          2. Ask the chat provider whether the results are sufficient
+             to answer the question. If yes -> return. If no -> the
+             LLM emits a refined query.
+          3. Run `retrieve(refined_query)` and merge new items.
+          4. Repeat up to `max_steps` times.
+
+        Returns the deduplicated union of all retrieved items, sorted
+        by score descending, sliced to `k`.
+
+        Requires a chat provider. Falls back to one-shot retrieve if
+        chat is None.
+        """
+        if self._chat is None:
+            return self.retrieve(query, k=k, as_of=as_of, reinforce=reinforce)
+        if k < 1:
+            raise ValueError(f"k must be >= 1, got {k}")
+        if max_steps < 1:
+            raise ValueError(f"max_steps must be >= 1, got {max_steps}")
+
+        leaf_k = per_step_k if per_step_k is not None else k
+        seen_ids: set[UUID] = set()
+        accumulated: list[RetrievalResult] = []
+        current_query = query
+        for _step in range(max_steps):
+            step_results = self.retrieve(
+                current_query,
+                k=leaf_k,
+                as_of=as_of,
+                reinforce=False,
+            )
+            for r in step_results:
+                if r.item_id not in seen_ids:
+                    seen_ids.add(r.item_id)
+                    accumulated.append(r)
+            verdict = react_judge(query, accumulated, self._chat)
+            if verdict.sufficient:
+                break
+            if not verdict.refined_query or verdict.refined_query == current_query:
+                # No useful refinement -- stop iterating.
+                break
+            current_query = verdict.refined_query
+
+        accumulated.sort(key=lambda r: r.score, reverse=True)
+        sliced = accumulated[:k]
+        if reinforce:
+            for r in sliced:
+                with contextlib.suppress(KeyError, RuntimeError, ValueError):
+                    kind = ItemKind.EVENT if r.level is Level.EVENT else ItemKind.MEMORY_ITEM
+                    self._engine.reinforce(r.item_id, kind)
+        return sliced
 
     def _multi_query_retrieve(
         self,
