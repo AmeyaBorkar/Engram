@@ -39,6 +39,7 @@ from engram.consolidation import (
 from engram.decay import DecayEngine, DecayMetrics, DecayParams, PrunePolicy, TickResult
 from engram.decay._math import is_cold as _is_cold
 from engram.providers._protocols import ChatProvider, EmbeddingProvider
+from engram.reconcile import Reconciler
 from engram.retrieve import (
     HierarchicalRetriever,
     Reranker,
@@ -46,6 +47,8 @@ from engram.retrieve import (
     RetrievePrefer,
 )
 from engram.schemas import (
+    Conflict,
+    ConflictStatus,
     DecayState,
     Embedding,
     Event,
@@ -53,6 +56,7 @@ from engram.schemas import (
     Outcome,
     Procedure,
     ProcedureMatch,
+    Resolution,
     RetrievalResult,
 )
 from engram.storage._protocol import Storage
@@ -128,6 +132,7 @@ class Memory:
             params=self._retrieve_params,
             reinforce=self._engine.reinforce,
         )
+        self._reconciler = Reconciler(storage, clock=self._clock)
 
     @property
     def storage(self) -> Storage:
@@ -446,6 +451,67 @@ class Memory:
         if result is None:  # pragma: no cover - raced delete
             raise KeyError(procedure_id)
         return result
+
+    # --- Stage 8: contradiction & temporal reasoning -----------------------
+
+    def reconcile(
+        self,
+        conflict_id: UUID,
+        *,
+        resolution: Resolution,
+        manual_winner_id: UUID | None = None,
+        now: datetime | None = None,
+    ) -> Conflict:
+        """Resolve a detected `Conflict` and invalidate the loser.
+
+        Picks a winner per `resolution`:
+
+          * `PREFER_RECENT`: the later-created item wins.
+          * `PREFER_TRUSTED`: the item with the higher `source_trust` wins
+            (None treated as 0.0); ties fall back to PREFER_RECENT.
+          * `PREFER_FREQUENT`: the item with the higher corroboration
+            count wins (from decay state); ties fall back to
+            PREFER_RECENT.
+          * `KEEP_BOTH`: no winner; both items stay valid. The conflict
+            is still marked RESOLVED so it stops surfacing on audits.
+          * `MANUAL`: caller picks the winner via `manual_winner_id`
+            (must be source or target of the conflict).
+
+        The loser gets `invalidate_memory_item`d with the winner's id
+        and the resolution timestamp; default `retrieve` no longer
+        surfaces it, while `retrieve(..., as_of=t)` with t < invalidation
+        time still does.
+
+        Raises:
+          KeyError: the conflict id does not exist.
+          RuntimeError: the conflict is already resolved.
+          ValueError: invalid `manual_winner_id` for MANUAL.
+        """
+        return self._reconciler.reconcile(
+            conflict_id,
+            resolution=resolution,
+            manual_winner_id=manual_winner_id,
+            now=now,
+        )
+
+    def list_conflicts(
+        self,
+        *,
+        status: ConflictStatus | None = None,
+        memory_item_id: UUID | None = None,
+        limit: int = 100,
+    ) -> list[Conflict]:
+        """List conflicts, optionally filtered.
+
+        `status` narrows to OPEN or RESOLVED. `memory_item_id` walks
+        the conflict graph in both directions (source or target).
+        Newest first.
+        """
+        return self._storage.list_conflicts(
+            status=status,
+            memory_item_id=memory_item_id,
+            limit=limit,
+        )
 
     def _fire_outcome_signal(
         self,
