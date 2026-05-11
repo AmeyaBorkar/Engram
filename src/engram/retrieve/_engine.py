@@ -514,17 +514,28 @@ class HierarchicalRetriever:
         scores: Sequence[float],
         p: RetrieveParams,
     ) -> list[float]:
-        """Multiplicatively boost rerank scores by recency.
+        """Additively boost rerank scores by recency.
 
-        `boost = 1 + recency_lambda * exp(-days_old / decay_days)` so
-        a zero-day-old hit gets `1 + recency_lambda`, a
-        `decay_days`-old hit gets `1 + recency_lambda * 0.37`, and very
-        old hits decay to the base score. The shape lets a small
-        `recency_lambda` (~0.1) reorder very-close candidates without
-        erasing the embedder's signal.
+        `bonus = recency_lambda * exp(-days_old / decay_days)` so a
+        zero-day-old hit gets `+recency_lambda`, a `decay_days`-old hit
+        gets `+0.37 * recency_lambda`, and very old hits get ~0.
+
+        Additive (rather than multiplicative) because reranker logits
+        can be negative; multiplying a negative score by `(1 + λ)`
+        would push recent items DOWN the ranking instead of up. The
+        additive form gives every recent item the same positive bump
+        regardless of its raw sign -- a recent score of `+5` becomes
+        `5 + λ·decay`, a recent score of `-2` becomes `-2 + λ·decay`,
+        both moving up the same amount.
+
+        Tuning: λ is in the same units as the reranker score. For
+        BGE-reranker-v2-m3, typical positive logits are 2-8 and
+        meaningful gaps are ~0.5-2. A `recency_lambda` of 0.1-0.3
+        nudges close ties; 1.0+ is aggressive and will reshape the
+        ordering substantially.
 
         Reference time: `p.as_of` if set, otherwise current UTC. Items
-        whose `created_at` lookup fails fall through with no boost.
+        whose `created_at` lookup fails fall through with no bonus.
         Uses a single batched lookup for all candidate timestamps.
         """
         if p.recency_lambda <= 0:
@@ -542,8 +553,8 @@ class HierarchicalRetriever:
                 continue
             delta_sec = (ref - created_at).total_seconds()
             days_old = max(delta_sec / 86400.0, 0.0)
-            boost = 1.0 + p.recency_lambda * math.exp(-days_old / decay_days)
-            out.append(s * boost)
+            bonus = p.recency_lambda * math.exp(-days_old / decay_days)
+            out.append(s + bonus)
         return out
 
     def _get_created_at_batch(

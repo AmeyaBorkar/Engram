@@ -17,6 +17,15 @@ same vectors retrieval ranked over). The cross-encoder is not re-run
 for similarity -- that would be N² rerank calls, an order of magnitude
 more expensive than the diversity gain.
 
+Relevance scores arrive in whatever range the upstream reranker
+emits (BGE-reranker-v2-m3 produces unbounded logits typically in
+[-8, +8]); we min-max normalize them to [0, 1] internally so the
+diversity term (cosine, naturally bounded in [0, 1]) and the
+relevance term occupy the same dynamic range. That way `λ` actually
+controls the trade-off the docstring promises -- without this
+normalization, a wide-range relevance score dominates the redundancy
+penalty and MMR degenerates to relevance sort.
+
 Vectorized: similarity is a single `matrix @ matrix[selected]` per
 greedy step. For a 30-candidate pool that's ~30µs total versus ~10ms
 for the Python-loop version.
@@ -64,13 +73,28 @@ def mmr_select(
     if n == 0 or k == 0:
         return []
 
-    relevance_np = np.asarray(relevance, dtype=np.float32)
+    relevance_raw = np.asarray(relevance, dtype=np.float32)
+    # Min-max normalize relevance into [0, 1]. The pairwise diversity
+    # term (cosine on unit-norm vectors) is already in [0, 1], so this
+    # puts both halves of the MMR objective on the same scale. Without
+    # this, BGE-reranker logits in [-8, +8] dwarf the [0, 1] diversity
+    # penalty and `λ` becomes a no-op for typical relevance gaps.
+    rel_min = float(relevance_raw.min())
+    rel_max = float(relevance_raw.max())
+    if rel_max > rel_min:
+        relevance_np = (relevance_raw - rel_min) / (rel_max - rel_min)
+    else:
+        # All relevance identical -> normalize to 0 so the diversity
+        # term carries the entire selection signal.
+        relevance_np = np.zeros_like(relevance_raw)
     valid_mask = np.fromiter(
         (v is not None for v in vectors), dtype=bool, count=n
     )
-    # If no vectors at all, fall back to top-k by relevance.
+    # If no vectors at all, fall back to top-k by raw relevance (the
+    # normalized version would be order-preserving but easier to read
+    # in the raw form when there's nothing else going on).
     if not valid_mask.any():
-        order = np.argsort(-relevance_np, kind="stable")[:k]
+        order = np.argsort(-relevance_raw, kind="stable")[:k]
         return [items[int(i)] for i in order]
 
     # Build a (n, dim) matrix; rows for items with None vectors stay

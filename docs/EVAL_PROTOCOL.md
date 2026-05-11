@@ -53,9 +53,10 @@ Every retrieval-side feature must satisfy:
 - **Primary metric**: multi_recall@10 (proxy for evidence coverage).
 - **Decision rule**: ship if multi_recall@10 lift CI excludes 0 AND
   overall hit@10 doesn't drop > 0.01.
-- **Known issue (May 2026)**: MMR currently operates on unnormalized
-  cross-encoder logits. The diversity term is dynamically rescaled.
-  Fix: min-max normalize relevance to [0, 1] before greedy selection.
+- **Fixed May 2026**: relevance scores are now min-max normalized to
+  [0, 1] inside `mmr_select` so the diversity term (cosine in [0, 1])
+  has equal weight to relevance. Previously the wide-range
+  cross-encoder logits dwarfed the diversity penalty.
 - **When NOT to use**: queries that legitimately need multiple
   same-source supporting turns (multi-session over one fact).
 
@@ -69,8 +70,10 @@ Every retrieval-side feature must satisfy:
   recall@10. Secondary: overall recall@10.
 - **Decision rule**: ship if knowledge-update lift CI excludes 0
   AND overall hit@10 doesn't drop.
-- **Known issue (May 2026)**: multiplicative boost (`score * (1+λ·decay)`)
-  inverts on negative reranker logits. Fix: switch to additive form.
+- **Fixed May 2026**: boost is now additive (`score + λ·decay`) so
+  it never inverts on negative reranker logits. λ is in the same
+  units as the reranker score; sane values are 0.1-0.3 for typical
+  BGE-reranker output.
 - **When NOT to use**: questions about historical sequences, "first
   time I…" queries.
 
