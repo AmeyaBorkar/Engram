@@ -27,9 +27,12 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import math
+import time
 from collections.abc import Callable, Sequence
 from datetime import datetime, timezone
 from uuid import UUID
+
+from engram._otel import METRICS, span
 
 from engram.consolidation import (
     ConsolidationEngine,
@@ -161,23 +164,28 @@ class Memory:
         Durability: the event and its embedding land in a single atomic
         transaction; on successful return both are on disk.
         """
-        event = content if isinstance(content, Event) else Event(content=content)
+        with span("engram.memory.observe") as s:
+            event = content if isinstance(content, Event) else Event(content=content)
 
-        vector = self._embedder.embed([event.content])[0]
-        normalized = _normalize(vector)
-        embedding = Embedding(
-            item_id=event.id,
-            item_kind=ItemKind.EVENT,
-            model=self._embedder.model,
-            dim=self._embedder.dim,
-            vector=tuple(normalized),
-        )
+            vector = self._embedder.embed([event.content])[0]
+            normalized = _normalize(vector)
+            embedding = Embedding(
+                item_id=event.id,
+                item_kind=ItemKind.EVENT,
+                model=self._embedder.model,
+                dim=self._embedder.dim,
+                vector=tuple(normalized),
+            )
 
-        with self._storage.transaction():
-            self._storage.insert_event(event)
-            self._storage.insert_embedding(embedding)
+            with self._storage.transaction():
+                self._storage.insert_event(event)
+                self._storage.insert_embedding(embedding)
 
-        return event
+            if s is not None:
+                s.set_attribute("engram.event_id", str(event.id))
+                s.set_attribute("engram.embedder.model", self._embedder.model)
+            METRICS.observe_call()
+            return event
 
     def retrieve(
         self,
@@ -243,7 +251,24 @@ class Memory:
             as_of=as_of if as_of is not None else defaults.as_of,
         )
         effective_reranker = reranker if reranker is not None else self._default_reranker
-        return self._retriever.retrieve(query, params=params, reranker=effective_reranker)
+        with span(
+            "engram.memory.retrieve",
+            k=params.k,
+            prefer=params.prefer,
+        ) as s:
+            t0 = time.perf_counter()
+            results = self._retriever.retrieve(
+                query, params=params, reranker=effective_reranker
+            )
+            elapsed_ms = (time.perf_counter() - t0) * 1000.0
+            METRICS.retrieve_call(k=params.k)
+            METRICS.retrieve_latency(elapsed_ms, k=params.k)
+            if s is not None:
+                s.set_attribute("engram.retrieve.n_results", len(results))
+                s.set_attribute("engram.retrieve.latency_ms", elapsed_ms)
+                if params.as_of is not None:
+                    s.set_attribute("engram.retrieve.as_of", params.as_of.isoformat())
+            return results
 
     # --- Stage 4: decay surface --------------------------------------------
 
@@ -327,7 +352,19 @@ class Memory:
         Raises `RuntimeError` if `Memory` was constructed without a chat
         provider.
         """
-        return self.consolidator.consolidate(max_events=max_events)
+        with span("engram.memory.consolidate", max_events=max_events) as s:
+            result = self.consolidator.consolidate(max_events=max_events)
+            METRICS.consolidate_call()
+            if s is not None:
+                s.set_attribute("engram.consolidate.events_processed", result.events_processed)
+                s.set_attribute("engram.consolidate.clusters_formed", result.clusters_formed)
+                s.set_attribute(
+                    "engram.consolidate.abstractions_created", result.abstractions_created
+                )
+                s.set_attribute(
+                    "engram.consolidate.conflicts_detected", result.conflicts_detected
+                )
+            return result
 
     def promote(self, *, now: datetime | None = None) -> PromotionResult:
         """Promote stable summaries to abstractions.
@@ -501,12 +538,24 @@ class Memory:
           RuntimeError: the conflict is already resolved.
           ValueError: invalid `manual_winner_id` for MANUAL.
         """
-        return self._reconciler.reconcile(
-            conflict_id,
-            resolution=resolution,
-            manual_winner_id=manual_winner_id,
-            now=now,
-        )
+        with span(
+            "engram.memory.reconcile",
+            resolution=resolution.value,
+        ) as s:
+            out = self._reconciler.reconcile(
+                conflict_id,
+                resolution=resolution,
+                manual_winner_id=manual_winner_id,
+                now=now,
+            )
+            METRICS.reconcile_call(resolution=resolution.value)
+            if s is not None:
+                s.set_attribute("engram.reconcile.conflict_id", str(conflict_id))
+                if out.resolved_winner_id is not None:
+                    s.set_attribute(
+                        "engram.reconcile.winner_id", str(out.resolved_winner_id)
+                    )
+            return out
 
     def list_conflicts(
         self,

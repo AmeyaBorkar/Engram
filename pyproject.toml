@@ -41,6 +41,14 @@ anthropic = ["anthropic>=0.40"]
 postgres = ["psycopg[binary]>=3.1"]
 duckdb = ["duckdb>=0.10"]
 sqlite-vec = ["sqlite-vec>=0.1.0"]
+otel = [
+    # Optional OpenTelemetry tracing/metrics. With this extra installed
+    # and a configured TracerProvider/MeterProvider, every public Memory
+    # call emits spans and counters. Without it, the otel calls inside
+    # Memory short-circuit to no-ops (lazy import + None tracer).
+    "opentelemetry-api>=1.20",
+    "opentelemetry-sdk>=1.20",
+]
 consolidation = [
     # Stage 5 clustering. Pure-numpy agglomerative fallback ships in core;
     # production users install this extra to get the density-based path.
@@ -74,6 +82,9 @@ dev = [
     "hdbscan>=0.8.40",
     # .env loading for local bench runs.
     "python-dotenv>=1.0",
+    # OpenTelemetry for Stage 9 observability tests.
+    "opentelemetry-api>=1.20",
+    "opentelemetry-sdk>=1.20",
 ]
 
 [project.scripts]
