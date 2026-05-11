@@ -60,6 +60,10 @@ def _row_to_event(row: sqlite3.Row) -> Event:
 
 
 def _row_to_memory_item(row: sqlite3.Row) -> MemoryItem:
+    valid_from_raw = row["valid_from"]
+    valid_until_raw = row["valid_until"]
+    invalidated_at_raw = row["invalidated_at"]
+    invalidated_by_raw = row["invalidated_by"]
     return MemoryItem(
         id=UUID(bytes=row["id"]),
         level=Level(row["level"]),
@@ -69,6 +73,36 @@ def _row_to_memory_item(row: sqlite3.Row) -> MemoryItem:
         metadata=loads_metadata(row["metadata"]),
         created_at=parse_iso(row["created_at"]),
         updated_at=parse_iso(row["updated_at"]),
+        valid_from=parse_iso(valid_from_raw) if valid_from_raw else None,
+        valid_until=parse_iso(valid_until_raw) if valid_until_raw else None,
+        invalidated_at=parse_iso(invalidated_at_raw) if invalidated_at_raw else None,
+        invalidated_by=UUID(bytes=invalidated_by_raw) if invalidated_by_raw else None,
+        source_trust=row["source_trust"],
+    )
+
+
+def _memory_item_insert_row(item: MemoryItem) -> tuple[Any, ...]:
+    """Flatten a MemoryItem into the SQL row tuple for INSERT.
+
+    `valid_from` is guaranteed non-None by the Pydantic model validator;
+    the fallback here is defensive only.
+    """
+    valid_from = item.valid_from if item.valid_from is not None else item.created_at
+    return (
+        item.id.bytes,
+        item.level.value,
+        item.content,
+        item.weight,
+        item.cluster_id.bytes if item.cluster_id else None,
+        dumps_metadata(item.metadata),
+        iso(item.created_at),
+        iso(item.updated_at),
+        iso(item.updated_at),
+        iso(valid_from),
+        iso(item.valid_until) if item.valid_until else None,
+        iso(item.invalidated_at) if item.invalidated_at else None,
+        item.invalidated_by.bytes if item.invalidated_by else None,
+        item.source_trust,
     )
 
 
@@ -386,43 +420,22 @@ class SqliteStorage:
         self._connect().execute(
             "INSERT INTO memory_items "
             "(id, level, content, weight, cluster_id, metadata, "
-            "created_at, updated_at, last_decayed_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (
-                item.id.bytes,
-                item.level.value,
-                item.content,
-                item.weight,
-                item.cluster_id.bytes if item.cluster_id else None,
-                dumps_metadata(item.metadata),
-                iso(item.created_at),
-                iso(item.updated_at),
-                iso(item.updated_at),
-            ),
+            "created_at, updated_at, last_decayed_at, "
+            "valid_from, valid_until, invalidated_at, invalidated_by, source_trust) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            _memory_item_insert_row(item),
         )
 
     def insert_memory_items(self, items: Iterable[MemoryItem]) -> int:
-        rows = [
-            (
-                i.id.bytes,
-                i.level.value,
-                i.content,
-                i.weight,
-                i.cluster_id.bytes if i.cluster_id else None,
-                dumps_metadata(i.metadata),
-                iso(i.created_at),
-                iso(i.updated_at),
-                iso(i.updated_at),
-            )
-            for i in items
-        ]
+        rows = [_memory_item_insert_row(i) for i in items]
         if not rows:
             return 0
         self._connect().executemany(
             "INSERT INTO memory_items "
             "(id, level, content, weight, cluster_id, metadata, "
-            "created_at, updated_at, last_decayed_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "created_at, updated_at, last_decayed_at, "
+            "valid_from, valid_until, invalidated_at, invalidated_by, source_trust) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             rows,
         )
         return len(rows)
