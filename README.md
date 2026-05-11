@@ -67,8 +67,12 @@ The four moving parts:
 ## Quick start
 
 ```bash
-pip install engram   # placeholder — package not yet published
+pip install engram-memory
 ```
+
+> The PyPI distribution name is `engram-memory` (the bare `engram` name
+> is squatted as a placeholder; a PEP 541 reclaim is pending). The
+> Python import name is just `engram`.
 
 ```python
 from engram import Memory
