@@ -126,10 +126,14 @@ class HierarchicalRetriever:
     ) -> list[_Candidate]:
         """Top-k generalizations, with optional drill into supporting events."""
         candidate_count = max(p.k * p.candidate_multiplier, p.k)
-        hits = self._storage.search_memory_item_embeddings(
+        # Route through the validity-aware path (Stage 8). `as_of=None`
+        # excludes invalidated items by default; `as_of=<datetime>`
+        # returns items whose validity window covers that timestamp.
+        hits = self._storage.search_memory_item_embeddings_as_of(
             query_vec,
             k=candidate_count,
             model=self._embedder.model,
+            as_of=p.as_of,
             levels=_GENERALIZATION_LEVELS,
             include_cold=p.include_cold,
         )

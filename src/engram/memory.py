@@ -184,6 +184,7 @@ class Memory:
         include_cold: bool | None = None,
         reinforce: bool | None = None,
         reranker: Reranker | None = None,
+        as_of: datetime | None = None,
     ) -> list[RetrievalResult]:
         """Return up to `k` items most relevant to `query`, coarse-to-fine.
 
@@ -194,10 +195,14 @@ class Memory:
         returned `RetrievalResult.level` reflects what was actually
         surfaced -- an abstraction, a summary, or a raw event.
 
+        Stage 8 layers in temporal validity: items that have been
+        invalidated by `Memory.reconcile` are excluded by default.
+        `as_of=<datetime>` returns the state as of that timestamp --
+        items whose validity window covers it AND whose invalidation
+        (if any) happened after it.
+
         Backwards compatible with the Stage 3 surface: `retrieve(q)`
-        and `retrieve(q, k=20)` work unchanged. The parameters override
-        the per-Memory defaults set on the constructor; missing values
-        fall back to those defaults.
+        and `retrieve(q, k=20)` work unchanged.
 
         Args:
           query: free-text query.
@@ -213,6 +218,8 @@ class Memory:
             an audit-style read that shouldn't influence weights).
           reranker: optional cross-encoder reranker. Defaults to the
             Memory-level reranker if one was passed to the constructor.
+          as_of: temporal-as-of cutoff (Stage 8). When set, returns
+            historically-correct state.
         """
         defaults = self._retrieve_params
         params = RetrieveParams(
@@ -227,6 +234,7 @@ class Memory:
             candidate_multiplier=defaults.candidate_multiplier,
             include_cold=include_cold if include_cold is not None else defaults.include_cold,
             reinforce_on_use=(reinforce if reinforce is not None else defaults.reinforce_on_use),
+            as_of=as_of if as_of is not None else defaults.as_of,
         )
         effective_reranker = reranker if reranker is not None else self._default_reranker
         return self._retriever.retrieve(query, params=params, reranker=effective_reranker)

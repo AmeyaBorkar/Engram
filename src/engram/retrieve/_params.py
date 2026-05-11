@@ -9,6 +9,7 @@ overkill, and we save the per-call validation cost on a hot path.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Literal
 
 # `auto`     -- generalize when confident, drill when not (the default).
@@ -35,6 +36,11 @@ class RetrieveParams:
     `reinforce_on_use`     -- after retrieval, fire reinforcement signals
                               against every surfaced item (closes the loop
                               between retrieval and decay).
+    `as_of`                -- if set, return items whose validity window
+                              covers this timestamp (Stage 8 temporal
+                              retrieve). `None` means "current state":
+                              invalidated items are excluded but no
+                              backward time travel happens.
     """
 
     k: int = 10
@@ -44,6 +50,7 @@ class RetrieveParams:
     candidate_multiplier: int = 3
     include_cold: bool = False
     reinforce_on_use: bool = True
+    as_of: datetime | None = None
 
     def __post_init__(self) -> None:
         if self.k < 1:
