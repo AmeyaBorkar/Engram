@@ -30,6 +30,27 @@ class ItemKind(str, Enum):
 
     EVENT = "event"
     MEMORY_ITEM = "memory_item"
+    PROCEDURE = "procedure"
+
+
+class Outcome(str, Enum):
+    """Outcome of a procedure attempt.
+
+    Drives the reinforcement signal the decay engine applies:
+
+      * `SUCCESS` -> reinforce (the procedure worked, surface it more).
+      * `PARTIAL` -> reinforce (worked with caveats; still a positive
+        lesson the agent should remember).
+      * `FAILURE` -> contradict (the procedure didn't work; weight it
+        down so the agent stops reaching for it in similar situations).
+      * `UNKNOWN` -> no signal (recorded for completeness but the
+        outcome hasn't been observed yet).
+    """
+
+    SUCCESS = "success"
+    PARTIAL = "partial"
+    FAILURE = "failure"
+    UNKNOWN = "unknown"
 
 
 def _utcnow() -> datetime:
@@ -76,6 +97,55 @@ class MemoryItem(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: datetime = Field(default_factory=_utcnow)
+
+
+class Procedure(BaseModel):
+    """A remembered procedure: "in this situation, this action had that outcome."
+
+    Stage 7 introduces procedures as a first-class memory item alongside
+    `Event` and `MemoryItem`. Procedures are how the agent learns from
+    doing: a successful pattern strengthens (`reinforce` on retrieval),
+    a failed pattern weakens (`contradict` on outcome update).
+
+    Retrieval is over `situation` -- callers describe the current
+    context and get back analogous past procedures ranked by similarity.
+    `action` and `outcome` ride along as payload. Embedding for
+    retrieval targets the situation; storage keeps a single embedding
+    per procedure regardless of how `action` evolves.
+
+    The model is mutable (frozen=False) because `outcome` can transition
+    -- a procedure may start as `UNKNOWN`, get observed as `SUCCESS`,
+    and later be marked `FAILURE` after the user notices it stopped
+    working. Decay state lives alongside in the storage row.
+    """
+
+    model_config = ConfigDict(frozen=False)
+
+    id: UUID = Field(default_factory=new_id)
+    situation: str
+    action: str
+    outcome: Outcome = Outcome.UNKNOWN
+    weight: float = Field(default=1.0, ge=0.0, le=1.0)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
+
+
+class ProcedureMatch(BaseModel):
+    """One result returned from `Memory.retrieve_procedures`.
+
+    Carries the full `Procedure` plus the retrieval score and the
+    similarity to the query situation. The score factors in weight and
+    outcome (failures don't get suppressed -- the agent benefits from
+    "this didn't work" lessons too -- but successes outrank failures at
+    equal similarity).
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    procedure: Procedure
+    score: float
+    similarity: float = Field(ge=-1.0, le=1.0)
 
 
 class Embedding(BaseModel):
