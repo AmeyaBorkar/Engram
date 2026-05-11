@@ -24,6 +24,7 @@ Later stages layer in:
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import math
 from collections.abc import Callable, Sequence
@@ -524,6 +525,167 @@ class Memory:
             status=status,
             memory_item_id=memory_item_id,
             limit=limit,
+        )
+
+    # --- Stage 9: async surface --------------------------------------------
+    #
+    # Async parallel to the sync API for callers running inside an event
+    # loop (web frameworks, agent platforms). The implementation routes
+    # the sync body through `asyncio.to_thread` so SQLite's per-thread
+    # connection model continues to apply -- no shared connections, no
+    # surprise concurrency. Stage 10's Postgres backend can override
+    # these on a subclass once an async-native connection pool lands.
+
+    async def aobserve(self, content: str | Event) -> Event:
+        """Async version of `observe`."""
+        return await asyncio.to_thread(self.observe, content)
+
+    async def aretrieve(
+        self,
+        query: str,
+        k: int | None = None,
+        *,
+        prefer: RetrievePrefer | None = None,
+        confidence_threshold: float | None = None,
+        drill_k: int | None = None,
+        include_cold: bool | None = None,
+        reinforce: bool | None = None,
+        reranker: Reranker | None = None,
+        as_of: datetime | None = None,
+    ) -> list[RetrievalResult]:
+        """Async version of `retrieve`."""
+        return await asyncio.to_thread(
+            lambda: self.retrieve(
+                query,
+                k=k,
+                prefer=prefer,
+                confidence_threshold=confidence_threshold,
+                drill_k=drill_k,
+                include_cold=include_cold,
+                reinforce=reinforce,
+                reranker=reranker,
+                as_of=as_of,
+            )
+        )
+
+    async def areinforce(
+        self,
+        item_id: UUID,
+        kind: ItemKind = ItemKind.EVENT,
+        *,
+        count: int = 1,
+        now: datetime | None = None,
+    ) -> DecayState:
+        return await asyncio.to_thread(
+            lambda: self.reinforce(item_id, kind, count=count, now=now)
+        )
+
+    async def acorroborate(
+        self,
+        item_id: UUID,
+        kind: ItemKind = ItemKind.MEMORY_ITEM,
+        *,
+        count: int = 1,
+        now: datetime | None = None,
+    ) -> DecayState:
+        return await asyncio.to_thread(
+            lambda: self.corroborate(item_id, kind, count=count, now=now)
+        )
+
+    async def acontradict(
+        self,
+        item_id: UUID,
+        kind: ItemKind = ItemKind.MEMORY_ITEM,
+        *,
+        count: int = 1,
+        now: datetime | None = None,
+    ) -> DecayState:
+        return await asyncio.to_thread(
+            lambda: self.contradict(item_id, kind, count=count, now=now)
+        )
+
+    async def aconsolidate(
+        self, *, max_events: int | None = None
+    ) -> ConsolidationResult:
+        return await asyncio.to_thread(
+            lambda: self.consolidate(max_events=max_events)
+        )
+
+    async def apromote(self, *, now: datetime | None = None) -> PromotionResult:
+        return await asyncio.to_thread(lambda: self.promote(now=now))
+
+    async def arecord_procedure(
+        self,
+        situation: str,
+        action: str,
+        *,
+        outcome: Outcome = Outcome.UNKNOWN,
+        metadata: dict[str, object] | None = None,
+    ) -> Procedure:
+        return await asyncio.to_thread(
+            lambda: self.record_procedure(
+                situation, action, outcome=outcome, metadata=metadata
+            )
+        )
+
+    async def aretrieve_procedures(
+        self,
+        situation: str,
+        k: int = 5,
+        *,
+        outcomes: Sequence[Outcome] | None = None,
+        include_cold: bool = False,
+        reinforce: bool = True,
+    ) -> list[ProcedureMatch]:
+        return await asyncio.to_thread(
+            lambda: self.retrieve_procedures(
+                situation,
+                k,
+                outcomes=outcomes,
+                include_cold=include_cold,
+                reinforce=reinforce,
+            )
+        )
+
+    async def aupdate_outcome(
+        self,
+        procedure_id: UUID,
+        outcome: Outcome,
+        *,
+        now: datetime | None = None,
+    ) -> Procedure:
+        return await asyncio.to_thread(
+            lambda: self.update_outcome(procedure_id, outcome, now=now)
+        )
+
+    async def areconcile(
+        self,
+        conflict_id: UUID,
+        *,
+        resolution: Resolution,
+        manual_winner_id: UUID | None = None,
+        now: datetime | None = None,
+    ) -> Conflict:
+        return await asyncio.to_thread(
+            lambda: self.reconcile(
+                conflict_id,
+                resolution=resolution,
+                manual_winner_id=manual_winner_id,
+                now=now,
+            )
+        )
+
+    async def alist_conflicts(
+        self,
+        *,
+        status: ConflictStatus | None = None,
+        memory_item_id: UUID | None = None,
+        limit: int = 100,
+    ) -> list[Conflict]:
+        return await asyncio.to_thread(
+            lambda: self.list_conflicts(
+                status=status, memory_item_id=memory_item_id, limit=limit
+            )
         )
 
     def _fire_outcome_signal(
