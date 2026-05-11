@@ -293,6 +293,11 @@ def _ingest_haystack(memory: Memory, q: _Question) -> int:
     contents: list[str] = []
     for session_idx, session in enumerate(q.haystack_sessions):
         date = q.haystack_dates[session_idx] if session_idx < len(q.haystack_dates) else ""
+        session_id = (
+            q.haystack_session_ids[session_idx]
+            if session_idx < len(q.haystack_session_ids)
+            else None
+        )
         session_dt = _parse_haystack_date(date)
         for turn in session:
             content = turn.get("content")
@@ -300,10 +305,26 @@ def _ingest_haystack(memory: Memory, q: _Question) -> int:
                 continue
             role = turn.get("role", "unknown")
             framed = f"[{date}] [{role}] {content}" if date else f"[{role}] {content}"
+            metadata: dict[str, Any] = {}
+            if session_id is not None:
+                # Tagging events with their source session lets the
+                # ablation harness compute retrieval-level recall (did
+                # the right haystack session appear in top-k?) without
+                # paying for an answer LLM call. The metadata blob is
+                # opaque to retrieve / rerank, so this is a free
+                # observability hook with no behavior change.
+                metadata["session_id"] = session_id
             if session_dt is not None:
-                events.append(Event(content=framed, source=role, created_at=session_dt))
+                events.append(
+                    Event(
+                        content=framed,
+                        source=role,
+                        created_at=session_dt,
+                        metadata=metadata,
+                    )
+                )
             else:
-                events.append(Event(content=framed, source=role))
+                events.append(Event(content=framed, source=role, metadata=metadata))
             contents.append(framed)
     if not events:
         return 0
