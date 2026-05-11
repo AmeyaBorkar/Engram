@@ -974,6 +974,53 @@ class Memory:
             )
         conn().execute("DELETE FROM memory_items WHERE id = ?", (item_id.bytes,))
 
+    # --- E.8: topic layer --------------------------------------------------
+
+    def record_topic(
+        self,
+        content: str,
+        supporting_event_ids: Sequence[UUID],
+        *,
+        metadata: dict[str, object] | None = None,
+        weight: float = 1.0,
+    ) -> MemoryItem:
+        """Record a Level.TOPIC memory item.
+
+        Mid-grain abstraction between summary and abstraction; organized
+        by topic cluster. Callers explicitly mint topic items when they
+        know they're carving the corpus along topical lines (e.g. one
+        topic per recurring conversation theme).
+
+        Storage requires non-EVENT items to have at least one
+        supporting event; pass the events that motivated this topic.
+        Returns the persisted item.
+        """
+        if not supporting_event_ids:
+            raise ValueError("record_topic requires at least one supporting event id")
+        item = MemoryItem(
+            level=Level.TOPIC,
+            content=content,
+            weight=weight,
+            metadata=dict(metadata) if metadata else {},
+            tenant_id=self._tenant_id,
+        )
+        vec = self._embedder.embed([content])[0]
+        normalized = _normalize(vec)
+        embedding = Embedding(
+            item_id=item.id,
+            item_kind=ItemKind.MEMORY_ITEM,
+            model=self._embedder.model,
+            dim=self._embedder.dim,
+            vector=tuple(normalized),
+        )
+        with self._storage.transaction():
+            self._storage.insert_memory_item_with_provenance(
+                item,
+                list(supporting_event_ids),
+                embedding=embedding,
+            )
+        return item
+
     # --- E.6: preference layer ---------------------------------------------
 
     def record_preference(

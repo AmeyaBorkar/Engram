@@ -46,7 +46,13 @@ ReinforceFn = Callable[..., DecayState]
 
 _LOG = logging.getLogger("engram.retrieve")
 
-_GENERALIZATION_LEVELS: tuple[Level, ...] = (Level.SUMMARY, Level.ABSTRACTION)
+_GENERALIZATION_LEVELS: tuple[Level, ...] = (
+    Level.SUMMARY,
+    Level.TOPIC,
+    Level.PREFERENCE,
+    Level.ABSTRACTION,
+    Level.GLOBAL,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -335,7 +341,10 @@ class HierarchicalRetriever:
 _LEVEL_PRIORITY: dict[Level, int] = {
     Level.EVENT: 0,
     Level.SUMMARY: 1,
-    Level.ABSTRACTION: 2,
+    Level.TOPIC: 2,
+    Level.PREFERENCE: 3,
+    Level.ABSTRACTION: 4,
+    Level.GLOBAL: 5,
 }
 
 
