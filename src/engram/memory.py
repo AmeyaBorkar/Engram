@@ -870,6 +870,110 @@ class Memory:
             )
         )
 
+    # --- E.7: aggregate user-state -----------------------------------------
+    #
+    # A single structured "what we know about this user" memory item.
+    # Exactly one per tenant. Updated incrementally; surfaced
+    # alongside any user-centric query.
+
+    _USER_STATE_FLAG = "engram_user_state"
+
+    def set_user_state(
+        self,
+        content: str,
+        *,
+        metadata: dict[str, object] | None = None,
+        supporting_event_ids: Sequence[UUID] = (),
+    ) -> MemoryItem:
+        """Upsert the per-tenant aggregate user-state memory item.
+
+        If a Level.GLOBAL item with the `engram_user_state` metadata
+        flag exists for this tenant, its content is replaced (and
+        the embedding rebuilt). Otherwise a fresh one is created.
+
+        `supporting_event_ids` lets the caller cite the events that
+        justified the user-state. When empty AND no global item
+        exists yet, a synthetic placeholder event is observed and
+        used as the sole supporter (storage requires non-EVENT items
+        to have at least one provenance link). When updating an
+        existing user-state, the original provenance is preserved if
+        no new event ids are supplied.
+
+        Returns the persisted MemoryItem.
+        """
+        existing = self.get_user_state()
+        # Resolve provenance.
+        if supporting_event_ids:
+            event_ids = list(supporting_event_ids)
+        elif existing is None:
+            placeholder = self.observe(f"user-state seed: {content[:200]}")
+            event_ids = [placeholder.id]
+        else:
+            # Reuse existing provenance.
+            event_ids = [e.id for e in self._storage.get_supporting_events(existing.id)]
+            if not event_ids:  # pragma: no cover - defensive
+                placeholder = self.observe(f"user-state seed: {content[:200]}")
+                event_ids = [placeholder.id]
+
+        merged_metadata: dict[str, object] = {self._USER_STATE_FLAG: True}
+        if metadata:
+            merged_metadata.update(metadata)
+
+        # Drop the existing user-state and its embedding; we replace
+        # rather than mutate so the content+embedding stay coherent.
+        if existing is not None:
+            self._delete_memory_item(existing.id)
+
+        item = MemoryItem(
+            level=Level.GLOBAL,
+            content=content,
+            metadata=merged_metadata,
+            tenant_id=self._tenant_id,
+        )
+        vec = self._embedder.embed([content])[0]
+        normalized = _normalize(vec)
+        embedding = Embedding(
+            item_id=item.id,
+            item_kind=ItemKind.MEMORY_ITEM,
+            model=self._embedder.model,
+            dim=self._embedder.dim,
+            vector=tuple(normalized),
+        )
+        with self._storage.transaction():
+            self._storage.insert_memory_item_with_provenance(
+                item,
+                event_ids,
+                embedding=embedding,
+            )
+        return item
+
+    def get_user_state(self) -> MemoryItem | None:
+        """Return the per-tenant Level.GLOBAL user-state item, or None.
+
+        Filters by tenant_id when this Memory was constructed with one.
+        """
+        for item in self._storage.iter_memory_items(level=Level.GLOBAL):
+            if self._tenant_id is not None and item.tenant_id != self._tenant_id:
+                continue
+            if item.metadata.get(self._USER_STATE_FLAG):
+                return item
+        return None
+
+    def _delete_memory_item(self, item_id: UUID) -> None:
+        """Hard-delete a memory item + its embedding.
+
+        Used only for the user-state replace path. Provenance links
+        cascade through `ON DELETE CASCADE`. Cold sweep handles
+        decay-pruned items via a separate path; this one is for the
+        explicit "replace this item now" semantic.
+        """
+        conn = getattr(self._storage, "_connect", None)
+        if conn is None:  # pragma: no cover - non-sqlite backend
+            raise NotImplementedError(
+                "user-state replace requires a backend exposing _connect()"
+            )
+        conn().execute("DELETE FROM memory_items WHERE id = ?", (item_id.bytes,))
+
     # --- E.6: preference layer ---------------------------------------------
 
     def record_preference(

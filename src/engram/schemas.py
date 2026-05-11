@@ -20,16 +20,25 @@ from engram.ids import new_id
 class Level(str, Enum):
     """Hierarchy level a `MemoryItem` occupies.
 
-    Stage 6 shipped `event` / `summary` / `abstraction`. Stage 9 (E.6)
-    adds `preference` -- a first-class layer for sentiment-laden /
-    explicit-preference statements that should outrank generic
-    summaries when the query is about user preferences.
+    Stage 6 shipped `event` / `summary` / `abstraction`. Stage 9 layers
+    in three more for retrieval routing:
+
+      * `preference` (E.6) -- sentiment-laden / explicit-preference
+        statements that should outrank generic summaries when the
+        query is about user preferences.
+      * `topic` (E.8) -- mid-grain abstraction between summary and
+        abstraction, organized by topic cluster.
+      * `global` (E.7) -- the aggregate user-state abstraction.
+        Exactly one per tenant (per the storage convention). Surfaced
+        alongside any user-centric query.
     """
 
     EVENT = "event"
     SUMMARY = "summary"
     ABSTRACTION = "abstraction"
     PREFERENCE = "preference"
+    TOPIC = "topic"
+    GLOBAL = "global"
 
 
 class ItemKind(str, Enum):
