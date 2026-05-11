@@ -33,6 +33,8 @@ from engram.schemas import (
     ItemKind,
     Level,
     MemoryItem,
+    Outcome,
+    Procedure,
     ProvenanceLink,
 )
 from engram.storage._serialize import (
@@ -91,6 +93,19 @@ def _row_to_cluster(row: sqlite3.Row) -> Cluster:
     )
 
 
+def _row_to_procedure(row: sqlite3.Row) -> Procedure:
+    return Procedure(
+        id=UUID(bytes=row["id"]),
+        situation=row["situation"],
+        action=row["action"],
+        outcome=Outcome(row["outcome"]),
+        weight=row["weight"],
+        metadata=loads_metadata(row["metadata"]),
+        created_at=parse_iso(row["created_at"]),
+        updated_at=parse_iso(row["updated_at"]),
+    )
+
+
 def _row_to_provenance_link(row: sqlite3.Row) -> ProvenanceLink:
     return ProvenanceLink(
         id=UUID(bytes=row["id"]),
@@ -126,6 +141,7 @@ _DECAY_COLS = (
 _DECAY_TABLES: dict[ItemKind, str] = {
     ItemKind.EVENT: "events",
     ItemKind.MEMORY_ITEM: "memory_items",
+    ItemKind.PROCEDURE: "procedures",
 }
 _GET_DECAY_STATE_SQL: dict[ItemKind, str] = {
     kind: f"SELECT {_DECAY_COLS} FROM {table} WHERE id = ?"  # noqa: S608
@@ -202,6 +218,19 @@ _INDEX_REBUILD_SQL: dict[str, str] = {
         "FROM embeddings emb "
         "JOIN memory_items mi ON emb.item_id = mi.id "
         "WHERE emb.item_kind = 'memory_item' AND emb.model = ?"
+    ),
+    # Procedures piggyback on the same kind/model index shape. The
+    # `level` slot stores the procedure's outcome so retrieve_procedures
+    # can filter by outcome (success/failure/...) through the existing
+    # `levels=` kwarg on VectorIndex.search.
+    "procedure": (
+        "SELECT emb.item_id AS item_id, "
+        "       emb.vector  AS vector, "
+        "       (p.cold_at IS NOT NULL) AS cold, "
+        "       p.outcome   AS level "
+        "FROM embeddings emb "
+        "JOIN procedures p ON emb.item_id = p.id "
+        "WHERE emb.item_kind = 'procedure' AND emb.model = ?"
     ),
 }
 
@@ -486,6 +515,87 @@ class SqliteStorage:
             result[Level(row["level"])] = int(row["n"])
         return result
 
+    # --- procedures ---------------------------------------------------------
+
+    def insert_procedure(self, procedure: Procedure) -> None:
+        self._connect().execute(
+            "INSERT INTO procedures "
+            "(id, situation, action, outcome, weight, metadata, "
+            " last_decayed_at, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                procedure.id.bytes,
+                procedure.situation,
+                procedure.action,
+                procedure.outcome.value,
+                procedure.weight,
+                dumps_metadata(procedure.metadata),
+                iso(procedure.created_at),
+                iso(procedure.created_at),
+                iso(procedure.updated_at),
+            ),
+        )
+
+    def get_procedure(self, procedure_id: UUID) -> Procedure | None:
+        row = (
+            self._connect()
+            .execute(
+                "SELECT id, situation, action, outcome, weight, metadata, "
+                "       created_at, updated_at "
+                "FROM procedures WHERE id = ?",
+                (procedure_id.bytes,),
+            )
+            .fetchone()
+        )
+        return _row_to_procedure(row) if row is not None else None
+
+    def list_procedures(
+        self,
+        *,
+        outcome: Outcome | None = None,
+        limit: int = 100,
+    ) -> list[Procedure]:
+        if limit < 1:
+            raise ValueError(f"limit must be >= 1, got {limit}")
+        sql = (
+            "SELECT id, situation, action, outcome, weight, metadata, "
+            "       created_at, updated_at "
+            "FROM procedures"
+        )
+        params: list[Any] = []
+        if outcome is not None:
+            sql += " WHERE outcome = ?"
+            params.append(outcome.value)
+        sql += " ORDER BY created_at DESC, id DESC LIMIT ?"
+        params.append(limit)
+        rows = self._connect().execute(sql, params).fetchall()
+        return [_row_to_procedure(r) for r in rows]
+
+    def update_procedure_outcome(self, procedure_id: UUID, outcome: Outcome) -> None:
+        cursor = self._connect().execute(
+            "UPDATE procedures SET outcome = ?, updated_at = ? WHERE id = ?",
+            (outcome.value, iso(datetime.now(tz=timezone.utc)), procedure_id.bytes),
+        )
+        if cursor.rowcount == 0:
+            raise KeyError(f"procedure {procedure_id} not found")
+        # The outcome change is part of the procedure's "level" slot in
+        # the vector index (so callers can filter by outcome). Invalidate.
+        self._vector_index.mark_dirty(kind=ItemKind.PROCEDURE.value)
+
+    def count_procedures(self) -> int:
+        return int(self._connect().execute("SELECT COUNT(*) FROM procedures").fetchone()[0])
+
+    def count_procedures_by_outcome(self) -> dict[Outcome, int]:
+        rows = (
+            self._connect()
+            .execute("SELECT outcome, COUNT(*) AS n FROM procedures GROUP BY outcome")
+            .fetchall()
+        )
+        result: dict[Outcome, int] = dict.fromkeys(Outcome, 0)
+        for row in rows:
+            result[Outcome(row["outcome"])] = int(row["n"])
+        return result
+
     # --- embeddings ---------------------------------------------------------
 
     def insert_embedding(self, embedding: Embedding) -> None:
@@ -677,6 +787,56 @@ class SqliteStorage:
             .fetchall()
         )
         content: dict[bytes, str] = {bytes(r["id"]): r["content"] for r in rows}
+        return [(u, content[u.bytes], score) for u, _, score in hits if u.bytes in content]
+
+    def search_procedure_embeddings(
+        self,
+        query_vec: Sequence[float],
+        *,
+        k: int,
+        model: str,
+        outcomes: Sequence[Outcome] | None = None,
+        include_cold: bool = False,
+    ) -> list[tuple[UUID, str, float]]:
+        if k < 1:
+            raise ValueError(f"k must be >= 1, got {k}")
+        outcome_values = [o.value for o in outcomes] if outcomes else None
+        hits = self._vector_index.search(
+            self._connect(),
+            query_vec,
+            kind=ItemKind.PROCEDURE.value,
+            model=model,
+            rebuild_sql=_INDEX_REBUILD_SQL["procedure"],
+            levels=outcome_values,
+            include_cold=include_cold,
+            k=k,
+        )
+        return self._fetch_procedure_situation(hits)
+
+    def _fetch_procedure_situation(
+        self, hits: Sequence[tuple[UUID, int, float]]
+    ) -> list[tuple[UUID, str, float]]:
+        """Fetch the `situation` text for top-k procedure hits.
+
+        The retrieve_procedures Memory method needs the full Procedure
+        row, but storage.search_*_embeddings keeps the
+        `(item_id, content, score)` shape across kinds. For procedures
+        we return the situation as the `content` so the surface stays
+        uniform; callers fetch the full Procedure separately by id.
+        """
+        if not hits:
+            return []
+        ids = [u for u, _, _ in hits]
+        placeholders = ",".join("?" for _ in ids)
+        rows = (
+            self._connect()
+            .execute(
+                f"SELECT id, situation FROM procedures WHERE id IN ({placeholders})",  # noqa: S608
+                [u.bytes for u in ids],
+            )
+            .fetchall()
+        )
+        content: dict[bytes, str] = {bytes(r["id"]): r["situation"] for r in rows}
         return [(u, content[u.bytes], score) for u, _, score in hits if u.bytes in content]
 
     def score_events_by_ids(

@@ -24,6 +24,8 @@ from engram.schemas import (
     ItemKind,
     Level,
     MemoryItem,
+    Outcome,
+    Procedure,
     ProvenanceLink,
 )
 
@@ -99,6 +101,33 @@ class Storage(Protocol):
     def count_memory_items(self) -> int: ...
     def count_memory_items_by_level(self) -> dict[Level, int]: ...
 
+    # --- procedures ---------------------------------------------------------
+
+    def insert_procedure(self, procedure: Procedure) -> None:
+        """Persist a new procedure. Raises on duplicate id."""
+
+    def get_procedure(self, procedure_id: UUID) -> Procedure | None:
+        """Fetch a procedure by id, or None if missing."""
+
+    def list_procedures(
+        self,
+        *,
+        outcome: Outcome | None = None,
+        limit: int = 100,
+    ) -> list[Procedure]:
+        """List procedures, optionally filtered by `outcome`. Ordered by
+        `created_at` desc (most recent first)."""
+
+    def update_procedure_outcome(self, procedure_id: UUID, outcome: Outcome) -> None:
+        """Set the outcome of a procedure + bump `updated_at`.
+
+        Raises `KeyError` if the procedure does not exist. Idempotent if
+        the outcome is already the requested value.
+        """
+
+    def count_procedures(self) -> int: ...
+    def count_procedures_by_outcome(self) -> dict[Outcome, int]: ...
+
     # --- embeddings ---------------------------------------------------------
 
     def insert_embedding(self, embedding: Embedding) -> None: ...
@@ -160,6 +189,24 @@ class Storage(Protocol):
         is a small set of memory_item ids to skip (the engine excludes
         the just-inserted abstraction when checking against existing
         ones). Cold items are excluded by default.
+        """
+
+    def search_procedure_embeddings(
+        self,
+        query_vec: Sequence[float],
+        *,
+        k: int,
+        model: str,
+        outcomes: Sequence[Outcome] | None = None,
+        include_cold: bool = False,
+    ) -> list[tuple[UUID, str, float]]:
+        """Top-k procedures by cosine similarity of `query_vec` to the
+        stored `situation` embedding.
+
+        Returns `(procedure_id, situation, score)` triples sorted by
+        score desc. `outcomes` filters to a subset of `Outcome` (None
+        means any -- the agent benefits from seeing failures too).
+        Cold procedures are excluded by default.
         """
 
     def score_events_by_ids(
