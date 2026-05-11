@@ -30,6 +30,7 @@ with the same chat replies produce bit-identical memory_item rows.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import math
 import time
@@ -45,6 +46,7 @@ from engram.consolidation._abstraction import (
     AbstractionParseError,
     AbstractionRequest,
     AbstractionResult,
+    aextract_abstraction,
     extract_abstraction,
 )
 from engram.consolidation._clustering import (
@@ -264,6 +266,188 @@ class ConsolidationEngine:
             events_consolidated=events_consolidated,
             conflicts_detected=conflicts_detected,
         )
+
+    async def aconsolidate(
+        self,
+        *,
+        max_events: int | None = None,
+        max_concurrent_abstractions: int = 8,
+    ) -> ConsolidationResult:
+        """Async sibling of `consolidate` with parallel LLM calls.
+
+        The per-cluster abstraction extraction is the consolidation
+        bottleneck: each cluster's `extract_abstraction` is a ~1-3 s
+        chat round trip, and a 30-cluster haystack stacks those into
+        60-90 s of wall time on the synchronous path. This method
+        gathers them all via `asyncio.gather` with a semaphore-bounded
+        concurrency, turning the wall time into roughly
+        `max(per_call_latency)` plus the post-write fan-in.
+
+        `max_concurrent_abstractions` caps in-flight LLM calls so we
+        respect provider rate limits. 8 is a sensible default for
+        Anthropic/OpenAI; lower it to 2-4 against slower or
+        rate-limited providers.
+
+        The storage writes stay serialized -- sqlite's per-thread
+        connection model can't run concurrent writes from coroutines,
+        and the inserts are fast enough that there's no benefit anyway.
+        """
+        started_at = self._clock()
+        wall = time.perf_counter()
+
+        pairs = list(
+            self._storage.iter_unconsolidated_events_with_embeddings(
+                model=self._embedder.model,
+                limit=max_events,
+            )
+        )
+        if not pairs:
+            return ConsolidationResult(
+                started_at=started_at,
+                duration_ms=(time.perf_counter() - wall) * 1000.0,
+                events_processed=0,
+                clusters_formed=0,
+                abstractions_created=0,
+                abstractions_failed=0,
+                events_consolidated=0,
+            )
+
+        events = [p[0] for p in pairs]
+        vectors = np.asarray([p[1] for p in pairs], dtype=np.float32)
+        assignments = cluster_vectors(vectors, params=self._params.cluster_params)
+
+        # Parallel LLM calls bounded by a semaphore. The result list is
+        # aligned with `assignments`; failures appear as None.
+        semaphore = asyncio.Semaphore(max(max_concurrent_abstractions, 1))
+
+        async def _bounded_extract(
+            assignment: ClusterAssignment,
+        ) -> AbstractionResult | None:
+            member_indices = list(assignment.members)
+            request = AbstractionRequest(
+                observations=tuple(events[i].content for i in member_indices),
+                cohesion_hint=_clamp01(assignment.cohesion),
+            )
+            async with semaphore:
+                try:
+                    return await aextract_abstraction(
+                        request,
+                        self._chat,
+                        max_retries=self._params.abstraction_max_retries,
+                    )
+                except AbstractionParseError:
+                    _LOG.warning(
+                        "consolidation: abstraction failed after retries (cluster size=%d)",
+                        len(member_indices),
+                    )
+                    return None
+
+        results = await asyncio.gather(
+            *(_bounded_extract(assignment) for assignment in assignments)
+        )
+
+        created = 0
+        failed = 0
+        events_consolidated = 0
+        conflicts_detected = 0
+        for assignment, result in zip(assignments, results, strict=True):
+            if result is None:
+                failed += 1
+                continue
+            cluster_event_count = len(list(assignment.members))
+            try:
+                cluster_conflicts = self._write_cluster_result(
+                    events, assignment, result
+                )
+            except (RuntimeError, ValueError) as exc:
+                _LOG.warning(
+                    "consolidation: writing cluster failed (size=%d): %s",
+                    cluster_event_count,
+                    exc,
+                )
+                failed += 1
+                continue
+            created += 1
+            events_consolidated += cluster_event_count
+            conflicts_detected += cluster_conflicts
+
+        return ConsolidationResult(
+            started_at=started_at,
+            duration_ms=(time.perf_counter() - wall) * 1000.0,
+            events_processed=len(events),
+            clusters_formed=len(assignments),
+            abstractions_created=created,
+            abstractions_failed=failed,
+            events_consolidated=events_consolidated,
+            conflicts_detected=conflicts_detected,
+        )
+
+    def _write_cluster_result(
+        self,
+        events: Sequence[Event],
+        assignment: ClusterAssignment,
+        result: AbstractionResult,
+    ) -> int:
+        """Embed + (optional) contradiction detect + write a single cluster.
+
+        Refactored out of the sync path so the async path can call it
+        without duplicating the body. Returns the number of detected
+        contradictions (matching `_consolidate_one_cluster`'s return).
+        """
+        member_indices = list(assignment.members)
+        cluster_events = [events[i] for i in member_indices]
+        request = AbstractionRequest(
+            observations=tuple(e.content for e in cluster_events),
+            cohesion_hint=_clamp01(assignment.cohesion),
+        )
+
+        ab_vec = self._embedder.embed([result.abstraction])[0]
+        ab_unit = _normalize(ab_vec)
+        conflicts = self._detect_conflicts(ab_unit, result.abstraction)
+
+        cluster = Cluster(cohesion=_clamp01(assignment.cohesion))
+        metadata = _build_metadata(result, assignment, request, conflicts)
+        item = MemoryItem(
+            level=self._params.level,
+            content=result.abstraction,
+            cluster_id=cluster.id,
+            metadata=metadata,
+            weight=_clamp01(result.confidence),
+        )
+        embedding = Embedding(
+            item_id=item.id,
+            item_kind=ItemKind.MEMORY_ITEM,
+            model=self._embedder.model,
+            dim=self._embedder.dim,
+            vector=tuple(ab_unit),
+        )
+
+        supporting_indices = set(result.supports)
+        provenance_weights = {
+            cluster_events[local_idx].id: (
+                1.0 if local_idx in supporting_indices else self._params.support_weight
+            )
+            for local_idx in range(len(cluster_events))
+        }
+
+        with self._storage.transaction():
+            self._storage.insert_memory_item_with_provenance(
+                item,
+                [e.id for e in cluster_events],
+                cluster=cluster,
+                embedding=embedding,
+                provenance_weights=provenance_weights,
+            )
+            for dc in conflicts:
+                self._storage.record_conflict(
+                    Conflict(
+                        source_item_id=item.id,
+                        target_item_id=dc.candidate_id,
+                        similarity=dc.similarity,
+                        verdict=dc.verdict,
+                    )
+                )
+        return len(conflicts)
 
     def _consolidate_one_cluster(
         self,

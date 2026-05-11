@@ -22,13 +22,22 @@ device, fp32 otherwise. fp16 halves the VRAM footprint and the
 embedding noise is negligible after L2-normalization + cross-encoder
 rerank. Override via `dtype="float32"` if you want full precision on
 GPU (e.g. for determinism / regression-locking a numeric baseline).
+
+Asymmetric models (stella, e5, ...) use different prompts/prefixes for
+queries vs passages. The `_QUERY_ENCODE_KWARGS` table maps known HF ids
+to the sentence-transformers encode kwargs that should be applied when
+the call is encoding a search QUERY. `embed_query()` honors the table;
+the document-side `embed()` ignores it. Models not in the table fall
+through with no special handling -- correct for bge-large where the
+optional query prompt was not used in the v0.1.0 receipt and we keep
+that path bit-identical.
 """
 
 from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
-from typing import Literal
+from typing import Any, Literal
 
 try:
     from sentence_transformers import SentenceTransformer as _SentenceTransformer
@@ -38,9 +47,25 @@ except ImportError as _exc:  # pragma: no cover
         "pip install 'engram[bench]'   # or: pip install sentence-transformers"
     ) from _exc
 
+from engram.providers._cache import Cache, content_hash
+
 _LOG = logging.getLogger("engram.providers.local")
 
 DType = Literal["auto", "float16", "float32"]
+
+# Per-model sentence-transformers encode kwargs to apply when the input
+# is a search QUERY (not a passage / document being stored). Empty /
+# missing entry means "no special handling": symmetric models like
+# bge-large-en-v1.5 fall through this way. Stella requires the
+# `s2p_query` prompt that ships in its model config; e5 needs a literal
+# "query: " prefix because its prompts are documented as raw prefixes.
+_QUERY_ENCODE_KWARGS: dict[str, dict[str, str]] = {
+    "dunzhang/stella_en_1.5B_v5": {"prompt_name": "s2p_query"},
+    "intfloat/e5-large-v2": {"prompt": "query: "},
+    "intfloat/e5-base-v2": {"prompt": "query: "},
+    "intfloat/e5-small-v2": {"prompt": "query: "},
+    "intfloat/e5-mistral-7b-instruct": {"prompt": "query: "},
+}
 
 
 def _resolve_dtype(requested: DType, actual_device: str) -> str:
@@ -143,6 +168,12 @@ class LocalEmbedder:
     `LocalEmbedder` instances pointed at the same model share nothing
     -- create once, embed many. The bench harness builds exactly one
     per run.
+
+    `cache_size` enables an in-memory LRU keyed on (model, dtype, text).
+    On benchmarks where the same question / template / haystack turn is
+    embedded multiple times across the verify / iterative-react / multi-
+    query paths, the cache turns N GPU encodes into N-k cache reads.
+    Default 4096 entries; pass 0 to disable.
     """
 
     name: str = "local-embed"
@@ -156,6 +187,7 @@ class LocalEmbedder:
         dim: int | None = None,
         normalize: bool = True,
         dtype: DType = "auto",
+        cache_size: int = 4096,
     ) -> None:
         chosen_device = device if device is not None else _detect_device()
         self._st = _SentenceTransformer(model, device=chosen_device)
@@ -171,6 +203,10 @@ class LocalEmbedder:
         if dim is not None and dim != native_dim:
             raise ValueError(f"requested dim={dim} does not match model native dim={native_dim}")
         self.dim = native_dim
+        self._query_kwargs: dict[str, str] = _QUERY_ENCODE_KWARGS.get(model, {})
+        self._cache: Cache[list[float]] | None = (
+            Cache[list[float]](max_size=cache_size) if cache_size > 0 else None
+        )
         if chosen_device == "cpu":
             _LOG.warning(
                 "LocalEmbedder running on CPU (model=%s, dim=%d). Expect ~50x slower "
@@ -181,31 +217,98 @@ class LocalEmbedder:
             )
         else:
             _LOG.info(
-                "LocalEmbedder ready: model=%s device=%s dim=%d batch=%d dtype=%s",
+                "LocalEmbedder ready: model=%s device=%s dim=%d batch=%d dtype=%s "
+                "asymmetric_query=%s cache=%d",
                 model,
                 chosen_device,
                 native_dim,
                 batch_size,
                 resolved_dtype,
+                bool(self._query_kwargs),
+                cache_size,
             )
+
+    def _cache_key(self, text: str, *, kind: str) -> str:
+        # `kind` separates query vs document encodings -- the same text
+        # encoded as a query (s2p_query prompt) and as a document (no
+        # prompt) gives DIFFERENT vectors on asymmetric models, so they
+        # must not share a cache slot.
+        return content_hash(self.model, self._dtype, kind, text)
+
+    def _encode(self, texts: list[str], *, extra: dict[str, Any] | None = None) -> list[list[float]]:
+        kwargs: dict[str, Any] = {
+            "batch_size": self._batch_size,
+            "convert_to_numpy": True,
+            "normalize_embeddings": self._normalize,
+            "show_progress_bar": False,
+        }
+        if extra:
+            kwargs.update(extra)
+        vectors = self._st.encode(texts, **kwargs)
+        return [row.tolist() for row in vectors]
 
     def embed(self, texts: Sequence[str]) -> list[list[float]]:
         if not texts:
             return []
-        vectors = self._st.encode(
-            list(texts),
-            batch_size=self._batch_size,
-            convert_to_numpy=True,
-            normalize_embeddings=self._normalize,
-            show_progress_bar=False,
-        )
-        # sentence-transformers returns numpy array of shape (n, d).
-        return [row.tolist() for row in vectors]
+        text_list = list(texts)
+        if self._cache is None:
+            return self._encode(text_list)
+        # Partition into cache hits + misses; encode only the misses.
+        results: list[list[float] | None] = [None] * len(text_list)
+        miss_idx: list[int] = []
+        miss_text: list[str] = []
+        for i, t in enumerate(text_list):
+            cached = self._cache.get(self._cache_key(t, kind="doc"))
+            if cached is not None:
+                results[i] = cached
+            else:
+                miss_idx.append(i)
+                miss_text.append(t)
+        if miss_text:
+            new_vecs = self._encode(miss_text)
+            for idx, vec in zip(miss_idx, new_vecs, strict=True):
+                results[idx] = vec
+                self._cache.set(self._cache_key(text_list[idx], kind="doc"), vec)
+        # Every slot is filled by construction.
+        return [r for r in results if r is not None]
+
+    def embed_query(self, query: str) -> list[float]:
+        """Encode a single query, applying asymmetric prompts when the
+        model needs them.
+
+        Symmetric models (bge-large, mxbai, ...) fall through to a
+        regular encode -- the result is bit-identical to `embed([q])[0]`,
+        so the hierarchy retriever can safely prefer this method when
+        present without changing behavior on symmetric models.
+        """
+        if self._cache is not None:
+            cached = self._cache.get(self._cache_key(query, kind="query"))
+            if cached is not None:
+                return cached
+        extra = dict(self._query_kwargs) if self._query_kwargs else None
+        vec = self._encode([query], extra=extra)[0]
+        if self._cache is not None:
+            self._cache.set(self._cache_key(query, kind="query"), vec)
+        return vec
 
     async def aembed(self, texts: Sequence[str]) -> list[list[float]]:
         import asyncio
 
         return await asyncio.to_thread(self.embed, list(texts))
+
+    async def aembed_query(self, query: str) -> list[float]:
+        import asyncio
+
+        return await asyncio.to_thread(self.embed_query, query)
+
+    @property
+    def cache(self) -> Cache[list[float]] | None:
+        """The underlying LRU cache, or None if caching is disabled.
+
+        Exposed for tests / observability -- callers can read
+        `.hit_rate`, `.hits`, `.misses` to track behavior.
+        """
+        return self._cache
 
     def manifest_hash(self) -> str:
         norm = "norm" if self._normalize else "raw"
@@ -213,7 +316,11 @@ class LocalEmbedder:
         # run, and a CUDA-fp32 run of the same model land in distinct
         # manifest rows -- helpful when the determinism floor between
         # the three differs (mixed precision, cuBLAS reductions, ...).
+        # Asymmetric-query state goes into the hash too so a model
+        # encoded with `s2p_query` prompts doesn't share a manifest row
+        # with the same model encoded symmetrically.
+        async_flag = "asym" if self._query_kwargs else "sym"
         return (
             f"local-embed/{self.model}/dim={self.dim}/{norm}/"
-            f"device={self._device}/dtype={self._dtype}/v2"
+            f"device={self._device}/dtype={self._dtype}/{async_flag}/v3"
         )

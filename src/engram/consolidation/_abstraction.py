@@ -194,6 +194,51 @@ def extract_abstraction(
     raise last_error  # type: ignore[misc]
 
 
+async def aextract_abstraction(
+    request: AbstractionRequest,
+    chat: ChatProvider,
+    *,
+    max_retries: int = 1,
+) -> AbstractionResult:
+    """Async sibling of `extract_abstraction`, awaiting on `chat.achat`.
+
+    Behaviorally identical -- same prompt, same retry semantics, same
+    parse / validation pipeline. The point is to let the consolidation
+    engine run dozens of clusters' abstraction calls concurrently via
+    `asyncio.gather`, turning a serial 60-second pass into a parallel
+    2-3 second pass against a frontier chat provider.
+    """
+    if max_retries < 0:
+        raise ValueError(f"max_retries must be >= 0, got {max_retries}")
+
+    rendered = render_prompt(request)
+    base: list[Message] = [Message(role="user", content=rendered)]
+    last_error: AbstractionParseError | None = None
+    last_response: str = ""
+    for attempt in range(max_retries + 1):
+        if attempt == 0:
+            messages = base
+        else:
+            messages = [
+                *base,
+                Message(role="assistant", content=last_response),
+                Message(
+                    role="user",
+                    content=(
+                        "Your previous response was not valid JSON matching the schema. "
+                        "Respond only with the JSON object, no surrounding prose."
+                    ),
+                ),
+            ]
+        last_response = await chat.achat(messages)
+        try:
+            return parse_response(last_response, len(request.observations))
+        except AbstractionParseError as exc:
+            last_error = exc
+            continue
+    raise last_error  # type: ignore[misc]
+
+
 _FENCE_RE = re.compile(
     r"^```(?:json|JSON)?\s*\n?(.*?)\n?```\s*$",
     flags=re.DOTALL,

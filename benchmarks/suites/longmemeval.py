@@ -47,14 +47,17 @@ Cost estimate for one full LongMemEval-S run @ gpt-4o-mini + text-embedding-3-sm
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import logging
 import math
 import os
+import re
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -233,6 +236,41 @@ def _judge(
     return "yes" in raw and "no" not in raw.split("yes", 1)[0]
 
 
+_HAYSTACK_DATE_DOW_RE = re.compile(r"\s*\([A-Za-z]+\)\s*")
+_AUTO_TEMPORAL_YEAR_RE = re.compile(r"\b(?:19|20)\d{2}\b")
+
+
+def _build_auto_temporal_filter(question: str) -> str | None:
+    """Extract year tokens from the question and build an OR-regex.
+
+    Returns None when no year token is present (skip the filter for
+    that question). Years are deduplicated -- "2023 and 2024" yields
+    `\b(2023|2024)\b`. The pattern is case-insensitive at the engine
+    level so no need to lower-case here.
+    """
+    years = sorted({m for m in _AUTO_TEMPORAL_YEAR_RE.findall(question)})
+    if not years:
+        return None
+    alt = "|".join(years)
+    return rf"\b({alt})\b"
+
+
+def _parse_haystack_date(date_str: str) -> datetime | None:
+    """Parse a LongMemEval haystack date like "2023/05/30 (Tue) 23:40".
+
+    The day-of-week is decorative; strip it before parsing. Returns
+    None when the string doesn't match the canonical shape -- the
+    caller falls back to `Event`'s default `created_at = now()`.
+    """
+    if not date_str:
+        return None
+    cleaned = _HAYSTACK_DATE_DOW_RE.sub(" ", date_str).strip()
+    try:
+        return datetime.strptime(cleaned, "%Y/%m/%d %H:%M").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+
+
 def _ingest_haystack(memory: Memory, q: _Question) -> int:
     """Batch-embed every turn from the haystack and insert into storage.
 
@@ -246,18 +284,26 @@ def _ingest_haystack(memory: Memory, q: _Question) -> int:
 
     We bypass `Memory.observe` deliberately and call storage directly
     so the batch stays one transaction.
+
+    Each session's haystack date is parsed into `Event.created_at` so
+    the temporal-aware retrieve path (recency_lambda, as_of=...) sees
+    real timestamps rather than the bench's wall-clock "now".
     """
     events: list[Event] = []
     contents: list[str] = []
     for session_idx, session in enumerate(q.haystack_sessions):
         date = q.haystack_dates[session_idx] if session_idx < len(q.haystack_dates) else ""
+        session_dt = _parse_haystack_date(date)
         for turn in session:
             content = turn.get("content")
             if not content:
                 continue
             role = turn.get("role", "unknown")
             framed = f"[{date}] [{role}] {content}" if date else f"[{role}] {content}"
-            events.append(Event(content=framed, source=role))
+            if session_dt is not None:
+                events.append(Event(content=framed, source=role, created_at=session_dt))
+            else:
+                events.append(Event(content=framed, source=role))
             contents.append(framed)
     if not events:
         return 0
@@ -318,6 +364,19 @@ class LongMemEvalSuite:
         self._consolidate: bool = False
         self._judge_chat: ChatProvider | None = None
         self._seed: int | None = None
+        # Phase F retrieve knobs (BM25 + MMR + recency + drill / pool).
+        self._bm25_weight: float = 0.0
+        self._mmr_lambda: float = 0.0
+        self._recency_lambda: float = 0.0
+        self._drill_k: int | None = None
+        self._confidence_threshold: float | None = None
+        self._candidate_multiplier: int | None = None
+        self._bm25_k1: float = 1.5
+        self._bm25_b: float = 0.75
+        self._recency_decay_days: float = 90.0
+        self._mmr_pool_size: int = 0
+        self._recent_window_k: int = 0
+        self._auto_temporal: bool = False
 
     def configure(
         self,
@@ -337,6 +396,18 @@ class LongMemEvalSuite:
         consolidate_chat: ChatProvider | None = None,
         consolidate: bool = False,
         judge_chat: ChatProvider | None = None,
+        bm25_weight: float = 0.0,
+        mmr_lambda: float = 0.0,
+        recency_lambda: float = 0.0,
+        drill_k: int | None = None,
+        confidence_threshold: float | None = None,
+        candidate_multiplier: int | None = None,
+        bm25_k1: float = 1.5,
+        bm25_b: float = 0.75,
+        recency_decay_days: float = 90.0,
+        mmr_pool_size: int = 0,
+        recent_window_k: int = 0,
+        auto_temporal: bool = False,
     ) -> None:
         """Wire Phase E knobs from the CLI into the suite.
 
@@ -364,6 +435,18 @@ class LongMemEvalSuite:
         self._consolidate_chat = consolidate_chat
         self._consolidate = consolidate
         self._judge_chat = judge_chat
+        self._bm25_weight = bm25_weight
+        self._mmr_lambda = mmr_lambda
+        self._recency_lambda = recency_lambda
+        self._drill_k = drill_k
+        self._confidence_threshold = confidence_threshold
+        self._candidate_multiplier = candidate_multiplier
+        self._bm25_k1 = bm25_k1
+        self._bm25_b = bm25_b
+        self._recency_decay_days = recency_decay_days
+        self._mmr_pool_size = mmr_pool_size
+        self._recent_window_k = recent_window_k
+        self._auto_temporal = auto_temporal
 
     def setup(self, provider: Provider) -> None:
         self._provider = provider
@@ -417,14 +500,29 @@ class LongMemEvalSuite:
         # have effect if Memory's defaults (or the per-call kwargs) say
         # so. Storing the params once outside the question loop keeps
         # the construction allocation-light.
-        default_retrieve_params = RetrieveParams(
-            k=self._k,
-            hyde=self._hyde,
-            multi_query_n=self._multi_query_n,
-            decompose=self._decompose,
-            temporal=self._temporal,
-            surface_conflicts=self._surface_conflicts,
-        )
+        base_params_kwargs: dict[str, Any] = {
+            "k": self._k,
+            "hyde": self._hyde,
+            "multi_query_n": self._multi_query_n,
+            "decompose": self._decompose,
+            "temporal": self._temporal,
+            "surface_conflicts": self._surface_conflicts,
+            "bm25_weight": self._bm25_weight,
+            "mmr_lambda": self._mmr_lambda,
+            "recency_lambda": self._recency_lambda,
+            "bm25_k1": self._bm25_k1,
+            "bm25_b": self._bm25_b,
+            "recency_decay_days": self._recency_decay_days,
+            "mmr_pool_size": self._mmr_pool_size,
+            "recent_window_k": self._recent_window_k,
+        }
+        if self._drill_k is not None:
+            base_params_kwargs["drill_k"] = self._drill_k
+        if self._confidence_threshold is not None:
+            base_params_kwargs["confidence_threshold"] = self._confidence_threshold
+        if self._candidate_multiplier is not None:
+            base_params_kwargs["candidate_multiplier"] = self._candidate_multiplier
+        default_retrieve_params = RetrieveParams(**base_params_kwargs)
         judge_chat = self._judge_chat if self._judge_chat is not None else chat
         for q_idx, q in enumerate(questions):
             storage = SqliteStorage(":memory:")
@@ -448,11 +546,13 @@ class LongMemEvalSuite:
                 # then surfaces SUMMARY hits alongside raw EVENTs --
                 # higher-level memories outrank single turns when the
                 # confidence is high. Cost: ~1 chat call per cluster.
+                # Uses the async parallel path so 30-cluster haystacks
+                # finish in seconds instead of minutes.
                 consolidate_ms = 0.0
                 if self._consolidate:
                     t_consolidate = time.perf_counter()
                     try:
-                        cons_result = memory.consolidate()
+                        cons_result = asyncio.run(memory.aconsolidate())
                         consolidate_ms = (time.perf_counter() - t_consolidate) * 1000.0
                         _LOG.info(
                             "  consolidated: %d clusters -> %d abstractions in %.1fs",
@@ -472,7 +572,39 @@ class LongMemEvalSuite:
                 # Per-call kwargs pick up Memory's defaults set above.
                 # Explicit reinforce=False keeps decay state unperturbed
                 # so a re-run of the same suite is bit-identical.
-                results = memory.retrieve(q.question, k=self._k, reinforce=False)
+                # `as_of=question_date` anchors the recency-boost
+                # reference time at the moment the question was asked
+                # (rather than wall-clock "now"). Only pass it when
+                # recency is actually on -- otherwise as_of would
+                # accidentally hide consolidation memory_items whose
+                # valid_from (= wall-clock now) is in the future
+                # relative to the question's haystack date.
+                retrieve_kwargs: dict[str, Any] = {
+                    "k": self._k,
+                    "reinforce": False,
+                }
+                if self._recency_lambda > 0:
+                    question_dt = _parse_haystack_date(q.question_date)
+                    if question_dt is not None:
+                        retrieve_kwargs["as_of"] = question_dt
+                # Auto-temporal: scan the question for year tokens; if
+                # any are present, surgically filter the rerank pool to
+                # events mentioning at least one of those years. If
+                # that filter empties the pool (year named is outside
+                # the haystack span), fall back to an unfiltered
+                # retrieve so we never lose a question to the filter.
+                if self._auto_temporal:
+                    filt = _build_auto_temporal_filter(q.question)
+                    if filt:
+                        retrieve_kwargs["lexical_filter"] = filt
+                results = memory.retrieve(q.question, **retrieve_kwargs)
+                if (
+                    self._auto_temporal
+                    and not results
+                    and retrieve_kwargs.get("lexical_filter")
+                ):
+                    retrieve_kwargs.pop("lexical_filter", None)
+                    results = memory.retrieve(q.question, **retrieve_kwargs)
                 retrieve_ms.append((time.perf_counter() - t0) * 1000.0)
 
                 memory_text = _format_memory(results)

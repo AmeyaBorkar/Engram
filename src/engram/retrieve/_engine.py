@@ -31,11 +31,15 @@ from __future__ import annotations
 
 import logging
 import math
+import re
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from uuid import UUID
 
 from engram.providers._protocols import EmbeddingProvider
+from engram.retrieve._bm25 import reciprocal_rank_fusion
+from engram.retrieve._mmr import mmr_select
 from engram.retrieve._params import RetrieveParams
 from engram.retrieve._reranker import RerankCandidate, Reranker
 from engram.schemas import DecayState, ItemKind, Level, RetrievalResult
@@ -114,7 +118,16 @@ class HierarchicalRetriever:
         reranker sees `query`.
         """
         p = params if params is not None else self._params
-        query_vec = self._embedder.embed([query])[0]
+        # Prefer `embed_query` when the embedder advertises it -- that
+        # applies asymmetric prompts (stella `s2p_query`, e5 "query: ")
+        # at query time while keeping the document-side `embed()`
+        # symmetric. Falls back to the symmetric path for embedders
+        # without the method, so existing providers stay bit-identical.
+        embed_query = getattr(self._embedder, "embed_query", None)
+        if callable(embed_query):
+            query_vec = embed_query(query)
+        else:
+            query_vec = self._embedder.embed([query])[0]
         normalized = _normalize(query_vec)
 
         if p.prefer == "specific":
@@ -123,6 +136,28 @@ class HierarchicalRetriever:
             candidates = self._candidates_from_generalizations(normalized, p)
             if not candidates and p.prefer == "auto":
                 candidates = self._candidates_from_events(normalized, p)
+
+        # Hybrid: fuse the dense candidate ranking with extra candidate
+        # streams over the event content (BM25 lexical, recent-window).
+        # Recovers literal-token recall and recency that the embedder
+        # smoothed away. Only operates on the event layer -- the
+        # abstraction/summary layer is already paraphrased text the
+        # embedder handles natively, and a lexical / recency stream
+        # would mostly add noise there.
+        if p.bm25_weight > 0 or p.recent_window_k > 0:
+            candidates = self._fuse_hybrid_sources(
+                query=query,
+                dense=candidates,
+                p=p,
+            )
+
+        # Lexical filter: drop candidates whose content does not match
+        # the configured regex. Applied BEFORE rerank so the
+        # cross-encoder never wastes a pass on items the caller has
+        # already ruled out.
+        if p.lexical_filter is not None and candidates:
+            pattern = re.compile(p.lexical_filter, re.IGNORECASE)
+            candidates = [c for c in candidates if pattern.search(c.content)]
 
         if not candidates:
             return []
@@ -192,6 +227,135 @@ class HierarchicalRetriever:
                 )
                 continue
             out.extend(drilled)
+        return out
+
+    def _fuse_hybrid_sources(
+        self,
+        *,
+        query: str,
+        dense: list[_Candidate],
+        p: RetrieveParams,
+    ) -> list[_Candidate]:
+        """Fuse the dense candidate ranking with optional lexical (BM25)
+        and recent-window event streams via Reciprocal Rank Fusion.
+
+        Per-stream behavior:
+
+          * Dense: always present, contributes at weight 1.0.
+          * BM25: when `p.bm25_weight > 0`, runs against the storage's
+            BM25 index over event content. Contributes scaled by
+            `bm25_weight` (rounded to nearest int, minimum 1 if > 0).
+          * Recent-window: when `p.recent_window_k > 0`, pulls the
+            top-N most-recent events by `created_at` desc and ranks
+            them in that order (most recent = rank 1). Contributes
+            once.
+
+        Storage backends without the optional methods are no-op
+        fall-throughs for the stream that requires them; non-SQLite
+        backends keep working.
+        """
+        rankings: list[list[tuple[tuple[ItemKind, UUID], float]]] = []
+        # Dense ranking is always present.
+        dense_ranking: list[tuple[tuple[ItemKind, UUID], float]] = [
+            ((c.item_kind, c.item_id), c.score) for c in dense
+        ]
+        rankings.append(dense_ranking)
+        dense_by_key = {(c.item_kind, c.item_id): c for c in dense}
+
+        # BM25 stream.
+        bm25_by_id: dict[UUID, tuple[str, float]] = {}
+        if p.bm25_weight > 0:
+            bm25_search = getattr(self._storage, "bm25_search_events", None)
+            if callable(bm25_search):
+                pool_size = max(p.k * p.candidate_multiplier, p.k)
+                try:
+                    bm25_hits: list[tuple[UUID, str, float]] = bm25_search(
+                        query,
+                        k=pool_size,
+                        k1=p.bm25_k1,
+                        b=p.bm25_b,
+                        include_cold=p.include_cold,
+                    )
+                except (ValueError, RuntimeError):  # pragma: no cover - defensive
+                    bm25_hits = []
+                if bm25_hits:
+                    bm25_ranking: list[tuple[tuple[ItemKind, UUID], float]] = [
+                        ((ItemKind.EVENT, eid), score) for eid, _, score in bm25_hits
+                    ]
+                    bm25_by_id = {eid: (content, score) for eid, content, score in bm25_hits}
+                    # Weight via repeated inclusion: weight=1 includes
+                    # once, weight=2 twice, fractional values round to
+                    # nearest int with a minimum of 1.
+                    n_bm25 = max(round(p.bm25_weight), 1)
+                    for _ in range(n_bm25):
+                        rankings.append(bm25_ranking)
+
+        # Recent-window stream.
+        recent_by_id: dict[UUID, str] = {}
+        if p.recent_window_k > 0:
+            recent_fn = getattr(self._storage, "list_recent_events", None)
+            if callable(recent_fn):
+                try:
+                    recent_hits: list[tuple[UUID, str]] = recent_fn(
+                        k=p.recent_window_k, include_cold=p.include_cold
+                    )
+                except (ValueError, RuntimeError):  # pragma: no cover - defensive
+                    recent_hits = []
+                if recent_hits:
+                    n = len(recent_hits)
+                    recent_ranking: list[tuple[tuple[ItemKind, UUID], float]] = [
+                        ((ItemKind.EVENT, eid), 1.0 - i / max(n, 1))
+                        for i, (eid, _) in enumerate(recent_hits)
+                    ]
+                    recent_by_id = {eid: content for eid, content in recent_hits}
+                    rankings.append(recent_ranking)
+
+        if len(rankings) == 1:
+            # Nothing to fuse with; return the dense ranking unchanged.
+            return dense
+
+        fused = reciprocal_rank_fusion(rankings, k=p.rrf_k)
+        # Materialize back into `_Candidate` records, pulling content
+        # from whichever stream owns the id.
+        out: list[_Candidate] = []
+        for key, fused_score in fused:
+            existing = dense_by_key.get(key)
+            if existing is not None:
+                out.append(
+                    _Candidate(
+                        item_id=existing.item_id,
+                        item_kind=existing.item_kind,
+                        level=existing.level,
+                        content=existing.content,
+                        score=fused_score,
+                        supported_by=existing.supported_by,
+                    )
+                )
+                continue
+            kind, item_id = key
+            if kind is not ItemKind.EVENT:  # pragma: no cover - defensive
+                continue
+            # Look in BM25 first (it carries content + a numeric score),
+            # then fall back to the recent window's content. Either way
+            # we synthesize an event-level candidate with the fused
+            # RRF score.
+            content: str | None = None
+            if item_id in bm25_by_id:
+                content = bm25_by_id[item_id][0]
+            elif item_id in recent_by_id:
+                content = recent_by_id[item_id]
+            if content is None:  # pragma: no cover - defensive
+                continue
+            out.append(
+                _Candidate(
+                    item_id=item_id,
+                    item_kind=ItemKind.EVENT,
+                    level=Level.EVENT,
+                    content=content,
+                    score=fused_score,
+                    supported_by=(item_id,),
+                )
+            )
         return out
 
     def _candidates_from_events(
@@ -300,11 +464,35 @@ class HierarchicalRetriever:
                     f"reranker {reranker.name!r} returned "
                     f"{len(rerank_scores)} scores for {len(rerank_inputs)} candidates"
                 )
+            # Apply the optional time-decay boost BEFORE the sort so
+            # recency reshapes the final ordering rather than just
+            # tweaking the scores after the fact.
+            if p.recency_lambda > 0:
+                rerank_scores = self._apply_recency_boost(unique, rerank_scores, p)
             zipped = sorted(
                 zip(unique, rerank_scores, strict=True),
                 key=lambda pair: (-pair[1], _LEVEL_PRIORITY[pair[0].level], pair[0].item_id.bytes),
             )
             unique = [c for c, _ in zipped]
+            rerank_scores_sorted = [score for _, score in zipped]
+            # MMR diversity rerank, applied AFTER the cross-encoder so
+            # it works on calibrated relevance scores. Fetches the
+            # stored embeddings for the rerank pool so we can compute
+            # pairwise cosine similarities cheaply.
+            if p.mmr_lambda > 0 and len(unique) > 1:
+                doc_vecs = self._fetch_candidate_vectors(unique)
+                pool_size = (
+                    p.mmr_pool_size
+                    if p.mmr_pool_size > 0
+                    else p.k * max(p.candidate_multiplier, 1)
+                )
+                unique = mmr_select(
+                    unique,
+                    rerank_scores_sorted,
+                    doc_vecs,
+                    k=min(len(unique), pool_size),
+                    lambda_=p.mmr_lambda,
+                )
 
         sliced = unique[: p.k]
 
@@ -319,6 +507,99 @@ class HierarchicalRetriever:
             )
             for c in sliced
         ]
+
+    def _apply_recency_boost(
+        self,
+        candidates: Sequence[_Candidate],
+        scores: Sequence[float],
+        p: RetrieveParams,
+    ) -> list[float]:
+        """Multiplicatively boost rerank scores by recency.
+
+        `boost = 1 + recency_lambda * exp(-days_old / decay_days)` so
+        a zero-day-old hit gets `1 + recency_lambda`, a
+        `decay_days`-old hit gets `1 + recency_lambda * 0.37`, and very
+        old hits decay to the base score. The shape lets a small
+        `recency_lambda` (~0.1) reorder very-close candidates without
+        erasing the embedder's signal.
+
+        Reference time: `p.as_of` if set, otherwise current UTC. Items
+        whose `created_at` lookup fails fall through with no boost.
+        Uses a single batched lookup for all candidate timestamps.
+        """
+        if p.recency_lambda <= 0:
+            return list(scores)
+        ref = p.as_of if p.as_of is not None else datetime.now(tz=timezone.utc)
+        # Batch-fetch every created_at in a single SQL round-trip per
+        # ItemKind (was N round-trips in the original implementation).
+        created_at_map = self._get_created_at_batch(candidates)
+        decay_days = max(p.recency_decay_days, 1.0)
+        out: list[float] = []
+        for c, s in zip(candidates, scores, strict=True):
+            created_at = created_at_map.get(c.item_id)
+            if created_at is None:
+                out.append(s)
+                continue
+            delta_sec = (ref - created_at).total_seconds()
+            days_old = max(delta_sec / 86400.0, 0.0)
+            boost = 1.0 + p.recency_lambda * math.exp(-days_old / decay_days)
+            out.append(s * boost)
+        return out
+
+    def _get_created_at_batch(
+        self, candidates: Sequence[_Candidate]
+    ) -> dict[UUID, datetime]:
+        batch = getattr(self._storage, "get_created_at_batch", None)
+        if callable(batch):
+            return batch([(c.item_id, c.item_kind) for c in candidates])
+        # Fallback for storage backends without the batched accessor.
+        out: dict[UUID, datetime] = {}
+        for c in candidates:
+            if c.item_kind is ItemKind.EVENT:
+                event = self._storage.get_event(c.item_id)
+                if event is not None:
+                    out[c.item_id] = event.created_at
+            else:
+                item = self._storage.get_memory_item(c.item_id)
+                if item is not None:
+                    out[c.item_id] = item.created_at
+        return out
+
+    def _fetch_candidate_vectors(
+        self, candidates: Sequence[_Candidate]
+    ) -> list[Sequence[float] | None]:
+        """Look up the stored dense embedding for every candidate.
+
+        Returns a list aligned with `candidates`; entries are `None`
+        when the embedding lookup failed (raced delete, model
+        mismatch). MMR treats `None` as "no diversity pressure" so
+        a single missing embedding doesn't poison the pool.
+
+        Batches into one SQL round-trip per `ItemKind` when the
+        storage backend exposes `get_embeddings_batch` (SqliteStorage
+        does); falls back to per-candidate `get_embedding` calls
+        otherwise.
+        """
+        model = self._embedder.model
+        batch = getattr(self._storage, "get_embeddings_batch", None)
+        if callable(batch):
+            vectors_by_id = batch(
+                [(c.item_id, c.item_kind) for c in candidates],
+                model=model,
+            )
+            return [vectors_by_id.get(c.item_id) for c in candidates]
+        out: list[Sequence[float] | None] = []
+        for c in candidates:
+            try:
+                emb = self._storage.get_embedding(c.item_id, c.item_kind, model)
+            except (KeyError, RuntimeError):  # pragma: no cover - defensive
+                out.append(None)
+                continue
+            if emb is None:
+                out.append(None)
+            else:
+                out.append(list(emb.vector))
+        return out
 
     def _fire_reinforcement(self, results: Sequence[RetrievalResult]) -> None:
         """Reinforce every surfaced item.

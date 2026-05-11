@@ -41,6 +41,7 @@ from engram.schemas import (
     Resolution,
     Verdict,
 )
+from engram.retrieve._bm25 import BM25Index
 from engram.storage._serialize import (
     dumps_metadata,
     iso,
@@ -310,6 +311,17 @@ class SqliteStorage:
         self._connections: dict[int, sqlite3.Connection] = {}
         self._initialized = False
         self._vector_index = VectorIndex()
+        # Lexical BM25 index over event content. Lazy-built on the
+        # first `bm25_search_events` call; rebuilt from scratch when
+        # the event corpus changes (insert / mark_cold / unmark_cold /
+        # delete_cold_items) OR when the caller asks for different
+        # k1 / b hyperparameters than the cached index has. BM25 is
+        # independent of the embedding model, so one index covers every
+        # retrieve call regardless of which embedder is plugged in.
+        self._bm25_events: BM25Index[UUID] | None = None
+        self._bm25_events_dirty: bool = True
+        self._bm25_k1: float = 1.5
+        self._bm25_b: float = 0.75
 
     # --- lifecycle ----------------------------------------------------------
 
@@ -355,6 +367,18 @@ class SqliteStorage:
             conn.execute("PRAGMA foreign_keys = ON")
             conn.execute("PRAGMA synchronous = NORMAL")
             conn.execute("PRAGMA temp_store = MEMORY")
+            # cache_size: negative -> KB; 64 MB of page cache for hot
+            # PK lookups. The bench ingests 500 events per question and
+            # then drills against them; a smaller cache flushes the
+            # working set on every haystack switch.
+            conn.execute("PRAGMA cache_size = -65536")
+            # mmap_size: 256 MB. No-op for :memory: but a real win for
+            # disk-backed stores -- B-tree pages get faulted in once
+            # and stay resident across queries.
+            conn.execute("PRAGMA mmap_size = 268435456")
+            # `wal_autocheckpoint=1000` is the SQLite default; the
+            # bench writes everything in one big transaction per
+            # haystack so we don't tune this knob.
             self._connections[tid] = conn
             return conn
 
@@ -395,6 +419,7 @@ class SqliteStorage:
                 event.tenant_id,
             ),
         )
+        self._bm25_events_dirty = True
 
     def insert_events(self, events: Iterable[Event]) -> int:
         rows = [
@@ -418,6 +443,7 @@ class SqliteStorage:
             "VALUES (?, ?, ?, ?, ?, ?, ?)",
             rows,
         )
+        self._bm25_events_dirty = True
         return len(rows)
 
     def get_event(self, event_id: UUID) -> Event | None:
@@ -1150,6 +1176,182 @@ class SqliteStorage:
         content: dict[bytes, str] = {bytes(r["id"]): r["situation"] for r in rows}
         return [(u, content[u.bytes], score) for u, _, score in hits if u.bytes in content]
 
+    def bm25_search_events(
+        self,
+        query: str,
+        *,
+        k: int,
+        k1: float = 1.5,
+        b: float = 0.75,
+        include_cold: bool = False,
+    ) -> list[tuple[UUID, str, float]]:
+        """Lexical top-k events via BM25 over their `content` field.
+
+        Lazy-builds an in-memory inverted index over (id, content) on
+        the first call and on every event corpus change
+        (insert/cold/unmark/delete) or hyperparameter change (k1, b).
+        Returns `(id, content, score)` triples sorted by score desc.
+        Empty corpus or empty query -> [].
+
+        BM25 is corpus-relative -- the same document scored against
+        the same query may differ across haystacks. That's the point:
+        the LongMemEval cleaned dataset has one fresh haystack per
+        question, so BM25 weights are calibrated to that haystack's
+        token statistics.
+        """
+        if k < 1:
+            raise ValueError(f"k must be >= 1, got {k}")
+        rebuild = (
+            self._bm25_events is None
+            or self._bm25_events_dirty
+            or self._bm25_k1 != k1
+            or self._bm25_b != b
+        )
+        if rebuild:
+            self._rebuild_bm25_events(k1=k1, b=b, include_cold=include_cold)
+        assert self._bm25_events is not None
+        if not query.strip() or len(self._bm25_events) == 0:
+            return []
+        hits = self._bm25_events.search(query, k=k)
+        if not hits:
+            return []
+        # Fetch content for the returned ids in a single SQL round-trip,
+        # then preserve BM25 ordering when assembling the response.
+        ids = [doc_id for doc_id, _ in hits]
+        placeholders = ",".join("?" for _ in ids)
+        rows = (
+            self._connect()
+            .execute(
+                f"SELECT id, content FROM events WHERE id IN ({placeholders})",  # noqa: S608
+                [u.bytes for u in ids],
+            )
+            .fetchall()
+        )
+        content: dict[bytes, str] = {bytes(r["id"]): r["content"] for r in rows}
+        return [
+            (doc_id, content[doc_id.bytes], score)
+            for doc_id, score in hits
+            if doc_id.bytes in content
+        ]
+
+    def _rebuild_bm25_events(
+        self,
+        *,
+        k1: float = 1.5,
+        b: float = 0.75,
+        include_cold: bool = False,
+    ) -> None:
+        """Materialize the BM25 index from current event content.
+
+        Reads (id, content) tuples for the active event corpus and
+        feeds them into a fresh `BM25Index`. The cold filter mirrors
+        the dense path: cold events are excluded by default so a
+        single-flag retrieve call sees a consistent surface across
+        lexical and dense rankings.
+        """
+        sql = "SELECT id, content FROM events"
+        if not include_cold:
+            sql += " WHERE cold_at IS NULL"
+        # Insertion order = (created_at, id) is not guaranteed without an
+        # explicit ORDER BY, but BM25 doesn't depend on insert order --
+        # the inverted index is a hash, and tie-breaks fall back to
+        # doc_idx (= the natural insertion order from this scan). Any
+        # stable scan is fine.
+        rows = self._connect().execute(sql).fetchall()
+        index: BM25Index[UUID] = BM25Index(k1=k1, b=b)
+        for row in rows:
+            index.add_doc(UUID(bytes=row["id"]), row["content"])
+        self._bm25_events = index
+        self._bm25_k1 = k1
+        self._bm25_b = b
+        self._bm25_events_dirty = False
+
+    def get_embeddings_batch(
+        self,
+        items: Sequence[tuple[UUID, ItemKind]],
+        *,
+        model: str,
+    ) -> dict[UUID, list[float]]:
+        """Batch-fetch embedding vectors for the given (id, kind) pairs.
+
+        One SQL round-trip per distinct ItemKind. Returns a dict mapping
+        item UUID to the unpacked float list. Missing items are simply
+        absent from the dict -- the caller decides what "missing" means
+        (MMR treats it as no diversity pressure, the recency boost
+        treats it as no recency contribution).
+        """
+        if not items:
+            return {}
+        # Bucket by kind so each SQL is type-monomorphic.
+        by_kind: dict[ItemKind, list[bytes]] = {}
+        for item_id, kind in items:
+            by_kind.setdefault(kind, []).append(item_id.bytes)
+        out: dict[UUID, list[float]] = {}
+        for kind, id_bytes_list in by_kind.items():
+            placeholders = ",".join("?" for _ in id_bytes_list)
+            sql = (
+                f"SELECT item_id, vector, dim FROM embeddings "  # noqa: S608
+                f"WHERE model = ? AND item_kind = ? AND item_id IN ({placeholders})"
+            )
+            rows = self._connect().execute(
+                sql, (model, kind.value, *id_bytes_list)
+            ).fetchall()
+            for row in rows:
+                uid = UUID(bytes=row["item_id"])
+                out[uid] = list(unpack_vector(row["vector"], int(row["dim"])))
+        return out
+
+    def get_created_at_batch(
+        self,
+        items: Sequence[tuple[UUID, ItemKind]],
+    ) -> dict[UUID, datetime]:
+        """Batch-fetch `created_at` for the given (id, kind) pairs.
+
+        One SQL round-trip per distinct ItemKind (events / memory_items
+        / procedures). The recency-boost path benefits most -- the
+        previous one-SQL-per-candidate code did N round trips per
+        retrieve. Missing items are absent from the returned dict.
+        """
+        if not items:
+            return {}
+        by_kind: dict[ItemKind, list[bytes]] = {}
+        for item_id, kind in items:
+            by_kind.setdefault(kind, []).append(item_id.bytes)
+        out: dict[UUID, datetime] = {}
+        for kind, id_bytes_list in by_kind.items():
+            table = _DECAY_TABLES.get(kind)
+            if table is None:
+                continue
+            placeholders = ",".join("?" for _ in id_bytes_list)
+            sql = (
+                f"SELECT id, created_at FROM {table} "  # noqa: S608
+                f"WHERE id IN ({placeholders})"
+            )
+            rows = self._connect().execute(sql, id_bytes_list).fetchall()
+            for row in rows:
+                out[UUID(bytes=row["id"])] = parse_iso(row["created_at"])
+        return out
+
+    def list_recent_events(
+        self,
+        *,
+        k: int,
+        include_cold: bool = False,
+    ) -> list[tuple[UUID, str]]:
+        """Top-K events by `created_at` desc. Cheap candidate source
+        for the recent-window hybrid retrieval path. Cold events are
+        excluded by default. Returns `(id, content)` so callers can
+        plug straight into a fusion ranking.
+        """
+        if k < 1:
+            raise ValueError(f"k must be >= 1, got {k}")
+        sql = "SELECT id, content FROM events"
+        if not include_cold:
+            sql += " WHERE cold_at IS NULL"
+        sql += " ORDER BY created_at DESC, id DESC LIMIT ?"
+        rows = self._connect().execute(sql, (k,)).fetchall()
+        return [(UUID(bytes=row["id"]), row["content"]) for row in rows]
+
     def score_events_by_ids(
         self,
         query_vec: Sequence[float],
@@ -1250,6 +1452,8 @@ class SqliteStorage:
         if cursor.rowcount == 0:
             raise KeyError(f"{kind.value} {item_id} not found")
         self._vector_index.mark_dirty(kind=kind.value)
+        if kind is ItemKind.EVENT:
+            self._bm25_events_dirty = True
 
     def unmark_cold(self, item_id: UUID, kind: ItemKind) -> None:
         sql = _UNMARK_COLD_SQL[kind]
@@ -1257,6 +1461,8 @@ class SqliteStorage:
         if cursor.rowcount == 0:
             raise KeyError(f"{kind.value} {item_id} not found")
         self._vector_index.mark_dirty(kind=kind.value)
+        if kind is ItemKind.EVENT:
+            self._bm25_events_dirty = True
 
     def count_cold(self, kind: ItemKind) -> int:
         sql = _COUNT_COLD_SQL[kind]

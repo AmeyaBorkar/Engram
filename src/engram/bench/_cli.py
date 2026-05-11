@@ -224,6 +224,113 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Override the reranker model id (e.g. BAAI/bge-reranker-v2-m3).",
     )
+    run.add_argument(
+        "--bm25-weight",
+        type=float,
+        default=0.0,
+        help=(
+            "Weight of the BM25 lexical ranking in the dense+BM25 RRF fusion. "
+            "0 (default) disables BM25 entirely; 1.0 = equal weight; recovers "
+            "literal-token recall (years, codes, names)."
+        ),
+    )
+    run.add_argument(
+        "--mmr-lambda",
+        type=float,
+        default=0.0,
+        help=(
+            "Maximal Marginal Relevance diversity weight, applied AFTER the "
+            "cross-encoder rerank. 0 (default) is off; 0.7 balances relevance "
+            "with diversity (suppresses near-duplicates in the top-k)."
+        ),
+    )
+    run.add_argument(
+        "--recency-lambda",
+        type=float,
+        default=0.0,
+        help=(
+            "Time-decay rerank boost. 0 (default) is off. Values around 0.05 - "
+            "0.15 give recent events a small multiplicative bump on the "
+            "rerank score -- useful for knowledge-update + temporal-reasoning."
+        ),
+    )
+    run.add_argument(
+        "--drill-k",
+        type=int,
+        default=None,
+        help=(
+            "RetrieveParams.drill_k -- how many supporting events to consider "
+            "per low-confidence abstraction. Default 3."
+        ),
+    )
+    run.add_argument(
+        "--confidence-threshold",
+        type=float,
+        default=None,
+        help=(
+            "RetrieveParams.confidence_threshold -- abstractions above this "
+            "score are surfaced as-is; below it the engine drills. Default 0.7."
+        ),
+    )
+    run.add_argument(
+        "--rerank-pool-multiplier",
+        type=int,
+        default=None,
+        help=(
+            "RetrieveParams.candidate_multiplier -- size of the pre-rerank pool "
+            "is k * this. Default 3; raise to 5 - 10 to give the cross-encoder "
+            "more candidates to choose from (at the cost of rerank wall time)."
+        ),
+    )
+    run.add_argument(
+        "--bm25-k1",
+        type=float,
+        default=1.5,
+        help="BM25 k1 hyperparameter. Default 1.5 (Lucene default).",
+    )
+    run.add_argument(
+        "--bm25-b",
+        type=float,
+        default=0.75,
+        help="BM25 b hyperparameter. Default 0.75 (Lucene default).",
+    )
+    run.add_argument(
+        "--recency-decay-days",
+        type=float,
+        default=90.0,
+        help="Half-life-shape parameter for --recency-lambda. Default 90 days.",
+    )
+    run.add_argument(
+        "--mmr-pool-size",
+        type=int,
+        default=0,
+        help=(
+            "Override the MMR candidate pool size. 0 (default) uses "
+            "k * rerank-pool-multiplier."
+        ),
+    )
+    run.add_argument(
+        "--recent-window-k",
+        type=int,
+        default=0,
+        help=(
+            "Recent-window hybrid: include the top-N most-recent events "
+            "in the RRF fusion alongside dense + BM25. 0 (default) is off."
+        ),
+    )
+    run.add_argument(
+        "--auto-temporal",
+        action="store_true",
+        help=(
+            "Per-question year extraction: scan the question for "
+            "\\b(19|20)\\d{2}\\b tokens and pass them as a lexical_filter "
+            "regex (OR'd) so the rerank pool only contains events "
+            "matching those years. Falls back to unfiltered retrieve "
+            "when the filter empties the pool. LongMemEval temporal-"
+            "reasoning queries hit ~9-out-of-10 of the time when they "
+            "name a year; this surgically protects recall on the rest."
+        ),
+    )
 
     # --- Phase E agent flags (engage EngramAgent when any is set).
     run.add_argument(
@@ -307,11 +414,29 @@ def build_parser() -> argparse.ArgumentParser:
         help="Model name for --judge-chat.",
     )
 
+    run.add_argument(
+        "--disk-cache",
+        type=Path,
+        default=None,
+        help=(
+            "Path to a sqlite file used as a persistent (chat, embed) "
+            "response cache. Re-runs over the same prompts hit disk "
+            "instead of the network / GPU. Zero quality lift, huge "
+            "cost/wall-time saving on ablation sweeps."
+        ),
+    )
+
     return parser
 
 
 def _resolve_provider(args: argparse.Namespace) -> Provider:
-    """Build a Provider from CLI flags. `--provider fake` is a shortcut."""
+    """Build a Provider from CLI flags. `--provider fake` is a shortcut.
+
+    When `--disk-cache PATH` is set, the resulting chat + embed
+    providers are wrapped with `with_disk_cache(path=PATH)` so every
+    response is cached on disk. The wrapper proxies the original
+    surface, so downstream code never sees a difference.
+    """
     if args.provider == "fake":
         if args.embedder or args.chat:
             print(
@@ -327,7 +452,7 @@ def _resolve_provider(args: argparse.Namespace) -> Provider:
     # CLI uses "fp16"/"fp32" as shorthand; the embedder accepts the
     # full names so map here.
     dtype_map = {"auto": "auto", "fp16": "float16", "fp32": "float32"}
-    return build_provider(
+    provider = build_provider(
         embedder_name=embedder,
         chat_name=chat,
         embed_model=args.embed_model,
@@ -336,6 +461,15 @@ def _resolve_provider(args: argparse.Namespace) -> Provider:
         embed_dtype=dtype_map[args.dtype],
         chat_model=args.chat_model,
     )
+    if args.disk_cache is not None:
+        from engram.providers._disk_cache import with_disk_cache
+
+        cache_path = Path(args.disk_cache)
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        provider.embedder = with_disk_cache(provider.embedder, path=str(cache_path))
+        provider.chat = with_disk_cache(provider.chat, path=str(cache_path))
+        print(f"disk cache enabled: {cache_path}", file=sys.stderr)
+    return provider
 
 
 def _resolve_suite_config(args: argparse.Namespace) -> dict[str, Any]:
@@ -364,6 +498,30 @@ def _resolve_suite_config(args: argparse.Namespace) -> dict[str, Any]:
         cfg["temporal"] = True
     if args.surface_conflicts:
         cfg["surface_conflicts"] = True
+    if args.bm25_weight and args.bm25_weight > 0:
+        cfg["bm25_weight"] = args.bm25_weight
+    if args.mmr_lambda and args.mmr_lambda > 0:
+        cfg["mmr_lambda"] = args.mmr_lambda
+    if args.recency_lambda and args.recency_lambda > 0:
+        cfg["recency_lambda"] = args.recency_lambda
+    if args.drill_k is not None:
+        cfg["drill_k"] = args.drill_k
+    if args.confidence_threshold is not None:
+        cfg["confidence_threshold"] = args.confidence_threshold
+    if args.rerank_pool_multiplier is not None:
+        cfg["candidate_multiplier"] = args.rerank_pool_multiplier
+    if args.bm25_k1 != 1.5:
+        cfg["bm25_k1"] = args.bm25_k1
+    if args.bm25_b != 0.75:
+        cfg["bm25_b"] = args.bm25_b
+    if args.recency_decay_days != 90.0:
+        cfg["recency_decay_days"] = args.recency_decay_days
+    if args.mmr_pool_size > 0:
+        cfg["mmr_pool_size"] = args.mmr_pool_size
+    if args.recent_window_k > 0:
+        cfg["recent_window_k"] = args.recent_window_k
+    if args.auto_temporal:
+        cfg["auto_temporal"] = True
     if args.reranker and args.reranker != "none":
         from engram.retrieve._bge_reranker import BGEReranker
 

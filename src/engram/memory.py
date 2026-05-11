@@ -29,6 +29,7 @@ import contextlib
 import math
 import time
 from collections.abc import Callable, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from uuid import UUID
 
@@ -229,6 +230,7 @@ class Memory:
         prefer: RetrievePrefer | None = None,
         confidence_threshold: float | None = None,
         drill_k: int | None = None,
+        candidate_multiplier: int | None = None,
         include_cold: bool | None = None,
         reinforce: bool | None = None,
         reranker: Reranker | None = None,
@@ -238,6 +240,15 @@ class Memory:
         decompose: bool | None = None,
         temporal: bool | None = None,
         surface_conflicts: bool | None = None,
+        bm25_weight: float | None = None,
+        mmr_lambda: float | None = None,
+        recency_lambda: float | None = None,
+        lexical_filter: str | None = None,
+        bm25_k1: float | None = None,
+        bm25_b: float | None = None,
+        recency_decay_days: float | None = None,
+        mmr_pool_size: int | None = None,
+        recent_window_k: int | None = None,
     ) -> list[RetrievalResult]:
         """Return up to `k` items most relevant to `query`, coarse-to-fine.
 
@@ -312,7 +323,11 @@ class Memory:
                 else defaults.confidence_threshold
             ),
             drill_k=drill_k if drill_k is not None else defaults.drill_k,
-            candidate_multiplier=defaults.candidate_multiplier,
+            candidate_multiplier=(
+                candidate_multiplier
+                if candidate_multiplier is not None
+                else defaults.candidate_multiplier
+            ),
             include_cold=include_cold if include_cold is not None else defaults.include_cold,
             reinforce_on_use=(reinforce if reinforce is not None else defaults.reinforce_on_use),
             as_of=effective_as_of if effective_as_of is not None else defaults.as_of,
@@ -328,6 +343,29 @@ class Memory:
                 else defaults.surface_conflicts
             ),
             temporal=effective_temporal,
+            bm25_weight=bm25_weight if bm25_weight is not None else defaults.bm25_weight,
+            mmr_lambda=mmr_lambda if mmr_lambda is not None else defaults.mmr_lambda,
+            recency_lambda=(
+                recency_lambda if recency_lambda is not None else defaults.recency_lambda
+            ),
+            lexical_filter=(
+                lexical_filter if lexical_filter is not None else defaults.lexical_filter
+            ),
+            bm25_k1=bm25_k1 if bm25_k1 is not None else defaults.bm25_k1,
+            bm25_b=bm25_b if bm25_b is not None else defaults.bm25_b,
+            recency_decay_days=(
+                recency_decay_days
+                if recency_decay_days is not None
+                else defaults.recency_decay_days
+            ),
+            mmr_pool_size=(
+                mmr_pool_size if mmr_pool_size is not None else defaults.mmr_pool_size
+            ),
+            recent_window_k=(
+                recent_window_k
+                if recent_window_k is not None
+                else defaults.recent_window_k
+            ),
         )
         effective_reranker = reranker if reranker is not None else self._default_reranker
         with span(
@@ -566,7 +604,7 @@ class Memory:
         """
         if k < 1:
             raise ValueError(f"k must be >= 1, got {k}")
-        query_vec = self._embedder.embed([situation])[0]
+        query_vec = _embed_search_query(self._embedder, situation)
         normalized = _normalize(query_vec)
         hits = self._storage.search_procedure_embeddings(
             normalized,
@@ -698,11 +736,7 @@ class Memory:
             rrf_k=params.rrf_k,
             decompose=False,
         )
-        rankings: list[list[RetrievalResult]] = []
-        for q in queries:
-            rankings.append(
-                self._retriever.retrieve(q, params=leaf_params, reranker=None)
-            )
+        rankings = self._parallel_leaf_retrieves(queries, leaf_params)
         fused = reciprocal_rank_fusion(rankings, k=params.rrf_k)
         if reranker is not None and fused:
             from engram.retrieve._reranker import RerankCandidate
@@ -736,6 +770,42 @@ class Memory:
                     kind = ItemKind.EVENT if r.level is Level.EVENT else ItemKind.MEMORY_ITEM
                     self._engine.reinforce(r.item_id, kind)
         return sliced
+
+    def _parallel_leaf_retrieves(
+        self,
+        queries: Sequence[str],
+        leaf_params: RetrieveParams,
+    ) -> list[list[RetrievalResult]]:
+        """Fan out per-query retrieves over a thread pool.
+
+        Each leaf retrieve embeds the query, scans the vector index,
+        and (optionally) reranks. Python releases the GIL during the
+        compute-heavy parts (sentence-transformers encode, numpy
+        matmul, HTTP I/O on API embedders), so a thread pool actually
+        overlaps the work. SQLite's per-thread connections handle the
+        storage seam: each worker gets its own connection lazily.
+
+        Falls back to a serial loop when there's only one query (the
+        thread-pool overhead would dominate) or when the embedder
+        explicitly opts out via `_disable_thread_parallelism = True`
+        (the fake embedder in tests sets this to keep ordering stable).
+        """
+        if len(queries) <= 1 or getattr(
+            self._embedder, "_disable_thread_parallelism", False
+        ):
+            return [
+                self._retriever.retrieve(q, params=leaf_params, reranker=None)
+                for q in queries
+            ]
+        max_workers = min(len(queries), 8)
+        with ThreadPoolExecutor(max_workers=max_workers) as pool:
+            futures = [
+                pool.submit(
+                    self._retriever.retrieve, q, params=leaf_params, reranker=None
+                )
+                for q in queries
+            ]
+            return [f.result() for f in futures]
 
     # --- E.9: iterative ReAct retrieval ------------------------------------
 
@@ -999,6 +1069,7 @@ class Memory:
         prefer: RetrievePrefer | None = None,
         confidence_threshold: float | None = None,
         drill_k: int | None = None,
+        candidate_multiplier: int | None = None,
         include_cold: bool | None = None,
         reinforce: bool | None = None,
         reranker: Reranker | None = None,
@@ -1008,8 +1079,17 @@ class Memory:
         decompose: bool | None = None,
         temporal: bool | None = None,
         surface_conflicts: bool | None = None,
+        bm25_weight: float | None = None,
+        mmr_lambda: float | None = None,
+        recency_lambda: float | None = None,
+        lexical_filter: str | None = None,
+        bm25_k1: float | None = None,
+        bm25_b: float | None = None,
+        recency_decay_days: float | None = None,
+        mmr_pool_size: int | None = None,
+        recent_window_k: int | None = None,
     ) -> list[RetrievalResult]:
-        """Async version of `retrieve`. Mirrors every Phase E flag."""
+        """Async version of `retrieve`. Mirrors every Phase E + F flag."""
         return await asyncio.to_thread(
             lambda: self.retrieve(
                 query,
@@ -1017,6 +1097,7 @@ class Memory:
                 prefer=prefer,
                 confidence_threshold=confidence_threshold,
                 drill_k=drill_k,
+                candidate_multiplier=candidate_multiplier,
                 include_cold=include_cold,
                 reinforce=reinforce,
                 reranker=reranker,
@@ -1026,6 +1107,15 @@ class Memory:
                 decompose=decompose,
                 temporal=temporal,
                 surface_conflicts=surface_conflicts,
+                bm25_weight=bm25_weight,
+                mmr_lambda=mmr_lambda,
+                recency_lambda=recency_lambda,
+                lexical_filter=lexical_filter,
+                bm25_k1=bm25_k1,
+                bm25_b=bm25_b,
+                recency_decay_days=recency_decay_days,
+                mmr_pool_size=mmr_pool_size,
+                recent_window_k=recent_window_k,
             )
         )
 
@@ -1066,11 +1156,52 @@ class Memory:
         )
 
     async def aconsolidate(
-        self, *, max_events: int | None = None
+        self,
+        *,
+        max_events: int | None = None,
+        max_concurrent_abstractions: int = 8,
     ) -> ConsolidationResult:
-        return await asyncio.to_thread(
-            lambda: self.consolidate(max_events=max_events)
-        )
+        """True async consolidation: per-cluster abstraction calls run
+        concurrently via `asyncio.gather` with semaphore-bounded
+        in-flight LLM requests.
+
+        On a 30-cluster haystack this turns a 60-90 s synchronous pass
+        into roughly `max(per_call_latency)` plus the fan-in write
+        loop. The fan-in stays serialized because sqlite's per-thread
+        connection model can't run concurrent writes from coroutines,
+        and the inserts are fast enough that there's no benefit anyway.
+
+        Falls back to `asyncio.to_thread(self.consolidate)` when the
+        underlying engine doesn't expose the new `aconsolidate` method
+        (e.g. a custom subclass).
+        """
+        if self._consolidator is None:
+            raise RuntimeError(
+                "consolidation requires a chat provider; pass `chat=...` to Memory(...)"
+            )
+        aconsolidate = getattr(self._consolidator, "aconsolidate", None)
+        if not callable(aconsolidate):  # pragma: no cover - back-compat
+            return await asyncio.to_thread(
+                lambda: self.consolidate(max_events=max_events)
+            )
+        with span("engram.memory.aconsolidate", max_events=max_events) as s:
+            result: ConsolidationResult = await aconsolidate(
+                max_events=max_events,
+                max_concurrent_abstractions=max_concurrent_abstractions,
+            )
+            METRICS.consolidate_call()
+            if s is not None:
+                s.set_attribute("engram.consolidate.events_processed", result.events_processed)
+                s.set_attribute("engram.consolidate.clusters_formed", result.clusters_formed)
+                s.set_attribute(
+                    "engram.consolidate.abstractions_created",
+                    result.abstractions_created,
+                )
+                s.set_attribute(
+                    "engram.consolidate.conflicts_detected",
+                    result.conflicts_detected,
+                )
+            return result
 
     async def apromote(self, *, now: datetime | None = None) -> PromotionResult:
         return await asyncio.to_thread(lambda: self.promote(now=now))
@@ -1373,7 +1504,7 @@ class Memory:
         """
         if k < 1:
             raise ValueError(f"k must be >= 1, got {k}")
-        query_vec = self._embedder.embed([query])[0]
+        query_vec = _embed_search_query(self._embedder, query)
         normalized = _normalize(query_vec)
         hits = self._storage.search_memory_item_embeddings_as_of(
             normalized,
@@ -1439,3 +1570,18 @@ def _normalize(vec: Sequence[float]) -> list[float]:
     if norm == 0.0:
         return list(vec)
     return [x / norm for x in vec]
+
+
+def _embed_search_query(embedder: EmbeddingProvider, query: str) -> list[float]:
+    """Embed `query` using the embedder's query-side surface when present.
+
+    Mirrors the engine-level fallback so the non-engine retrieve paths
+    (`retrieve_preferences`, `retrieve_procedures`) also benefit from
+    asymmetric prompts on stella / e5 without forcing every embedder
+    to grow an `embed_query` method.
+    """
+    embed_query = getattr(embedder, "embed_query", None)
+    if callable(embed_query):
+        result: list[float] = embed_query(query)
+        return result
+    return embedder.embed([query])[0]

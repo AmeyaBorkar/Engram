@@ -72,6 +72,51 @@ class RetrieveParams:
     decompose: bool = False
     surface_conflicts: bool = False
     temporal: bool = False
+    # Hybrid retrieval: when > 0, the engine runs BM25 against the
+    # event corpus in parallel with the dense path and fuses the two
+    # rankings via Reciprocal Rank Fusion. 0.0 (default) disables BM25
+    # entirely; the recommended setting is 1.0 (equal-weight fusion).
+    # Values other than 0/1 currently scale the BM25 ranking's RRF
+    # contribution proportionally -- see `_engine._fuse_dense_bm25`.
+    bm25_weight: float = 0.0
+    # MMR diversity rerank: when > 0, re-orders the rerank pool to
+    # balance relevance with diversity via Maximal Marginal Relevance.
+    # `0` (default) is off; `0.7` is a sensible value -- prioritize
+    # relevance but suppress near-duplicates.
+    mmr_lambda: float = 0.0
+    # Time-decay boost on the rerank score: items closer to `as_of`
+    # (or `now` if as_of is None) get a small multiplicative bump.
+    # Off by default; values around 0.05 - 0.15 work well on
+    # LongMemEval's knowledge-update and temporal-reasoning categories.
+    recency_lambda: float = 0.0
+    # Lexical filter: regex pattern that candidate `content` must match
+    # to survive into the rerank pool. None (default) is "no filter".
+    # Use for surgical recall on year-anchored queries
+    # (`lexical_filter=r"\b2023\b"`) where the embedder smooths the
+    # year away. Case-insensitive. Items that fail the regex are
+    # dropped BEFORE the rerank step, so the cross-encoder never sees
+    # them.
+    lexical_filter: str | None = None
+    # BM25 hyperparameters. Lucene defaults. `k1` in [1.2, 2.0] and
+    # `b` in [0.5, 0.9] are the sane operating ranges; touch only when
+    # you have a specific tuning hypothesis.
+    bm25_k1: float = 1.5
+    bm25_b: float = 0.75
+    # Time-decay half-life for `recency_lambda`. 90 days is the default
+    # because it matches LongMemEval's typical haystack span; shorter
+    # values give the boost a sharper falloff.
+    recency_decay_days: float = 90.0
+    # Size of the candidate pool MMR re-orders over. `0` means "use
+    # `k * candidate_multiplier`" (the default). Raise above that
+    # multiplier to give MMR a wider pool to diversify across without
+    # also widening the cross-encoder rerank.
+    mmr_pool_size: int = 0
+    # Recent-window hybrid: include the top-N most-recent events
+    # (by created_at desc) as a third RRF stream alongside dense + BM25.
+    # `0` (default) is off. Helpful for "lately I..." / "recently..."
+    # queries where the answer is in the freshest events regardless of
+    # token overlap.
+    recent_window_k: int = 0
 
     def __post_init__(self) -> None:
         if self.k < 1:
@@ -92,3 +137,28 @@ class RetrieveParams:
             raise ValueError(f"multi_query_n must be >= 1, got {self.multi_query_n}")
         if self.rrf_k < 1:
             raise ValueError(f"rrf_k must be >= 1, got {self.rrf_k}")
+        if self.bm25_weight < 0:
+            raise ValueError(f"bm25_weight must be >= 0, got {self.bm25_weight}")
+        if not 0.0 <= self.mmr_lambda <= 1.0:
+            raise ValueError(f"mmr_lambda must be in [0, 1], got {self.mmr_lambda}")
+        if self.recency_lambda < 0:
+            raise ValueError(f"recency_lambda must be >= 0, got {self.recency_lambda}")
+        if self.lexical_filter is not None:
+            # Validate the regex at construction time so the engine
+            # doesn't pay the cost (or surface the surprise) per call.
+            import re as _re
+
+            try:
+                _re.compile(self.lexical_filter)
+            except _re.error as exc:  # pragma: no cover - propagated to caller
+                raise ValueError(f"lexical_filter is not a valid regex: {exc}") from exc
+        if self.bm25_k1 < 0:
+            raise ValueError(f"bm25_k1 must be >= 0, got {self.bm25_k1}")
+        if not 0.0 <= self.bm25_b <= 1.0:
+            raise ValueError(f"bm25_b must be in [0, 1], got {self.bm25_b}")
+        if self.recency_decay_days <= 0:
+            raise ValueError(f"recency_decay_days must be > 0, got {self.recency_decay_days}")
+        if self.mmr_pool_size < 0:
+            raise ValueError(f"mmr_pool_size must be >= 0, got {self.mmr_pool_size}")
+        if self.recent_window_k < 0:
+            raise ValueError(f"recent_window_k must be >= 0, got {self.recent_window_k}")
