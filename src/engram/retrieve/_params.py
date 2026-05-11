@@ -70,6 +70,7 @@ class RetrieveParams:
     multi_query_n: int = 1
     rrf_k: int = 60
     decompose: bool = False
+    surface_conflicts: bool = False
 
     def __post_init__(self) -> None:
         if self.k < 1:

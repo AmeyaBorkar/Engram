@@ -237,6 +237,7 @@ class Memory:
         multi_query_n: int | None = None,
         decompose: bool | None = None,
         temporal: bool = False,
+        surface_conflicts: bool | None = None,
     ) -> list[RetrievalResult]:
         """Return up to `k` items most relevant to `query`, coarse-to-fine.
 
@@ -287,6 +288,10 @@ class Memory:
             an `as_of` anchor via the chat provider and pass it to
             the temporal-aware retrieve path. Explicit `as_of=...`
             overrides this; pass either, never both.
+          surface_conflicts: if True, expand the result list with the
+            OTHER side of any open conflicts on the surfaced items.
+            The agent sees both sides + can decide which to trust
+            rather than picking silently.
         """
         defaults = self._retrieve_params
         # Temporal scaffolding: when the caller didn't pass an explicit
@@ -316,6 +321,11 @@ class Memory:
             ),
             rrf_k=defaults.rrf_k,
             decompose=decompose if decompose is not None else defaults.decompose,
+            surface_conflicts=(
+                surface_conflicts
+                if surface_conflicts is not None
+                else defaults.surface_conflicts
+            ),
         )
         effective_reranker = reranker if reranker is not None else self._default_reranker
         # HyDE: transform the query into a hypothetical answer before
@@ -349,6 +359,8 @@ class Memory:
                 results = self._retriever.retrieve(
                     effective_query, params=params, reranker=effective_reranker
                 )
+            if params.surface_conflicts and results:
+                results = self._surface_conflict_siblings(results)
             elapsed_ms = (time.perf_counter() - t0) * 1000.0
             METRICS.retrieve_call(k=params.k)
             METRICS.retrieve_latency(elapsed_ms, k=params.k)
@@ -592,6 +604,55 @@ class Memory:
         if result is None:  # pragma: no cover - raced delete
             raise KeyError(procedure_id)
         return result
+
+    def _surface_conflict_siblings(
+        self,
+        results: list[RetrievalResult],
+    ) -> list[RetrievalResult]:
+        """Expand `results` with the OTHER side of any open conflicts.
+
+        For each surfaced memory item, look up open conflicts where it
+        participates as source or target. For each conflict, fetch the
+        OTHER side's memory item and add it to the result list with
+        the same score (so it sits adjacent in the ranked output and
+        the agent sees both versions). Skips items whose conflict
+        partner is invalidated -- the temporal-aware retrieve path
+        already filters those.
+
+        Deduplicates by (item_id) to avoid double-listing.
+        """
+        if not results:
+            return results
+        existing_ids: set[UUID] = {r.item_id for r in results}
+        sibling_results: list[RetrievalResult] = []
+        for r in results:
+            try:
+                conflicts = self._storage.list_conflicts(
+                    memory_item_id=r.item_id, status=ConflictStatus.OPEN
+                )
+            except (KeyError, RuntimeError):  # pragma: no cover - defensive
+                continue
+            for c in conflicts:
+                sibling_id = (
+                    c.target_item_id if c.source_item_id == r.item_id else c.source_item_id
+                )
+                if sibling_id in existing_ids:
+                    continue
+                sibling = self._storage.get_memory_item(sibling_id)
+                if sibling is None or sibling.invalidated_at is not None:
+                    continue
+                existing_ids.add(sibling_id)
+                sibling_results.append(
+                    RetrievalResult(
+                        item_id=sibling.id,
+                        level=sibling.level,
+                        content=sibling.content,
+                        confidence=r.confidence,
+                        score=r.score,
+                        supported_by=(),
+                    )
+                )
+        return [*results, *sibling_results]
 
     def _decomposed_retrieve(
         self,
