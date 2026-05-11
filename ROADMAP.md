@@ -221,20 +221,20 @@ A stage is "done" when its **Definition of Done** checks all pass. If a check is
 
 ---
 
-### Stage 8 — Contradiction and temporal reasoning  *(targets `v0.3.0`)*
+### Stage 8 — Contradiction and temporal reasoning  *(core complete; LoCoMo run + MERGE deferred to v0.3.1)*
 
 **Goal.** Engram knows when facts change and can answer "as of when?" queries.
 
 **Scope.**
-- Trust-weighted conflict resolution: weighted by provenance count, recency, and explicit `source.trust`.
-- Temporal segmentation: facts have validity windows ("X was true until 2025-03-12").
-- Explicit invalidation API.
-- `Memory.reconcile(memory_id, resolution=...)` matches the README.
+- Trust-weighted conflict resolution: weighted by recency (`PREFER_RECENT`), source trust (`PREFER_TRUSTED`), and corroboration count (`PREFER_FREQUENT`). ✓
+- Temporal segmentation: facts have validity windows (`valid_from` / `valid_until`). ✓
+- Explicit invalidation API (`Memory.reconcile` invalidates the loser; `storage.invalidate_memory_item` is idempotent and preserves the first timestamp). ✓
+- `Memory.reconcile(conflict_id, resolution=...)` shipping; the README signature uses `conflict_id` for precision (a memory item can have multiple open conflicts). ✓
 
 **Definition of done.**
-- Adversarial test suite: contradicting events do not silently overwrite; the conflict is observable and resolvable.
-- Temporal queries return historically-correct state.
-- **LoCoMo temporal split:** Engram beats the best public RAG-class number cited in `benchmarks/SCOREBOARD.md`. Manifest committed.
+- Adversarial test suite: contradicting events do not silently overwrite; the conflict is observable and resolvable. ✓ `benchmarks/suites/contradiction_temporal.py` -- 10-pair contradiction split scores **+100 pp lift** (engram 1.00 / baseline 0.00).
+- Temporal queries return historically-correct state. ✓ Same suite's 5-triple temporal split scores **100% accuracy** across 15 (item, snapshot) pairs.
+- **LoCoMo temporal split:** Engram beats the best public RAG-class number cited in `benchmarks/SCOREBOARD.md`. Manifest committed. *(Deferred to v0.3.1 -- harness scaffold lives at `benchmarks/suites/locomo.py`; real-LLM numbers need a paid provider run.)*
 
 ---
 
