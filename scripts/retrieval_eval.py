@@ -93,6 +93,13 @@ from benchmarks.suites.longmemeval import (  # noqa: E402
     _load_dataset,
     _parse_haystack_date,
 )
+from scripts._stats import (  # noqa: E402
+    bootstrap_mean_ci,
+    bootstrap_paired_diff_ci,
+    format_ci,
+    format_p,
+    mcnemar,
+)
 
 _LOG = logging.getLogger("engram.retrieval_eval")
 
@@ -382,6 +389,113 @@ def _aggregate(
     return out
 
 
+def _stats_section(
+    rows: list[_RunRow],
+    configs: list[str],
+    k_cutoffs: Sequence[int],
+) -> str:
+    """Bootstrap CIs + McNemar paired tests vs the first config (baseline).
+
+    First config in `configs` is treated as the baseline; every other
+    config gets a paired-diff CI on recall@k0 and a McNemar p-value on
+    hit@k0. The diff CI tells you the magnitude of the lift with
+    statistical bounds; McNemar tells you whether the pass/fail
+    pattern actually differs.
+    """
+    primary_k = k_cutoffs[0]
+    baseline = configs[0]
+    # Group rows by (qid, config)
+    by_qid_config: dict[tuple[str, str], _RunRow] = {}
+    for r in rows:
+        by_qid_config[(r.qid, r.config)] = r
+
+    # Collect aligned per-question metrics for each (baseline, candidate).
+    qids = sorted({r.qid for r in rows})
+    lines: list[str] = []
+    lines.append(
+        f"\n## Statistical significance vs `{baseline}` (overall, paired)\n"
+    )
+    lines.append(
+        f"| config | n | mean recall@{primary_k} (CI) | Δ recall (CI) | "
+        f"Δ multi-recall (CI) | McNemar hit@{primary_k} |"
+    )
+    lines.append("|---|---:|---|---|---|---|")
+    # Baseline row first.
+    base_recalls = [
+        by_qid_config[(q, baseline)].metrics.recall_at[primary_k]
+        for q in qids
+        if (q, baseline) in by_qid_config
+    ]
+    base_hits = [
+        int(by_qid_config[(q, baseline)].metrics.hit_at[primary_k])
+        for q in qids
+        if (q, baseline) in by_qid_config
+    ]
+    base_multi = [
+        by_qid_config[(q, baseline)].metrics.multi_recall_at[primary_k]
+        for q in qids
+        if (q, baseline) in by_qid_config
+    ]
+    base_ci = bootstrap_mean_ci(base_recalls)
+    lines.append(
+        f"| {baseline} | {base_ci.n_samples} | "
+        f"{format_ci(base_ci.mean, base_ci.ci_low, base_ci.ci_high)} | "
+        f"(baseline) | (baseline) | (baseline) |"
+    )
+    for c in configs[1:]:
+        cand_recalls: list[float] = []
+        cand_hits: list[int] = []
+        cand_multi: list[float] = []
+        b_recalls: list[float] = []
+        b_hits: list[int] = []
+        b_multi: list[float] = []
+        for q in qids:
+            br = by_qid_config.get((q, baseline))
+            cr = by_qid_config.get((q, c))
+            if br is None or cr is None:
+                continue
+            b_recalls.append(br.metrics.recall_at[primary_k])
+            cand_recalls.append(cr.metrics.recall_at[primary_k])
+            b_hits.append(int(br.metrics.hit_at[primary_k]))
+            cand_hits.append(int(cr.metrics.hit_at[primary_k]))
+            b_multi.append(br.metrics.multi_recall_at[primary_k])
+            cand_multi.append(cr.metrics.multi_recall_at[primary_k])
+        cand_ci = bootstrap_mean_ci(cand_recalls)
+        d_recall = bootstrap_paired_diff_ci(b_recalls, cand_recalls)
+        d_multi = bootstrap_paired_diff_ci(b_multi, cand_multi)
+        mcn = mcnemar(b_hits, cand_hits)
+        sig = "**" if d_recall.excludes_zero else ""
+        lines.append(
+            f"| {c} | {cand_ci.n_samples} | "
+            f"{format_ci(cand_ci.mean, cand_ci.ci_low, cand_ci.ci_high)} | "
+            f"{sig}{d_recall.diff:+.3f} [{d_recall.ci_low:+.3f}, {d_recall.ci_high:+.3f}]{sig} | "
+            f"{d_multi.diff:+.3f} [{d_multi.ci_low:+.3f}, {d_multi.ci_high:+.3f}] | "
+            f"{format_p(mcn.p_value)} (only_A={mcn.n_passes_only_a}, only_B={mcn.n_passes_only_b}) |"
+        )
+
+    # Failure mode listing: which qids broke at any non-baseline config.
+    lines.append(f"\n## Failure mode: questions broken by each config (hit@{primary_k}=0 where baseline=1)\n")
+    for c in configs[1:]:
+        broken: list[tuple[str, str]] = []
+        for q in qids:
+            br = by_qid_config.get((q, baseline))
+            cr = by_qid_config.get((q, c))
+            if br is None or cr is None:
+                continue
+            if int(br.metrics.hit_at[primary_k]) == 1 and int(cr.metrics.hit_at[primary_k]) == 0:
+                broken.append((q, br.qtype))
+        if not broken:
+            lines.append(f"### `{c}`: 0 questions broken vs baseline ✓\n")
+            continue
+        lines.append(f"### `{c}`: {len(broken)} questions broken vs baseline\n")
+        for qid, qtype in broken[:30]:
+            lines.append(f"  - `{qid[:12]}` ({qtype})")
+        if len(broken) > 30:
+            lines.append(f"  - ... and {len(broken) - 30} more")
+        lines.append("")
+    return "\n".join(lines)
+
+
 def _markdown(
     agg: dict[tuple[str, str], dict[str, float]],
     configs: list[str],
@@ -584,6 +698,7 @@ def main(argv: list[str] | None = None) -> int:
     _LOG.info("retrieval_eval: %d rows in %.1fs", len(rows), total_s)
 
     agg = _aggregate(rows, k_cutoffs)
+    stats_md = _stats_section(rows, config_names, k_cutoffs)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "config_args": vars(args) | {"output": str(args.output)},
@@ -615,6 +730,7 @@ def main(argv: list[str] | None = None) -> int:
     _LOG.info("wrote %s", args.output)
 
     print(_markdown(agg, config_names, k_cutoffs))
+    print(stats_md)
     return 0
 
 
