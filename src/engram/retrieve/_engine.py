@@ -103,7 +103,16 @@ class HierarchicalRetriever:
         *,
         params: RetrieveParams | None = None,
         reranker: Reranker | None = None,
+        rerank_query: str | None = None,
     ) -> list[RetrievalResult]:
+        """Retrieve top-k against `query`.
+
+        `rerank_query`, when given, is fed to the cross-encoder reranker
+        instead of `query`. The HyDE pipeline embeds against the
+        hypothetical answer but reranks against the user's original
+        question (per the HyDE paper). When `rerank_query` is None the
+        reranker sees `query`.
+        """
         p = params if params is not None else self._params
         query_vec = self._embedder.embed([query])[0]
         normalized = _normalize(query_vec)
@@ -118,7 +127,8 @@ class HierarchicalRetriever:
         if not candidates:
             return []
 
-        results = self._finalize(query, candidates, p, reranker)
+        rerank_q = rerank_query if rerank_query is not None else query
+        results = self._finalize(rerank_q, candidates, p, reranker)
         if p.reinforce_on_use and self._reinforce is not None:
             self._fire_reinforcement(results)
         return results

@@ -328,36 +328,47 @@ class Memory:
             ),
         )
         effective_reranker = reranker if reranker is not None else self._default_reranker
-        # HyDE: transform the query into a hypothetical answer before
-        # the retriever embeds it. Trades one chat call for retrieval
-        # precision; provider-level caches deduplicate repeats.
-        effective_query = query
-        if params.hyde and self._chat is not None:
-            effective_query = hyde_transform(query, self._chat)
         with span(
             "engram.memory.retrieve",
             k=params.k,
             prefer=params.prefer,
         ) as s:
             t0 = time.perf_counter()
-            # decompose is mutually exclusive with multi_query_n>=2;
-            # if both are set, decompose wins (it's the more specific
+            # decompose / multi-query receive the ORIGINAL question so
+            # sub-queries / paraphrases preserve user intent and the
+            # post-fusion reranker sees the original phrasing (per the
+            # HyDE paper -- rerank against the user's question, not the
+            # hypothetical answer). HyDE applies only on the base path
+            # below, where there's no decomposition/expansion to drive
+            # precision separately.
+            #
+            # decompose is mutually exclusive with multi_query_n>=2; if
+            # both are set, decompose wins (it's the more specific
             # multi-query case).
             if params.decompose and self._chat is not None:
                 results = self._decomposed_retrieve(
-                    effective_query,
+                    query,
                     params=params,
                     reranker=effective_reranker,
                 )
             elif params.multi_query_n >= 2 and self._chat is not None:
                 results = self._multi_query_retrieve(
-                    effective_query,
+                    query,
                     params=params,
                     reranker=effective_reranker,
                 )
             else:
+                # Base path: HyDE transforms the query into a hypothetical
+                # answer for embedding; the reranker still sees the
+                # user's original question via `rerank_query`.
+                effective_query = query
+                if params.hyde and self._chat is not None:
+                    effective_query = hyde_transform(query, self._chat)
                 results = self._retriever.retrieve(
-                    effective_query, params=params, reranker=effective_reranker
+                    effective_query,
+                    params=params,
+                    reranker=effective_reranker,
+                    rerank_query=query if effective_query is not query else None,
                 )
             if params.surface_conflicts and results:
                 results = self._surface_conflict_siblings(results)
@@ -735,6 +746,12 @@ class Memory:
         per_step_k: int | None = None,
         as_of: datetime | None = None,
         reinforce: bool = False,
+        hyde: bool | None = None,
+        multi_query_n: int | None = None,
+        decompose: bool | None = None,
+        temporal: bool = False,
+        surface_conflicts: bool | None = None,
+        reranker: Reranker | None = None,
     ) -> list[RetrievalResult]:
         """Multi-step retrieve with LLM-driven query refinement.
 
@@ -750,10 +767,24 @@ class Memory:
         by score descending, sliced to `k`.
 
         Requires a chat provider. Falls back to one-shot retrieve if
-        chat is None.
+        chat is None. Phase E flags (`hyde`, `multi_query_n`,
+        `decompose`, `temporal`, `surface_conflicts`, `reranker`) are
+        forwarded to each per-step `retrieve` so the iterative loop
+        composes with the rest of the retrieve surface.
         """
         if self._chat is None:
-            return self.retrieve(query, k=k, as_of=as_of, reinforce=reinforce)
+            return self.retrieve(
+                query,
+                k=k,
+                as_of=as_of,
+                reinforce=reinforce,
+                hyde=hyde,
+                multi_query_n=multi_query_n,
+                decompose=decompose,
+                temporal=temporal,
+                surface_conflicts=surface_conflicts,
+                reranker=reranker,
+            )
         if k < 1:
             raise ValueError(f"k must be >= 1, got {k}")
         if max_steps < 1:
@@ -769,6 +800,12 @@ class Memory:
                 k=leaf_k,
                 as_of=as_of,
                 reinforce=False,
+                hyde=hyde,
+                multi_query_n=multi_query_n,
+                decompose=decompose,
+                temporal=temporal,
+                surface_conflicts=surface_conflicts,
+                reranker=reranker,
             )
             for r in step_results:
                 if r.item_id not in seen_ids:
@@ -964,8 +1001,13 @@ class Memory:
         reinforce: bool | None = None,
         reranker: Reranker | None = None,
         as_of: datetime | None = None,
+        hyde: bool | None = None,
+        multi_query_n: int | None = None,
+        decompose: bool | None = None,
+        temporal: bool = False,
+        surface_conflicts: bool | None = None,
     ) -> list[RetrievalResult]:
-        """Async version of `retrieve`."""
+        """Async version of `retrieve`. Mirrors every Phase E flag."""
         return await asyncio.to_thread(
             lambda: self.retrieve(
                 query,
@@ -977,6 +1019,11 @@ class Memory:
                 reinforce=reinforce,
                 reranker=reranker,
                 as_of=as_of,
+                hyde=hyde,
+                multi_query_n=multi_query_n,
+                decompose=decompose,
+                temporal=temporal,
+                surface_conflicts=surface_conflicts,
             )
         )
 
@@ -1149,11 +1196,6 @@ class Memory:
         if metadata:
             merged_metadata.update(metadata)
 
-        # Drop the existing user-state and its embedding; we replace
-        # rather than mutate so the content+embedding stay coherent.
-        if existing is not None:
-            self._delete_memory_item(existing.id)
-
         item = MemoryItem(
             level=Level.GLOBAL,
             content=content,
@@ -1169,7 +1211,13 @@ class Memory:
             dim=self._embedder.dim,
             vector=tuple(normalized),
         )
+        # Delete the prior user-state and insert the replacement under
+        # one transaction. If the insert fails, the rollback restores
+        # the prior item -- without this, a transient embed/insert
+        # failure would leave the tenant with zero GLOBAL items.
         with self._storage.transaction():
+            if existing is not None:
+                self._delete_memory_item(existing.id)
             self._storage.insert_memory_item_with_provenance(
                 item,
                 event_ids,
