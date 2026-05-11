@@ -41,6 +41,12 @@ anthropic = ["anthropic>=0.40"]
 postgres = ["psycopg[binary]>=3.1"]
 duckdb = ["duckdb>=0.10"]
 sqlite-vec = ["sqlite-vec>=0.1.0"]
+reranker = [
+    # Tier 1 retrieval-precision uplift. Brings `sentence-transformers`
+    # for the BGE cross-encoder family (default
+    # BAAI/bge-reranker-v2-m3). ~500MB model download on first use.
+    "sentence-transformers>=2.7",
+]
 otel = [
     # Optional OpenTelemetry tracing/metrics. With this extra installed
     # and a configured TracerProvider/MeterProvider, every public Memory

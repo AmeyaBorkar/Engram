@@ -23,12 +23,23 @@ from __future__ import annotations
 
 from engram.retrieve._engine import HierarchicalRetriever
 from engram.retrieve._params import RetrieveParams, RetrievePrefer
-from engram.retrieve._reranker import FakeReranker, Reranker
+from engram.retrieve._reranker import FakeReranker, RerankCandidate, Reranker
 
 __all__ = [
     "FakeReranker",
     "HierarchicalRetriever",
+    "RerankCandidate",
     "Reranker",
     "RetrieveParams",
     "RetrievePrefer",
 ]
+
+
+def __getattr__(name: str) -> object:
+    """Lazy access for `BGEReranker` so the heavy sentence-transformers
+    import only happens when the user actually constructs one."""
+    if name == "BGEReranker":
+        from engram.retrieve._bge_reranker import BGEReranker as _BGEReranker
+
+        return _BGEReranker
+    raise AttributeError(f"module 'engram.retrieve' has no attribute {name!r}")
