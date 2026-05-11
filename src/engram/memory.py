@@ -236,7 +236,7 @@ class Memory:
         hyde: bool | None = None,
         multi_query_n: int | None = None,
         decompose: bool | None = None,
-        temporal: bool = False,
+        temporal: bool | None = None,
         surface_conflicts: bool | None = None,
     ) -> list[RetrievalResult]:
         """Return up to `k` items most relevant to `query`, coarse-to-fine.
@@ -297,8 +297,9 @@ class Memory:
         # Temporal scaffolding: when the caller didn't pass an explicit
         # as_of AND temporal=True is set, compute one via the chat
         # provider. Cheap regex gates the chat call.
+        effective_temporal = temporal if temporal is not None else defaults.temporal
         effective_as_of = as_of
-        if effective_as_of is None and temporal and self._chat is not None:
+        if effective_as_of is None and effective_temporal and self._chat is not None:
             effective_as_of = compute_temporal_anchor(
                 query, self._chat, now=self._clock()
             )
@@ -326,6 +327,7 @@ class Memory:
                 if surface_conflicts is not None
                 else defaults.surface_conflicts
             ),
+            temporal=effective_temporal,
         )
         effective_reranker = reranker if reranker is not None else self._default_reranker
         with span(
@@ -749,7 +751,7 @@ class Memory:
         hyde: bool | None = None,
         multi_query_n: int | None = None,
         decompose: bool | None = None,
-        temporal: bool = False,
+        temporal: bool | None = None,
         surface_conflicts: bool | None = None,
         reranker: Reranker | None = None,
     ) -> list[RetrievalResult]:
@@ -1004,7 +1006,7 @@ class Memory:
         hyde: bool | None = None,
         multi_query_n: int | None = None,
         decompose: bool | None = None,
-        temporal: bool = False,
+        temporal: bool | None = None,
         surface_conflicts: bool | None = None,
     ) -> list[RetrievalResult]:
         """Async version of `retrieve`. Mirrors every Phase E flag."""

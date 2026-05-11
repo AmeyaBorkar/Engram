@@ -71,6 +71,7 @@ class RetrieveParams:
     rrf_k: int = 60
     decompose: bool = False
     surface_conflicts: bool = False
+    temporal: bool = False
 
     def __post_init__(self) -> None:
         if self.k < 1:
