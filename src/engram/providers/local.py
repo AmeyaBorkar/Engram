@@ -16,12 +16,19 @@ dot product in storage.
 First call to `embed` triggers model download into the HuggingFace
 cache (default `~/.cache/huggingface/hub/`). For `BAAI/bge-large-en-v1.5`
 that's roughly 1.3 GiB on disk; the download happens once.
+
+`dtype="auto"` (default) loads in fp16 when CUDA is the resolved
+device, fp32 otherwise. fp16 halves the VRAM footprint and the
+embedding noise is negligible after L2-normalization + cross-encoder
+rerank. Override via `dtype="float32"` if you want full precision on
+GPU (e.g. for determinism / regression-locking a numeric baseline).
 """
 
 from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
+from typing import Literal
 
 try:
     from sentence_transformers import SentenceTransformer as _SentenceTransformer
@@ -32,6 +39,24 @@ except ImportError as _exc:  # pragma: no cover
     ) from _exc
 
 _LOG = logging.getLogger("engram.providers.local")
+
+DType = Literal["auto", "float16", "float32"]
+
+
+def _resolve_dtype(requested: DType, actual_device: str) -> str:
+    """Pick the concrete dtype, given the user request + actual device.
+
+    `auto` -> fp16 on CUDA, fp32 elsewhere. CPU fp16 is supported but
+    rarely worth the precision loss since CPU is already the bottleneck.
+    """
+    if requested == "float16":
+        return "float16"
+    if requested == "float32":
+        return "float32"
+    # auto:
+    if actual_device.lower().startswith("cuda"):
+        return "float16"
+    return "float32"
 
 
 # Top embedders ranked roughly by MTEB retrieval score. Pick by the
@@ -130,6 +155,7 @@ class LocalEmbedder:
         batch_size: int = 64,
         dim: int | None = None,
         normalize: bool = True,
+        dtype: DType = "auto",
     ) -> None:
         chosen_device = device if device is not None else _detect_device()
         self._st = _SentenceTransformer(model, device=chosen_device)
@@ -137,6 +163,10 @@ class LocalEmbedder:
         self._device = chosen_device
         self._batch_size = batch_size
         self._normalize = normalize
+        resolved_dtype = _resolve_dtype(dtype, chosen_device)
+        self._dtype = resolved_dtype
+        if resolved_dtype == "float16":
+            self._st.half()
         native_dim = int(self._st.get_sentence_embedding_dimension() or 0)
         if dim is not None and dim != native_dim:
             raise ValueError(f"requested dim={dim} does not match model native dim={native_dim}")
@@ -151,11 +181,12 @@ class LocalEmbedder:
             )
         else:
             _LOG.info(
-                "LocalEmbedder ready: model=%s device=%s dim=%d batch=%d",
+                "LocalEmbedder ready: model=%s device=%s dim=%d batch=%d dtype=%s",
                 model,
                 chosen_device,
                 native_dim,
                 batch_size,
+                resolved_dtype,
             )
 
     def embed(self, texts: Sequence[str]) -> list[list[float]]:
@@ -178,8 +209,11 @@ class LocalEmbedder:
 
     def manifest_hash(self) -> str:
         norm = "norm" if self._normalize else "raw"
-        # Device flows into the hash so a CPU run and a CUDA run of the
-        # same model land in distinct manifest rows -- helpful when the
-        # determinism floor between the two differs (mixed precision,
-        # cuBLAS reductions, ...).
-        return f"local-embed/{self.model}/dim={self.dim}/{norm}/device={self._device}/v1"
+        # Device + dtype flow into the hash so a CPU run, a CUDA-fp16
+        # run, and a CUDA-fp32 run of the same model land in distinct
+        # manifest rows -- helpful when the determinism floor between
+        # the three differs (mixed precision, cuBLAS reductions, ...).
+        return (
+            f"local-embed/{self.model}/dim={self.dim}/{norm}/"
+            f"device={self._device}/dtype={self._dtype}/v2"
+        )

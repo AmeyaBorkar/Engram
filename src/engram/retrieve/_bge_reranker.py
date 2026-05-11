@@ -12,6 +12,11 @@ forward passes -- a few hundred ms on CPU, tens of ms on GPU. Stage
 6's perf budget at 100k items leaves us ~50x headroom, so the
 reranker fits comfortably.
 
+`dtype="auto"` (default) loads in fp16 on CUDA, fp32 on CPU. fp16
+halves the model VRAM footprint (BGE-reranker-v2-m3: ~2.3 GB fp32 ->
+~1.1 GB fp16) so a 12 GB GPU can host the reranker alongside a
+1.5 B-param embedder (stella) without OOM.
+
 Lazy import: `sentence-transformers` only imports inside the BGE
 adapter's `__init__`. Users who don't install the `[reranker]` extra
 can still `import engram.retrieve` -- they just can't construct a
@@ -21,7 +26,7 @@ can still `import engram.retrieve` -- they just can't construct a
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from engram.retrieve._reranker import RerankCandidate
 
@@ -29,6 +34,18 @@ if TYPE_CHECKING:  # pragma: no cover - import-only for typing
     pass
 
 DEFAULT_MODEL = "BAAI/bge-reranker-v2-m3"
+
+DType = Literal["auto", "float16", "float32"]
+
+
+def _resolve_dtype(requested: DType, actual_device: str) -> str:
+    if requested == "float16":
+        return "float16"
+    if requested == "float32":
+        return "float32"
+    if actual_device.lower().startswith("cuda"):
+        return "float16"
+    return "float32"
 
 
 class BGEReranker:
@@ -43,6 +60,9 @@ class BGEReranker:
         Default 512 fits comfortably in BGE-reranker-v2-m3's context.
       batch_size: cross-encoder forward batch size. CPU defaults to
         16; GPU defaults to 64 for throughput.
+      dtype: `"auto"` (default) loads fp16 on CUDA, fp32 elsewhere.
+        Force `"float32"` if you need bitwise reproducibility against
+        a previously-recorded baseline.
     """
 
     def __init__(
@@ -52,6 +72,7 @@ class BGEReranker:
         device: str | None = None,
         max_length: int = 512,
         batch_size: int | None = None,
+        dtype: DType = "auto",
     ) -> None:
         try:
             from sentence_transformers import CrossEncoder
@@ -68,6 +89,11 @@ class BGEReranker:
             batch_size if batch_size is not None else self._default_batch_size(device)
         )
         self._model: Any = CrossEncoder(model, max_length=max_length, device=device)
+        resolved_dtype = _resolve_dtype(dtype, device or "cpu")
+        self._dtype = resolved_dtype
+        if resolved_dtype == "float16":
+            # CrossEncoder exposes the underlying HF model at .model.
+            self._model.model.half()
 
     @staticmethod
     def _default_batch_size(device: str | None) -> int:

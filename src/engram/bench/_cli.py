@@ -131,6 +131,18 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     run.add_argument(
+        "--dtype",
+        default="auto",
+        choices=("auto", "fp16", "fp32"),
+        help=(
+            "Numeric precision for local embedder + BGE reranker. `auto` "
+            "(default) uses fp16 on CUDA, fp32 elsewhere. fp16 halves "
+            "VRAM (essential for 12 GB cards running stella + reranker "
+            "concurrently). `fp32` forces full precision if you need to "
+            "reproduce a baseline bit-exactly."
+        ),
+    )
+    run.add_argument(
         "--chat-model",
         default=None,
         help=(
@@ -301,12 +313,16 @@ def _resolve_provider(args: argparse.Namespace) -> Provider:
     chat = args.chat or "fake"
     if embedder == "fake" and chat == "fake":
         return FakeProvider()
+    # CLI uses "fp16"/"fp32" as shorthand; the embedder accepts the
+    # full names so map here.
+    dtype_map = {"auto": "auto", "fp16": "float16", "fp32": "float32"}
     return build_provider(
         embedder_name=embedder,
         chat_name=chat,
         embed_model=args.embed_model,
         embed_dim=args.embed_dim,
         embed_device=args.embed_device,
+        embed_dtype=dtype_map[args.dtype],
         chat_model=args.chat_model,
     )
 
@@ -340,9 +356,12 @@ def _resolve_suite_config(args: argparse.Namespace) -> dict[str, Any]:
     if args.reranker and args.reranker != "none":
         from engram.retrieve._bge_reranker import BGEReranker
 
+        dtype_map = {"auto": "auto", "fp16": "float16", "fp32": "float32"}
         if args.reranker == "bge":
             cfg["reranker"] = BGEReranker(
-                model=args.reranker_model or "BAAI/bge-reranker-v2-m3"
+                model=args.reranker_model or "BAAI/bge-reranker-v2-m3",
+                device=args.embed_device,
+                dtype=dtype_map[args.dtype],  # type: ignore[arg-type]
             )
         else:  # pragma: no cover - argparse choices already filter
             raise ValueError(f"unknown reranker: {args.reranker!r}")
