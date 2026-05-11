@@ -7,9 +7,10 @@ import logging
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
 from engram.bench._provider import FakeProvider, Provider
-from engram.bench._real_provider import build_provider
+from engram.bench._real_provider import build_chat, build_provider
 from engram.bench._runner import run as run_suite
 
 
@@ -150,6 +151,108 @@ def build_parser() -> argparse.ArgumentParser:
             "(LONGMEMEVAL_MAX_QUESTIONS, etc)."
         ),
     )
+    run.add_argument(
+        "--k",
+        type=int,
+        default=None,
+        help="Override retrieval top-k for suites that respect it (e.g. longmemeval).",
+    )
+    run.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Random seed for reproducibility (suites that respect it).",
+    )
+
+    # --- Phase E retrieve flags (per-question on suites that wire them).
+    run.add_argument("--hyde", action="store_true", help="Enable HyDE query transform.")
+    run.add_argument(
+        "--multi-query-n",
+        type=int,
+        default=1,
+        help="Expand the query into N variants and fuse via RRF (1=off).",
+    )
+    run.add_argument(
+        "--decompose",
+        action="store_true",
+        help="Decompose multi-hop queries into sub-questions and fuse via RRF.",
+    )
+    run.add_argument(
+        "--temporal",
+        action="store_true",
+        help="Auto-anchor as_of= from the question via the chat provider.",
+    )
+    run.add_argument(
+        "--surface-conflicts",
+        action="store_true",
+        help="Append the OTHER side of any open conflicts to the retrieved set.",
+    )
+    run.add_argument(
+        "--reranker",
+        default=None,
+        choices=("bge", "none"),
+        help="Cross-encoder reranker. 'bge' uses BAAI/bge-reranker-v2-m3.",
+    )
+    run.add_argument(
+        "--reranker-model",
+        default=None,
+        help="Override the reranker model id (e.g. BAAI/bge-reranker-v2-m3).",
+    )
+
+    # --- Phase E agent flags (engage EngramAgent when any is set).
+    run.add_argument(
+        "--cot",
+        action="store_true",
+        help="Chain-of-thought system instruction for the answer step.",
+    )
+    run.add_argument(
+        "--self-consistency-n",
+        type=int,
+        default=1,
+        help="Draw N samples and vote (1=off). Requires a stochastic chat provider.",
+    )
+    run.add_argument(
+        "--verify",
+        action="store_true",
+        help="Run a verification pass on the answer; retry on unsupported.",
+    )
+    run.add_argument(
+        "--verify-max-retries",
+        type=int,
+        default=1,
+        help="Bound on the verify-driven retry loop (default 1).",
+    )
+
+    # --- Secondary chat slots (consolidate, judge).
+    run.add_argument(
+        "--consolidate-chat",
+        default=None,
+        choices=("fake", "openai", "anthropic", "moonshot", "opencode-zen", "opencode-go"),
+        help=(
+            "Separate chat provider for the irreversible consolidation step "
+            "(abstraction + reconciliation). Falls back to --chat when omitted."
+        ),
+    )
+    run.add_argument(
+        "--consolidate-chat-model",
+        default=None,
+        help="Model name for --consolidate-chat.",
+    )
+    run.add_argument(
+        "--judge-chat",
+        default=None,
+        choices=("fake", "openai", "anthropic", "moonshot", "opencode-zen", "opencode-go"),
+        help=(
+            "Separate chat provider for the LongMemEval judge. Falls back to "
+            "--chat when omitted. Use an independent model to avoid "
+            "self-preference bias."
+        ),
+    )
+    run.add_argument(
+        "--judge-chat-model",
+        default=None,
+        help="Model name for --judge-chat.",
+    )
 
     return parser
 
@@ -178,6 +281,57 @@ def _resolve_provider(args: argparse.Namespace) -> Provider:
     )
 
 
+def _resolve_suite_config(args: argparse.Namespace) -> dict[str, Any]:
+    """Translate CLI flags into a suite-config dict.
+
+    The runner forwards this to the suite's `configure(**cfg)` method
+    when one exists. Suites that don't implement `configure` ignore it;
+    suites that do (longmemeval at minimum) pick up the Phase E knobs.
+
+    Secondary chat providers (`consolidate_chat`, `judge_chat`) are
+    pre-built here so the suite never has to know about the provider
+    catalog -- it just receives ChatProvider instances.
+    """
+    cfg: dict[str, Any] = {}
+    if args.k is not None:
+        cfg["k"] = args.k
+    if args.seed is not None:
+        cfg["seed"] = args.seed
+    if args.hyde:
+        cfg["hyde"] = True
+    if args.multi_query_n and args.multi_query_n > 1:
+        cfg["multi_query_n"] = args.multi_query_n
+    if args.decompose:
+        cfg["decompose"] = True
+    if args.temporal:
+        cfg["temporal"] = True
+    if args.surface_conflicts:
+        cfg["surface_conflicts"] = True
+    if args.reranker and args.reranker != "none":
+        from engram.retrieve._bge_reranker import BGEReranker
+
+        if args.reranker == "bge":
+            cfg["reranker"] = BGEReranker(
+                model=args.reranker_model or "BAAI/bge-reranker-v2-m3"
+            )
+        else:  # pragma: no cover - argparse choices already filter
+            raise ValueError(f"unknown reranker: {args.reranker!r}")
+    if args.cot:
+        cfg["cot"] = True
+    if args.self_consistency_n and args.self_consistency_n > 1:
+        cfg["self_consistency_n"] = args.self_consistency_n
+    if args.verify:
+        cfg["verify"] = True
+        cfg["verify_max_retries"] = args.verify_max_retries
+    if args.consolidate_chat:
+        cfg["consolidate_chat"] = build_chat(
+            args.consolidate_chat, args.consolidate_chat_model
+        )
+    if args.judge_chat:
+        cfg["judge_chat"] = build_chat(args.judge_chat, args.judge_chat_model)
+    return cfg
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -197,7 +351,13 @@ def main(argv: list[str] | None = None) -> int:
             print(f"--limit {args.limit} applied", file=sys.stderr)
         try:
             provider = _resolve_provider(args)
-            manifest_path = run_suite(args.suite, provider=provider, runs_dir=args.runs_dir)
+            suite_config = _resolve_suite_config(args)
+            manifest_path = run_suite(
+                args.suite,
+                provider=provider,
+                runs_dir=args.runs_dir,
+                suite_config=suite_config,
+            )
         except (ValueError, TypeError, RuntimeError) as exc:
             print(f"error: {exc}", file=sys.stderr)
             return 2

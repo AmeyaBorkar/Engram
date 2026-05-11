@@ -193,6 +193,20 @@ _EMBEDDER_BUILDERS: dict[str, Any] = {
 }
 
 
+def build_chat(name: str, model: str | None = None) -> ChatProvider:
+    """Construct a standalone chat provider by name.
+
+    Same chat catalog as `build_provider`, but returns the chat
+    provider alone -- useful for the bench's secondary chat slots
+    (`consolidate_chat`, `judge_chat`) where the embedder side is
+    irrelevant.
+    """
+    if name not in _CHAT_BUILDERS:
+        raise ValueError(f"unknown chat {name!r}; choose from {sorted(_CHAT_BUILDERS)}")
+    chat: ChatProvider = _CHAT_BUILDERS[name](model)
+    return chat
+
+
 def build_provider(
     *,
     embedder_name: str = "fake",

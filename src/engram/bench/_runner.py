@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 from pathlib import Path
+from typing import Any
 
 from engram.bench._manifest import Manifest, manifest_from_run
 from engram.bench._provider import Provider
@@ -46,12 +47,28 @@ def load_suite(name: str) -> Suite:
     ) from last_error
 
 
-def run(suite_name: str, *, provider: Provider, runs_dir: Path) -> Path:
+def run(
+    suite_name: str,
+    *,
+    provider: Provider,
+    runs_dir: Path,
+    suite_config: dict[str, Any] | None = None,
+) -> Path:
     """Run `suite_name` against `provider`, writing a manifest to `runs_dir`.
+
+    `suite_config`, when given, is forwarded to the suite's optional
+    `configure(**cfg)` method before `setup`. Suites that don't expose
+    `configure` silently ignore it; suites that do (e.g. longmemeval)
+    pick up the Phase E knobs without the loader knowing about them.
 
     Returns the manifest path.
     """
     suite = load_suite(suite_name)
+
+    if suite_config:
+        configure = getattr(suite, "configure", None)
+        if configure is not None:
+            configure(**suite_config)
 
     suite.setup(provider)
     try:

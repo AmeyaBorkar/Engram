@@ -60,7 +60,12 @@ from typing import Any
 
 from engram import Memory, SqliteStorage
 from engram.bench import Provider, SuiteResult
+from engram.integrations._agent import _majority_vote, _strip_cot
+from engram.integrations._verify import verify_answer
 from engram.providers._message import Message
+from engram.providers._protocols import ChatProvider
+from engram.retrieve._params import RetrieveParams
+from engram.retrieve._reranker import Reranker
 from engram.schemas import Embedding, Event, ItemKind
 
 _LOG = logging.getLogger("engram.bench.longmemeval")
@@ -298,6 +303,64 @@ class LongMemEvalSuite:
             int(env_max) if env_max else (max_questions if max_questions is not None else None)
         )
         self._provider: Provider | None = None
+        # Phase E knobs -- populated via `configure(**)` from the bench CLI.
+        self._hyde: bool = False
+        self._multi_query_n: int = 1
+        self._decompose: bool = False
+        self._temporal: bool = False
+        self._surface_conflicts: bool = False
+        self._reranker: Reranker | None = None
+        self._cot: bool = False
+        self._self_consistency_n: int = 1
+        self._verify: bool = False
+        self._verify_max_retries: int = 1
+        self._consolidate_chat: ChatProvider | None = None
+        self._judge_chat: ChatProvider | None = None
+        self._seed: int | None = None
+
+    def configure(
+        self,
+        *,
+        k: int | None = None,
+        seed: int | None = None,
+        hyde: bool = False,
+        multi_query_n: int = 1,
+        decompose: bool = False,
+        temporal: bool = False,
+        surface_conflicts: bool = False,
+        reranker: Reranker | None = None,
+        cot: bool = False,
+        self_consistency_n: int = 1,
+        verify: bool = False,
+        verify_max_retries: int = 1,
+        consolidate_chat: ChatProvider | None = None,
+        judge_chat: ChatProvider | None = None,
+    ) -> None:
+        """Wire Phase E knobs from the CLI into the suite.
+
+        Called by `bench._runner.run` before `setup`. Every knob is
+        opt-in; defaults reproduce the v0.1.0 baseline path so the
+        suite stays bit-identical when no flags are passed.
+        """
+        if k is not None:
+            self._k = k
+        self._seed = seed
+        if seed is not None:
+            import random
+
+            random.seed(seed)
+        self._hyde = hyde
+        self._multi_query_n = multi_query_n
+        self._decompose = decompose
+        self._temporal = temporal
+        self._surface_conflicts = surface_conflicts
+        self._reranker = reranker
+        self._cot = cot
+        self._self_consistency_n = self_consistency_n
+        self._verify = verify
+        self._verify_max_retries = verify_max_retries
+        self._consolidate_chat = consolidate_chat
+        self._judge_chat = judge_chat
 
     def setup(self, provider: Provider) -> None:
         self._provider = provider
@@ -347,24 +410,48 @@ class LongMemEvalSuite:
             self._max if self._max is not None else "none",
         )
 
+        # Pre-build the per-question RetrieveParams: Phase E flags only
+        # have effect if Memory's defaults (or the per-call kwargs) say
+        # so. Storing the params once outside the question loop keeps
+        # the construction allocation-light.
+        default_retrieve_params = RetrieveParams(
+            k=self._k,
+            hyde=self._hyde,
+            multi_query_n=self._multi_query_n,
+            decompose=self._decompose,
+            temporal=self._temporal,
+            surface_conflicts=self._surface_conflicts,
+        )
+        judge_chat = self._judge_chat if self._judge_chat is not None else chat
         for q_idx, q in enumerate(questions):
             storage = SqliteStorage(":memory:")
             storage.initialize()
             try:
-                memory = Memory(storage=storage, embedder=embedder, chat=chat)
+                memory = Memory(
+                    storage=storage,
+                    embedder=embedder,
+                    chat=chat,
+                    consolidate_chat=self._consolidate_chat,
+                    retrieve_params=default_retrieve_params,
+                    reranker=self._reranker,
+                )
                 t_ingest = time.perf_counter()
                 turns = _ingest_haystack(memory, q)
                 ingest_ms = (time.perf_counter() - t_ingest) * 1000.0
 
                 t0 = time.perf_counter()
+                # Per-call kwargs pick up Memory's defaults set above.
+                # Explicit reinforce=False keeps decay state unperturbed
+                # so a re-run of the same suite is bit-identical.
                 results = memory.retrieve(q.question, k=self._k, reinforce=False)
                 retrieve_ms.append((time.perf_counter() - t0) * 1000.0)
 
                 memory_text = _format_memory(results)
 
                 t0 = time.perf_counter()
-                response = _generate_answer(
-                    chat,
+                response = self._answer_with_phase_e(
+                    chat=chat,
+                    memory=memory,
                     memory_text=memory_text,
                     question=q.question,
                     question_date=q.question_date,
@@ -373,7 +460,11 @@ class LongMemEvalSuite:
 
                 t0 = time.perf_counter()
                 correct = _judge(
-                    chat, qtype=q.qtype, question=q.question, gold=q.gold, response=response
+                    judge_chat,
+                    qtype=q.qtype,
+                    question=q.question,
+                    gold=q.gold,
+                    response=response,
                 )
                 judge_ms.append((time.perf_counter() - t0) * 1000.0)
 
@@ -433,6 +524,79 @@ class LongMemEvalSuite:
                 "judge": judge_ms,
             },
         )
+
+    def _answer_with_phase_e(
+        self,
+        *,
+        chat: Any,
+        memory: Memory,
+        memory_text: str,
+        question: str,
+        question_date: str,
+    ) -> str:
+        """Answer step with optional CoT / self-consistency / verify.
+
+        When every Phase E agent flag is at its default, this collapses
+        to a single `_generate_answer` call -- bit-identical to the
+        v0.1.0 path. Each opt-in adds work in this fixed order:
+
+          * `cot`: append a CoT instruction to the answer prompt and
+            strip the reasoning prefix from the reply.
+          * `self_consistency_n>=2`: take N samples and majority-vote
+            (over the post-CoT-strip answer when `cot` is on).
+          * `verify`: re-run the verifier; on unsupported, re-retrieve
+            and re-answer up to `verify_max_retries` times.
+        """
+        base_prompt = _read_prompt("answer").format(
+            memory=memory_text,
+            question=question,
+            question_date=question_date or "(date unknown)",
+        )
+        cot_suffix = (
+            "\n\nFirst think step-by-step about which memories are "
+            "relevant. Then write 'Answer:' on a new line followed by "
+            "the final answer only."
+            if self._cot
+            else ""
+        )
+
+        def _one_call(prompt_text: str) -> str:
+            raw: str = chat.chat([Message(role="user", content=prompt_text)])
+            return _strip_cot(raw) if self._cot else raw
+
+        prompt = base_prompt + cot_suffix
+        if self._self_consistency_n >= 2:
+            samples = tuple(_one_call(prompt) for _ in range(self._self_consistency_n))
+            response = _majority_vote(samples)
+        else:
+            response = _one_call(prompt)
+
+        if self._verify:
+            current_memory_text = memory_text
+            for attempt in range(self._verify_max_retries + 1):
+                verdict = verify_answer(
+                    question=question,
+                    context=current_memory_text,
+                    answer=response,
+                    chat=chat,
+                    max_retries=0,
+                )
+                if verdict.supported or attempt == self._verify_max_retries:
+                    break
+                # Re-retrieve (Memory may have updated state between
+                # turns) and re-answer. Same retrieve config as the
+                # first attempt; ReAct-style refinement is the
+                # `retrieve_iterative` job, not the verifier's.
+                fresh = memory.retrieve(question, k=self._k, reinforce=False)
+                current_memory_text = _format_memory(fresh)
+                fresh_prompt = _read_prompt("answer").format(
+                    memory=current_memory_text,
+                    question=question,
+                    question_date=question_date or "(date unknown)",
+                ) + cot_suffix
+                response = _one_call(fresh_prompt)
+
+        return response
 
     def teardown(self) -> None:
         self._provider = None
