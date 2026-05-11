@@ -10,8 +10,8 @@ import pytest
 from engram import Memory, SqliteStorage
 from engram.consolidation import (
     CandidateRow,
-    Conflict,
     ContradictionParams,
+    DetectedConflict,
     JudgeResponse,
     Verdict,
     conflicts_to_metadata,
@@ -230,7 +230,7 @@ class TestContradictionParams:
 
 class TestConflictsToMetadata:
     def test_serializable_shape(self) -> None:
-        c = Conflict(candidate_id=new_id(), similarity=0.91, verdict=Verdict.CONTRADICT)
+        c = DetectedConflict(candidate_id=new_id(), similarity=0.91, verdict=Verdict.CONTRADICT)
         out = conflicts_to_metadata([c])
         assert isinstance(out, list)
         assert isinstance(out[0]["candidate_id"], str)

@@ -27,7 +27,6 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
-from enum import Enum
 from importlib import resources
 from typing import Any
 from uuid import UUID
@@ -37,16 +36,11 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 from engram.consolidation._abstraction import AbstractionParseError
 from engram.providers._message import Message
 from engram.providers._protocols import ChatProvider
+from engram.schemas import Verdict
 
 JUDGE_PROMPT_NAME = "judge"
 JUDGE_PROMPT_VERSION = "v1"
 JUDGE_PROMPT_FILENAME = f"{JUDGE_PROMPT_NAME}_{JUDGE_PROMPT_VERSION}.txt"
-
-
-class Verdict(str, Enum):
-    AGREE = "agree"
-    CONTRADICT = "contradict"
-    UNRELATED = "unrelated"
 
 
 class JudgeResponse(BaseModel):
@@ -90,8 +84,16 @@ class ContradictionParams:
 
 
 @dataclass(frozen=True, slots=True)
-class Conflict:
-    """One recorded conflict between a new abstraction and an existing one."""
+class DetectedConflict:
+    """One detector-output contradiction between a new abstraction and a candidate.
+
+    Transient -- the engine collects a list of these per consolidation
+    call and writes them to the new item's
+    `metadata["consolidation"]["conflicts"]`. Stage 8's first-class
+    `engram.schemas.Conflict` is the persistent storage entity that
+    survives reconciliation; `DetectedConflict` is the in-flight
+    detector record that gets persisted as a `Conflict` row.
+    """
 
     candidate_id: UUID
     similarity: float
@@ -177,7 +179,7 @@ def detect_contradictions(
     candidates: list[CandidateRow],
     chat: ChatProvider,
     params: ContradictionParams,
-) -> list[Conflict]:
+) -> list[DetectedConflict]:
     """Run the judge against each candidate; collect the contradictions.
 
     The vector-recall step is the engine's responsibility (it has the
@@ -187,7 +189,7 @@ def detect_contradictions(
     """
     if not params.enabled or not candidates:
         return []
-    out: list[Conflict] = []
+    out: list[DetectedConflict] = []
     for cand in candidates[: params.max_candidates]:
         verdict = judge(
             a=new_abstraction,
@@ -197,7 +199,7 @@ def detect_contradictions(
         )
         if verdict is Verdict.CONTRADICT:
             out.append(
-                Conflict(
+                DetectedConflict(
                     candidate_id=cand.item_id,
                     similarity=cand.similarity,
                     verdict=verdict,
@@ -206,7 +208,7 @@ def detect_contradictions(
     return out
 
 
-def conflicts_to_metadata(conflicts: list[Conflict]) -> list[dict[str, Any]]:
+def conflicts_to_metadata(conflicts: list[DetectedConflict]) -> list[dict[str, Any]]:
     """Stable JSON shape for `MemoryItem.metadata['consolidation']['conflicts']`."""
     return [
         {
@@ -236,8 +238,8 @@ def _inline(content: str) -> str:
 # Re-export for the engine.
 __all__ = [
     "CandidateRow",
-    "Conflict",
     "ContradictionParams",
+    "DetectedConflict",
     "JudgeResponse",
     "Verdict",
     "conflicts_to_metadata",

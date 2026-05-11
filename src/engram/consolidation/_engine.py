@@ -57,8 +57,8 @@ from engram.consolidation._clustering import (
 )
 from engram.consolidation._contradiction import (
     CandidateRow,
-    Conflict,
     ContradictionParams,
+    DetectedConflict,
     conflicts_to_metadata,
     detect_contradictions,
 )
@@ -345,7 +345,7 @@ class ConsolidationEngine:
         self,
         new_vec: Sequence[float],
         new_text: str,
-    ) -> list[Conflict]:
+    ) -> list[DetectedConflict]:
         cp = self._params.contradiction_params
         if not cp.enabled:
             return []
@@ -427,7 +427,7 @@ def _build_metadata(
     result: AbstractionResult,
     assignment: ClusterAssignment,
     request: AbstractionRequest,
-    conflicts: list[Conflict],
+    conflicts: list[DetectedConflict],
 ) -> dict[str, Any]:
     """Provenance/audit fields stored on each consolidated memory item."""
     return {

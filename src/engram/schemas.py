@@ -53,6 +53,56 @@ class Outcome(str, Enum):
     UNKNOWN = "unknown"
 
 
+class Verdict(str, Enum):
+    """LLM judge's classification of how two memory items relate.
+
+    Used by Stage 5's contradiction detector (`consolidation/_contradiction`)
+    and Stage 8's first-class `Conflict` storage entity. AGREE and
+    UNRELATED verdicts are not persisted as Conflicts; only CONTRADICT
+    rows show up in the conflicts table.
+    """
+
+    AGREE = "agree"
+    CONTRADICT = "contradict"
+    UNRELATED = "unrelated"
+
+
+class Resolution(str, Enum):
+    """How `Memory.reconcile` picked the winner of a `Conflict`.
+
+    The reconciler applies the policy at resolution time; the policy
+    name is persisted on the conflict row so audits can replay the
+    decision later.
+
+      * `PREFER_RECENT` - the more recently-created item wins.
+      * `PREFER_TRUSTED` - the item with the higher `source_trust` wins.
+      * `PREFER_FREQUENT` - the item with the higher corroboration count
+        (from decay state) wins.
+      * `KEEP_BOTH` - no winner; both items stay valid. The conflict is
+        still marked resolved so it stops surfacing on every audit pass.
+      * `MANUAL` - the caller specified the winner explicitly.
+    """
+
+    PREFER_RECENT = "prefer_recent"
+    PREFER_TRUSTED = "prefer_trusted"
+    PREFER_FREQUENT = "prefer_frequent"
+    KEEP_BOTH = "keep_both"
+    MANUAL = "manual"
+
+
+class ConflictStatus(str, Enum):
+    """Lifecycle stage of a `Conflict` row.
+
+      * `OPEN` - detected by consolidation; awaiting reconciliation.
+      * `RESOLVED` - the reconciler picked a winner (or chose
+        `KEEP_BOTH`); `resolution`, `resolved_winner_id`, and
+        `resolved_at` are filled in.
+    """
+
+    OPEN = "open"
+    RESOLVED = "resolved"
+
+
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -85,6 +135,19 @@ class MemoryItem(BaseModel):
     `level == "event"` means a literal recall of an event;
     `level == "summary"` is a cluster summary;
     `level == "abstraction"` is a generalization promoted from summaries.
+
+    Stage 8 layers temporal validity and explicit invalidation on top:
+
+      * `valid_from` / `valid_until`: the window during which the item
+        is "true." `valid_from` defaults to `created_at`; `valid_until`
+        is `None` for facts that are still current. The temporal-aware
+        retrieve path uses these to answer "as of when?" queries.
+      * `invalidated_at` / `invalidated_by`: set when `Memory.reconcile`
+        chooses the other side of a conflict; `invalidated_by` is the
+        winner's id. Invalidated items are excluded from default
+        retrieves but surface again with `as_of=` before invalidation.
+      * `source_trust`: in `[0, 1]`; denormalized from the `Source` that
+        introduced the item, used by `Resolution.PREFER_TRUSTED`.
     """
 
     model_config = ConfigDict(frozen=False)
@@ -97,6 +160,27 @@ class MemoryItem(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: datetime = Field(default_factory=_utcnow)
+    valid_from: datetime | None = None
+    valid_until: datetime | None = None
+    invalidated_at: datetime | None = None
+    invalidated_by: UUID | None = None
+    source_trust: float | None = Field(default=None, ge=0.0, le=1.0)
+
+    @model_validator(mode="after")
+    def _check_temporal_invariants(self) -> MemoryItem:
+        # valid_from defaults to created_at when callers omit it.
+        # frozen=False + default validate_assignment=False means direct
+        # assignment is safe here (no re-validation loop).
+        if self.valid_from is None:
+            self.valid_from = self.created_at
+        if self.valid_until is not None and self.valid_until < self.valid_from:
+            raise ValueError(
+                f"valid_until {self.valid_until.isoformat()} precedes "
+                f"valid_from {self.valid_from.isoformat()}"
+            )
+        if self.invalidated_by is not None and self.invalidated_at is None:
+            raise ValueError("invalidated_by set without invalidated_at")
+        return self
 
 
 class Procedure(BaseModel):
@@ -167,6 +251,90 @@ class Embedding(BaseModel):
             raise ValueError(
                 f"vector length {len(self.vector)} does not match declared dim {self.dim}"
             )
+        return self
+
+
+class Source(BaseModel):
+    """A named provenance source with a trust weight.
+
+    Stage 8 uses `source.trust` to break ties during conflict resolution
+    when the caller picks `Resolution.PREFER_TRUSTED`. The trust value
+    is denormalized onto `MemoryItem.source_trust` at write time so the
+    reconciler and the temporal retrieve path do not need to consult a
+    Source registry to do their work - the float on the row is the
+    authoritative copy.
+
+    The `name` is free-form (it could be a username, a tool name, a
+    URL) and matches the `Event.source` string when an event is the
+    proximate origin of a memory item. Sources are a *policy* concept,
+    not a storage entity in this stage; a future stage may introduce a
+    `sources` table once the use cases warrant it.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    name: str
+    trust: float = Field(ge=0.0, le=1.0)
+
+
+class Conflict(BaseModel):
+    """A detected contradiction between two `MemoryItem` rows.
+
+    Stage 5's contradiction detector creates one of these (status=OPEN)
+    when the LLM judge classifies a candidate pair as
+    `Verdict.CONTRADICT`. Stage 8's reconciler resolves them: it picks
+    a winner per the chosen `Resolution` policy, invalidates the loser
+    (sets `invalidated_at` + `invalidated_by` on the losing memory
+    item), and flips the conflict to status=RESOLVED.
+
+    Mutability: `frozen=False` because status, resolution,
+    resolved_winner_id, and resolved_at flip during reconciliation. The
+    storage row is the source of truth; in-memory copies are snapshots.
+    """
+
+    model_config = ConfigDict(frozen=False)
+
+    id: UUID = Field(default_factory=new_id)
+    source_item_id: UUID
+    target_item_id: UUID
+    similarity: float = Field(ge=-1.0, le=1.0)
+    verdict: Verdict = Verdict.CONTRADICT
+    status: ConflictStatus = ConflictStatus.OPEN
+    resolution: Resolution | None = None
+    resolved_winner_id: UUID | None = None
+    resolved_at: datetime | None = None
+    detected_at: datetime = Field(default_factory=_utcnow)
+
+    @model_validator(mode="after")
+    def _check_status_invariants(self) -> Conflict:
+        if self.source_item_id == self.target_item_id:
+            raise ValueError("source_item_id and target_item_id must differ")
+        if self.status is ConflictStatus.RESOLVED:
+            if self.resolution is None:
+                raise ValueError("resolved conflict requires a resolution")
+            if self.resolved_at is None:
+                raise ValueError("resolved conflict requires resolved_at")
+            if (
+                self.resolution is not Resolution.KEEP_BOTH
+                and self.resolved_winner_id is None
+            ):
+                raise ValueError(
+                    f"resolution={self.resolution.value} requires resolved_winner_id"
+                )
+            if self.resolved_winner_id is not None and self.resolved_winner_id not in (
+                self.source_item_id,
+                self.target_item_id,
+            ):
+                raise ValueError(
+                    "resolved_winner_id must equal source_item_id or target_item_id"
+                )
+        else:  # OPEN
+            if self.resolution is not None:
+                raise ValueError("open conflict must have no resolution")
+            if self.resolved_at is not None:
+                raise ValueError("open conflict must have no resolved_at")
+            if self.resolved_winner_id is not None:
+                raise ValueError("open conflict must have no resolved_winner_id")
         return self
 
 

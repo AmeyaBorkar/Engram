@@ -35,8 +35,8 @@ from engram.consolidation._clustering import (
 )
 from engram.consolidation._contradiction import (
     CandidateRow,
-    Conflict,
     ContradictionParams,
+    DetectedConflict,
     JudgeResponse,
     Verdict,
     conflicts_to_metadata,
@@ -62,11 +62,11 @@ __all__ = [
     "CandidateRow",
     "ClusterAssignment",
     "ClusterParams",
-    "Conflict",
     "ConsolidationEngine",
     "ConsolidationParams",
     "ConsolidationResult",
     "ContradictionParams",
+    "DetectedConflict",
     "JudgeResponse",
     "PromotionParams",
     "PromotionResult",

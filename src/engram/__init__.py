@@ -12,6 +12,8 @@ from engram.retrieve import (
 )
 from engram.schemas import (
     Cluster,
+    Conflict,
+    ConflictStatus,
     DecayState,
     Embedding,
     Event,
@@ -22,12 +24,17 @@ from engram.schemas import (
     Procedure,
     ProcedureMatch,
     ProvenanceLink,
+    Resolution,
     RetrievalResult,
+    Source,
+    Verdict,
 )
 from engram.storage import SqliteStorage, Storage, StorageStats, stats
 
 __all__ = [
     "Cluster",
+    "Conflict",
+    "ConflictStatus",
     "DecayParams",
     "DecayState",
     "Embedding",
@@ -43,12 +50,15 @@ __all__ = [
     "ProcedureMatch",
     "ProvenanceLink",
     "Reranker",
+    "Resolution",
     "RetrievalResult",
     "RetrieveParams",
     "RetrievePrefer",
+    "Source",
     "SqliteStorage",
     "Storage",
     "StorageStats",
+    "Verdict",
     "new_id",
     "stats",
 ]
