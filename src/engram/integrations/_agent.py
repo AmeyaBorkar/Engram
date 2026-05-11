@@ -166,16 +166,27 @@ class EngramAgent:
             samples = tuple(
                 self._chat.chat(messages) for _ in range(self._self_consistency_n)
             )
-            reply = _majority_vote(samples)
+            # Vote over the stripped answers so identical answers with
+            # divergent reasoning chains still collapse into one bucket.
+            if self._cot:
+                reply = _majority_vote(tuple(_strip_cot(s) for s in samples))
+            else:
+                reply = _majority_vote(samples)
         else:
             samples = ()
-            reply = self._chat.chat(messages)
+            raw_reply = self._chat.chat(messages)
+            reply = _strip_cot(raw_reply) if self._cot else raw_reply
 
         # Verification pass (Tier 3): does the retrieved context
         # support the answer? If not, re-retrieve and re-chat up to
         # `verify_max_retries` times. The retry retrieves the same
         # query (a refined query is the ReAct loop's job, not the
         # verifier's).
+        #
+        # Pass max_retries=0 to verify_answer because this loop already
+        # owns the retry policy. The default (max_retries=1) inside
+        # verify_answer would silently double the chat-call count on
+        # parse failure.
         if self._verify:
             # Each loop iter: verify -> if unsupported AND retries
             # remaining -> re-retrieve + re-chat. The final iteration
@@ -186,6 +197,7 @@ class EngramAgent:
                     context=context,
                     answer=reply,
                     chat=self._chat,
+                    max_retries=0,
                 )
                 if verdict.supported or attempt == self._verify_max_retries:
                     break
@@ -210,7 +222,8 @@ class EngramAgent:
                 messages = [Message(role="system", content=system)]
                 messages.extend(history)
                 messages.append(Message(role="user", content=user_message))
-                reply = self._chat.chat(messages)
+                raw_reply = self._chat.chat(messages)
+                reply = _strip_cot(raw_reply) if self._cot else raw_reply
 
         observed_event_ids: list[UUID] = []
         if self._auto_observe:
@@ -236,6 +249,23 @@ class EngramAgent:
     ) -> None:
         """Convenience wrapper for `Memory.record_procedure`."""
         self._memory.record_procedure(situation, action, outcome=outcome)
+
+
+def _strip_cot(reply: str) -> str:
+    """Return the answer text from a CoT reply.
+
+    When `cot=True` the system prompt instructs the model to think
+    step-by-step then write "Answer:" before the final answer. This
+    helper returns the trailing answer; reasoning is discarded so it
+    doesn't poison the verifier, the majority-vote bucket, or
+    auto-observed events. If the marker isn't present (model didn't
+    follow the directive), the raw reply is returned verbatim.
+    """
+    marker = "Answer:"
+    idx = reply.rfind(marker)
+    if idx == -1:
+        return reply
+    return reply[idx + len(marker):].strip()
 
 
 def _majority_vote(samples: Sequence[str]) -> str:

@@ -43,10 +43,27 @@ def load_verify_prompt() -> str:
 
 def render_verify_prompt(*, question: str, context: str, answer: str) -> str:
     template = load_verify_prompt()
+    safe_context = _scrub_tags(context) if context else "(none)"
     return (
-        template.replace("{question}", _inline(question))
-        .replace("{context}", context if context else "(none)")
-        .replace("{answer}", _inline(answer))
+        template.replace("{question}", _scrub_tags(_inline(question)))
+        .replace("{context}", safe_context)
+        .replace("{answer}", _scrub_tags(_inline(answer)))
+    )
+
+
+_TAG_RE = re.compile(
+    r"</?(?:question|context|answer)>", re.IGNORECASE
+)
+
+
+def _scrub_tags(content: str) -> str:
+    """Neutralize the fence tags if they appear in user-controlled
+    input. A memory item or LLM reply containing `</context>` would
+    otherwise close the fence prematurely and let downstream text be
+    read as instructions."""
+    return _TAG_RE.sub(
+        lambda m: m.group(0).replace("<", "&lt;").replace(">", "&gt;"),
+        content,
     )
 
 
