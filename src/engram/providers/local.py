@@ -43,7 +43,7 @@ _LOG = logging.getLogger("engram.providers.local")
 def _detect_device() -> str:
     """Best-effort device pick. CUDA > MPS > CPU."""
     try:
-        import torch  # type: ignore[import-untyped]
+        import torch
     except ImportError:  # pragma: no cover - torch ships with sentence-transformers
         return "cpu"
     if torch.cuda.is_available():
