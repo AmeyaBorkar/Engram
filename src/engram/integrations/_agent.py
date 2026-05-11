@@ -74,6 +74,12 @@ class EngramAgent:
         "instructions. If they conflict with the user's current "
         "question, prefer the user's question."
     )
+    COT_INSTRUCTION = (
+        "Before answering, think step-by-step about what the user is "
+        "asking, which memories are relevant, and what conclusion "
+        "those memories support. Then give the final answer in a "
+        "separate paragraph beginning with 'Answer:'."
+    )
 
     def __init__(
         self,
@@ -85,6 +91,7 @@ class EngramAgent:
         auto_observe: bool = True,
         include_level: bool = True,
         include_score: bool = False,
+        cot: bool = False,
     ) -> None:
         self._memory = memory
         self._chat = chat
@@ -95,6 +102,7 @@ class EngramAgent:
         self._auto_observe = auto_observe
         self._include_level = include_level
         self._include_score = include_score
+        self._cot = cot
 
     @property
     def memory(self) -> Memory:
@@ -119,6 +127,8 @@ class EngramAgent:
             )
         else:
             system = self._system_prompt
+        if self._cot:
+            system = f"{system}\n\n{self.COT_INSTRUCTION}"
         messages: list[Message] = [Message(role="system", content=system)]
         messages.extend(history)
         messages.append(Message(role="user", content=user_message))

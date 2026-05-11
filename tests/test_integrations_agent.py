@@ -146,6 +146,35 @@ class TestEngramAgentBasics:
         assert procs[0].outcome is Outcome.SUCCESS
 
 
+class TestEngramAgentCoT:
+    def test_cot_off_default(self, memory: Memory) -> None:
+        chat = FakeChat(default="Reply.")
+        agent = EngramAgent(memory, chat)
+        turn = agent.chat("hi")
+        assert "step-by-step" not in turn.system_prompt
+        assert "Answer:" not in turn.system_prompt
+
+    def test_cot_on_adds_instruction(self, memory: Memory) -> None:
+        chat = FakeChat(default="Reply.")
+        agent = EngramAgent(memory, chat, cot=True)
+        turn = agent.chat("hi")
+        assert "step-by-step" in turn.system_prompt
+        assert "Answer:" in turn.system_prompt
+
+    def test_cot_combines_with_memory_context(self, memory: Memory) -> None:
+        memory.observe("user has a dog")
+        chat = FakeChat(default="Reply.")
+        agent = EngramAgent(memory, chat, cot=True)
+        turn = agent.chat("user has a dog")
+        # Both blocks appear in the system prompt.
+        assert "Relevant memories:" in turn.system_prompt
+        assert "step-by-step" in turn.system_prompt
+        # CoT block follows the memories block.
+        assert turn.system_prompt.index("Relevant memories:") < turn.system_prompt.index(
+            "step-by-step"
+        )
+
+
 class TestEngramAgentWithMemoryContext:
     def test_context_appears_in_system_message(self, memory: Memory) -> None:
         # Plant a relevant memory item.
