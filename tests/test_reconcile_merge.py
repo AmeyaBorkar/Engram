@@ -359,6 +359,44 @@ def test_conflict_schema_allows_merge_without_winner() -> None:
     assert c.resolution is Resolution.MERGE
 
 
+def test_merge_orders_a_b_by_recency(storage: SqliteStorage) -> None:
+    """Reconciler always passes the older side as `a` and the newer as
+    `b` to the merge prompt, regardless of which side of the Conflict
+    was source vs target. Pins the uncovered branch."""
+    embedder = FakeEmbedder(dim=8)
+    # Older = source (reverse of the usual fixture pattern).
+    older = _seed_with_provenance(
+        storage, embedder, content="old", created_at=_utc(2026, 1, 1)
+    )
+    newer = _seed_with_provenance(
+        storage, embedder, content="new", created_at=_utc(2026, 4, 1)
+    )
+    # Source is the OLDER side here.
+    conflict = Conflict(
+        source_item_id=older.id, target_item_id=newer.id, similarity=0.95
+    )
+    storage.record_conflict(conflict)
+    # The prompt must receive (a=old, b=new) -- the script with that
+    # ordering must match. If the reconciler instead passed (a=new, b=old),
+    # the FakeChat would fall through to default and the test would still
+    # pass (with default merged content), so we use the scripted-and-
+    # check shape to pin ordering.
+    prompt = render_merge_prompt(a="old", b="new")
+    chat = FakeChat(
+        scripts={content_hash(prompt): json.dumps({"merged": "ordered-correctly"})}
+    )
+    reconciler = Reconciler(storage, embedder=embedder, chat=chat)
+    reconciler.reconcile(
+        conflict.id, resolution=Resolution.MERGE, now=_utc(2026, 5, 1)
+    )
+    older_fresh = storage.get_memory_item(older.id)
+    assert older_fresh is not None
+    assert older_fresh.invalidated_by is not None
+    merged = storage.get_memory_item(older_fresh.invalidated_by)
+    assert merged is not None
+    assert merged.content == "ordered-correctly"
+
+
 def test_uuid_round_trip(storage: SqliteStorage) -> None:
     """Smoke: the merged item's id round-trips through storage."""
     embedder = FakeEmbedder(dim=8)
