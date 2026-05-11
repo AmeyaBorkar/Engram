@@ -49,6 +49,19 @@ otel = [
     "opentelemetry-api>=1.20",
     "opentelemetry-sdk>=1.20",
 ]
+langgraph = [
+    # LangGraph adapter (engram.integrations.langgraph). Imports the
+    # framework lazily inside method bodies so the module loads without
+    # this extra installed -- it's only required when a node actually
+    # runs inside a `StateGraph`.
+    "langgraph>=0.2",
+]
+llamaindex = [
+    # LlamaIndex BaseMemory adapter. `engram.integrations.llamaindex`
+    # imports LlamaIndex types only in `as_chat_message()`, so the
+    # module loads with or without this extra.
+    "llama-index-core>=0.12",
+]
 consolidation = [
     # Stage 5 clustering. Pure-numpy agglomerative fallback ships in core;
     # production users install this extra to get the density-based path.
@@ -85,6 +98,9 @@ dev = [
     # OpenTelemetry for Stage 9 observability tests.
     "opentelemetry-api>=1.20",
     "opentelemetry-sdk>=1.20",
+    # Framework integrations (v0.2.1).
+    "langgraph>=0.2",
+    "llama-index-core>=0.12",
 ]
 
 [project.scripts]
