@@ -37,8 +37,9 @@ class EngramAgentTurn:
     """One round-trip through `EngramAgent.chat`.
 
     Carries the user message, the retrieved memory bullet list, the
-    constructed system prompt, the LLM reply, and the ids of any
-    events / procedures the agent recorded for this turn.
+    constructed system prompt, the LLM reply, the ids of any events
+    the agent recorded for this turn, and (for self-consistency runs)
+    the full list of samples that were drawn before voting.
     """
 
     user: str
@@ -46,6 +47,7 @@ class EngramAgentTurn:
     system_prompt: str
     reply: str
     observed_event_ids: tuple[UUID, ...]
+    samples: tuple[str, ...] = ()
 
 
 class EngramAgent:
@@ -66,6 +68,14 @@ class EngramAgent:
         observed as an event for future retrieval.
       include_level: tag each surfaced memory with its level.
       include_score: tag each surfaced memory with its score.
+      cot: prepend a chain-of-thought directive to the system prompt
+        (Tier 1 retrieval-precision uplift).
+      self_consistency_n: if >= 2, draw N samples from the chat
+        provider and vote on the most common reply. Provider must be
+        stochastic (temperature > 0) for the samples to differ; with
+        a deterministic provider this is just a wasted N-1 calls.
+        Voting: normalize (strip + lowercase), count occurrences,
+        return the most common; ties broken by first-seen.
     """
 
     DEFAULT_SYSTEM = (
@@ -92,7 +102,12 @@ class EngramAgent:
         include_level: bool = True,
         include_score: bool = False,
         cot: bool = False,
+        self_consistency_n: int = 1,
     ) -> None:
+        if self_consistency_n < 1:
+            raise ValueError(
+                f"self_consistency_n must be >= 1, got {self_consistency_n}"
+            )
         self._memory = memory
         self._chat = chat
         self._system_prompt = (
@@ -103,6 +118,7 @@ class EngramAgent:
         self._include_level = include_level
         self._include_score = include_score
         self._cot = cot
+        self._self_consistency_n = self_consistency_n
 
     @property
     def memory(self) -> Memory:
@@ -132,7 +148,14 @@ class EngramAgent:
         messages: list[Message] = [Message(role="system", content=system)]
         messages.extend(history)
         messages.append(Message(role="user", content=user_message))
-        reply = self._chat.chat(messages)
+        if self._self_consistency_n >= 2:
+            samples = tuple(
+                self._chat.chat(messages) for _ in range(self._self_consistency_n)
+            )
+            reply = _majority_vote(samples)
+        else:
+            samples = ()
+            reply = self._chat.chat(messages)
 
         observed_event_ids: list[UUID] = []
         if self._auto_observe:
@@ -147,6 +170,7 @@ class EngramAgent:
             system_prompt=system,
             reply=reply,
             observed_event_ids=tuple(observed_event_ids),
+            samples=samples,
         )
 
     def record_procedure_outcome(
@@ -157,3 +181,25 @@ class EngramAgent:
     ) -> None:
         """Convenience wrapper for `Memory.record_procedure`."""
         self._memory.record_procedure(situation, action, outcome=outcome)
+
+
+def _majority_vote(samples: Sequence[str]) -> str:
+    """Return the most common reply (normalize whitespace + case
+    before counting). Ties go to first-seen."""
+    if not samples:
+        return ""
+    counts: dict[str, int] = {}
+    canonical: dict[str, str] = {}  # normalized -> first raw form
+    first_seen_order: dict[str, int] = {}
+    for i, s in enumerate(samples):
+        norm = " ".join(s.split()).lower()
+        if norm not in canonical:
+            canonical[norm] = s
+            first_seen_order[norm] = i
+        counts[norm] = counts.get(norm, 0) + 1
+    # Sort by (-count, first_seen_index) -- ascending fsi for tie-break.
+    winner_norm = sorted(
+        counts.keys(),
+        key=lambda k: (-counts[k], first_seen_order[k]),
+    )[0]
+    return canonical[winner_norm]

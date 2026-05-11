@@ -146,6 +146,61 @@ class TestEngramAgentBasics:
         assert procs[0].outcome is Outcome.SUCCESS
 
 
+class TestEngramAgentSelfConsistency:
+    def test_default_n_is_1(self, memory: Memory) -> None:
+        chat = FakeChat(default="answer")
+        agent = EngramAgent(memory, chat)
+        turn = agent.chat("q")
+        assert turn.samples == ()
+        assert turn.reply == "answer"
+
+    def test_n_3_takes_3_samples_and_votes(self, memory: Memory) -> None:
+        chat = FakeChat(default="")
+        # Spy: produces "A", "A", "B" -> majority is "A".
+        calls = iter(["A", "A", "B"])
+
+        def chat_fn(messages: list) -> str:  # type: ignore[type-arg]
+            return next(calls)
+
+        chat.chat = chat_fn  # type: ignore[method-assign,assignment]
+        agent = EngramAgent(memory, chat, self_consistency_n=3, auto_observe=False)
+        turn = agent.chat("q")
+        assert turn.samples == ("A", "A", "B")
+        assert turn.reply == "A"
+
+    def test_normalization_majority(self, memory: Memory) -> None:
+        chat = FakeChat(default="")
+        calls = iter(["  Answer ", "answer", "ANSWER!"])
+
+        def chat_fn(messages: list) -> str:  # type: ignore[type-arg]
+            return next(calls)
+
+        chat.chat = chat_fn  # type: ignore[method-assign,assignment]
+        agent = EngramAgent(memory, chat, self_consistency_n=3, auto_observe=False)
+        turn = agent.chat("q")
+        # First two normalize to "answer"; last normalizes to "answer!"
+        # -> "answer" is the majority (2 vs 1); first-seen raw form wins.
+        assert turn.reply == "  Answer "
+
+    def test_ties_break_first_seen(self, memory: Memory) -> None:
+        chat = FakeChat(default="")
+        calls = iter(["X", "Y"])
+
+        def chat_fn(messages: list) -> str:  # type: ignore[type-arg]
+            return next(calls)
+
+        chat.chat = chat_fn  # type: ignore[method-assign,assignment]
+        agent = EngramAgent(memory, chat, self_consistency_n=2, auto_observe=False)
+        turn = agent.chat("q")
+        # 1-1 tie -> first-seen wins.
+        assert turn.reply == "X"
+
+    def test_invalid_n_rejected(self, memory: Memory) -> None:
+        chat = FakeChat(default="")
+        with pytest.raises(ValueError, match="self_consistency_n"):
+            EngramAgent(memory, chat, self_consistency_n=0)
+
+
 class TestEngramAgentCoT:
     def test_cot_off_default(self, memory: Memory) -> None:
         chat = FakeChat(default="Reply.")
