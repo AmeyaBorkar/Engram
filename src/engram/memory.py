@@ -50,6 +50,7 @@ from engram.retrieve import (
     RetrieveParams,
     RetrievePrefer,
 )
+from engram.retrieve._hyde import hyde_transform
 from engram.schemas import (
     Conflict,
     ConflictStatus,
@@ -216,6 +217,7 @@ class Memory:
         reinforce: bool | None = None,
         reranker: Reranker | None = None,
         as_of: datetime | None = None,
+        hyde: bool | None = None,
     ) -> list[RetrievalResult]:
         """Return up to `k` items most relevant to `query`, coarse-to-fine.
 
@@ -251,6 +253,9 @@ class Memory:
             Memory-level reranker if one was passed to the constructor.
           as_of: temporal-as-of cutoff (Stage 8). When set, returns
             historically-correct state.
+          hyde: if True and a chat provider is configured, transform
+            the query into a hypothetical answer before retrieval
+            (Tier 1 precision boost).
         """
         defaults = self._retrieve_params
         params = RetrieveParams(
@@ -266,8 +271,15 @@ class Memory:
             include_cold=include_cold if include_cold is not None else defaults.include_cold,
             reinforce_on_use=(reinforce if reinforce is not None else defaults.reinforce_on_use),
             as_of=as_of if as_of is not None else defaults.as_of,
+            hyde=hyde if hyde is not None else defaults.hyde,
         )
         effective_reranker = reranker if reranker is not None else self._default_reranker
+        # HyDE: transform the query into a hypothetical answer before
+        # the retriever embeds it. Trades one chat call for retrieval
+        # precision; provider-level caches deduplicate repeats.
+        effective_query = query
+        if params.hyde and self._chat is not None:
+            effective_query = hyde_transform(query, self._chat)
         with span(
             "engram.memory.retrieve",
             k=params.k,
@@ -275,7 +287,7 @@ class Memory:
         ) as s:
             t0 = time.perf_counter()
             results = self._retriever.retrieve(
-                query, params=params, reranker=effective_reranker
+                effective_query, params=params, reranker=effective_reranker
             )
             elapsed_ms = (time.perf_counter() - t0) * 1000.0
             METRICS.retrieve_call(k=params.k)

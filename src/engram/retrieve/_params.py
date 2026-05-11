@@ -41,6 +41,12 @@ class RetrieveParams:
                               retrieve). `None` means "current state":
                               invalidated items are excluded but no
                               backward time travel happens.
+    `hyde`                 -- if True (and the Memory has a chat provider),
+                              transform the query into a hypothetical
+                              answer via the chat provider before
+                              embedding. Trades one chat call for a
+                              precision boost on questions whose phrasing
+                              differs from how memories were stored.
     """
 
     k: int = 10
@@ -51,6 +57,7 @@ class RetrieveParams:
     include_cold: bool = False
     reinforce_on_use: bool = True
     as_of: datetime | None = None
+    hyde: bool = False
 
     def __post_init__(self) -> None:
         if self.k < 1:
