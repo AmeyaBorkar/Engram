@@ -18,6 +18,8 @@ from uuid import UUID
 
 from engram.schemas import (
     Cluster,
+    Conflict,
+    ConflictStatus,
     DecayState,
     Embedding,
     Event,
@@ -27,6 +29,7 @@ from engram.schemas import (
     Outcome,
     Procedure,
     ProvenanceLink,
+    Resolution,
 )
 
 
@@ -100,6 +103,128 @@ class Storage(Protocol):
 
     def count_memory_items(self) -> int: ...
     def count_memory_items_by_level(self) -> dict[Level, int]: ...
+
+    # --- temporal validity & invalidation (Stage 8) ------------------------
+
+    def invalidate_memory_item(
+        self,
+        item_id: UUID,
+        *,
+        at: datetime,
+        by: UUID | None = None,
+    ) -> None:
+        """Mark a memory item as invalidated at `at`.
+
+        `by` is the id of the item that won the conflict that
+        invalidated this one (NULL allowed for TTL-style invalidations
+        with no replacement). Idempotent if already invalidated -- the
+        existing `invalidated_at` is preserved (the *first* invalidation
+        timestamp is what `as_of` queries care about). Raises `KeyError`
+        if the item does not exist.
+        """
+
+    def set_validity_window(
+        self,
+        item_id: UUID,
+        *,
+        valid_from: datetime | None = None,
+        valid_until: datetime | None = None,
+    ) -> None:
+        """Set the validity window for a memory item.
+
+        Either argument may be `None` to leave that side unchanged --
+        pass `valid_until=...` to add a TTL to an item that currently has
+        no upper bound, for example. The storage layer enforces
+        `valid_until >= valid_from`. Raises `KeyError` if the item does
+        not exist.
+        """
+
+    def set_source_trust(self, item_id: UUID, trust: float | None) -> None:
+        """Set the denormalized source trust on a memory item.
+
+        `None` clears the value. Trust must be in `[0, 1]`. Raises
+        `KeyError` if the item does not exist.
+        """
+
+    def search_memory_item_embeddings_as_of(
+        self,
+        query_vec: Sequence[float],
+        *,
+        k: int,
+        model: str,
+        as_of: datetime | None = None,
+        levels: Sequence[Level] | None = None,
+        exclude_ids: Sequence[UUID] = (),
+        include_cold: bool = False,
+        candidate_multiplier: int = 4,
+    ) -> list[tuple[UUID, str, float]]:
+        """Temporal-aware variant of `search_memory_item_embeddings`.
+
+        `as_of=None` is the "current state" mode: items with
+        `invalidated_at IS NOT NULL` are excluded. `as_of=<datetime>` is
+        the "as-of-then" mode: items are visible iff `valid_from <=
+        as_of AND (valid_until IS NULL OR valid_until > as_of) AND
+        (invalidated_at IS NULL OR invalidated_at > as_of)`.
+
+        Returns at most `k` `(id, content, score)` triples sorted by
+        score desc.
+
+        Implementation note: the in-memory vector index is not
+        validity-aware in this stage; the method over-fetches by
+        `candidate_multiplier` and applies the temporal filter via a
+        single SQL pass on the candidates. The multiplier protects
+        against corpora where many items have been invalidated; raise it
+        if your dataset is mostly historical.
+        """
+
+    # --- conflicts (Stage 8) -----------------------------------------------
+
+    def record_conflict(self, conflict: Conflict) -> None:
+        """Persist a new conflict row. Raises on duplicate id or
+        duplicate (source_item_id, target_item_id) pair."""
+
+    def get_conflict(self, conflict_id: UUID) -> Conflict | None:
+        """Fetch a conflict by id, or None if missing."""
+
+    def list_conflicts(
+        self,
+        *,
+        status: ConflictStatus | None = None,
+        memory_item_id: UUID | None = None,
+        limit: int = 100,
+    ) -> list[Conflict]:
+        """List conflicts, optionally filtered.
+
+        `status` narrows to OPEN or RESOLVED. `memory_item_id` filters
+        to rows where the item is either the source or the target --
+        the conflicts graph is undirected from the caller's
+        perspective, so both directions are walked. Ordered by
+        `detected_at` desc (newest first).
+        """
+
+    def resolve_conflict(
+        self,
+        conflict_id: UUID,
+        *,
+        resolution: Resolution,
+        resolved_winner_id: UUID | None,
+        resolved_at: datetime,
+    ) -> Conflict:
+        """Atomically transition a conflict OPEN -> RESOLVED.
+
+        The reconciler engine is the proper user of this method: it
+        picks the winner per the chosen policy, then calls this to
+        persist the decision. Raises `KeyError` if the conflict does
+        not exist. Raises `RuntimeError` if the conflict is already
+        resolved (callers should idempotently filter on status first).
+        Validates that `resolved_winner_id` matches `source_item_id` or
+        `target_item_id` (or is None for `Resolution.KEEP_BOTH`).
+        Returns the refreshed `Conflict` row.
+        """
+
+    def count_conflicts(self) -> int: ...
+
+    def count_conflicts_by_status(self) -> dict[ConflictStatus, int]: ...
 
     # --- procedures ---------------------------------------------------------
 

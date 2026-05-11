@@ -27,6 +27,8 @@ import numpy as np
 
 from engram.schemas import (
     Cluster,
+    Conflict,
+    ConflictStatus,
     DecayState,
     Embedding,
     Event,
@@ -36,6 +38,8 @@ from engram.schemas import (
     Outcome,
     Procedure,
     ProvenanceLink,
+    Resolution,
+    Verdict,
 )
 from engram.storage._serialize import (
     dumps_metadata,
@@ -137,6 +141,24 @@ def _row_to_procedure(row: sqlite3.Row) -> Procedure:
         metadata=loads_metadata(row["metadata"]),
         created_at=parse_iso(row["created_at"]),
         updated_at=parse_iso(row["updated_at"]),
+    )
+
+
+def _row_to_conflict(row: sqlite3.Row) -> Conflict:
+    resolution_raw = row["resolution"]
+    resolved_at_raw = row["resolved_at"]
+    winner_raw = row["resolved_winner_id"]
+    return Conflict(
+        id=UUID(bytes=row["id"]),
+        source_item_id=UUID(bytes=row["source_item_id"]),
+        target_item_id=UUID(bytes=row["target_item_id"]),
+        similarity=row["similarity"],
+        verdict=Verdict(row["verdict"]),
+        status=ConflictStatus(row["status"]),
+        resolution=Resolution(resolution_raw) if resolution_raw else None,
+        resolved_winner_id=UUID(bytes=winner_raw) if winner_raw else None,
+        resolved_at=parse_iso(resolved_at_raw) if resolved_at_raw else None,
+        detected_at=parse_iso(row["detected_at"]),
     )
 
 
@@ -526,6 +548,261 @@ class SqliteStorage:
         result: dict[Level, int] = dict.fromkeys(Level, 0)
         for row in rows:
             result[Level(row["level"])] = int(row["n"])
+        return result
+
+    # --- temporal validity & invalidation (Stage 8) ------------------------
+
+    def invalidate_memory_item(
+        self,
+        item_id: UUID,
+        *,
+        at: datetime,
+        by: UUID | None = None,
+    ) -> None:
+        # Only set invalidated_at if currently NULL; preserve the first
+        # invalidation timestamp on re-calls (as_of queries rely on this).
+        cursor = self._connect().execute(
+            "UPDATE memory_items "
+            "SET invalidated_at = COALESCE(invalidated_at, ?), "
+            "    invalidated_by = COALESCE(invalidated_by, ?), "
+            "    updated_at = ? "
+            "WHERE id = ?",
+            (
+                iso(at),
+                by.bytes if by is not None else None,
+                iso(datetime.now(tz=timezone.utc)),
+                item_id.bytes,
+            ),
+        )
+        if cursor.rowcount == 0:
+            raise KeyError(f"memory_item {item_id} not found")
+        # Validity affects retrieve results, so the vector index needs
+        # to know that a row's surface-visibility state has changed.
+        self._vector_index.mark_dirty(kind=ItemKind.MEMORY_ITEM.value)
+
+    def set_validity_window(
+        self,
+        item_id: UUID,
+        *,
+        valid_from: datetime | None = None,
+        valid_until: datetime | None = None,
+    ) -> None:
+        sets: list[str] = []
+        params: list[Any] = []
+        if valid_from is not None:
+            sets.append("valid_from = ?")
+            params.append(iso(valid_from))
+        if valid_until is not None:
+            sets.append("valid_until = ?")
+            params.append(iso(valid_until))
+        if not sets:
+            return
+        sets.append("updated_at = ?")
+        params.append(iso(datetime.now(tz=timezone.utc)))
+        params.append(item_id.bytes)
+        sql = f"UPDATE memory_items SET {', '.join(sets)} WHERE id = ?"  # noqa: S608
+        cursor = self._connect().execute(sql, params)
+        if cursor.rowcount == 0:
+            raise KeyError(f"memory_item {item_id} not found")
+        # If the new window would put valid_until before valid_from, the
+        # DB has no CHECK to catch it (CHECK across nullable columns is
+        # awkward); validate via a read-back.
+        row = self._connect().execute(
+            "SELECT valid_from, valid_until FROM memory_items WHERE id = ?",
+            (item_id.bytes,),
+        ).fetchone()
+        if row is not None and row["valid_from"] and row["valid_until"]:
+            vf = parse_iso(row["valid_from"])
+            vu = parse_iso(row["valid_until"])
+            if vu < vf:
+                raise ValueError(
+                    f"valid_until {vu.isoformat()} precedes valid_from {vf.isoformat()}"
+                )
+        self._vector_index.mark_dirty(kind=ItemKind.MEMORY_ITEM.value)
+
+    def set_source_trust(self, item_id: UUID, trust: float | None) -> None:
+        if trust is not None and not 0.0 <= trust <= 1.0:
+            raise ValueError(f"trust {trust} not in [0, 1]")
+        cursor = self._connect().execute(
+            "UPDATE memory_items SET source_trust = ?, updated_at = ? WHERE id = ?",
+            (trust, iso(datetime.now(tz=timezone.utc)), item_id.bytes),
+        )
+        if cursor.rowcount == 0:
+            raise KeyError(f"memory_item {item_id} not found")
+
+    def search_memory_item_embeddings_as_of(
+        self,
+        query_vec: Sequence[float],
+        *,
+        k: int,
+        model: str,
+        as_of: datetime | None = None,
+        levels: Sequence[Level] | None = None,
+        exclude_ids: Sequence[UUID] = (),
+        include_cold: bool = False,
+        candidate_multiplier: int = 4,
+    ) -> list[tuple[UUID, str, float]]:
+        if k < 1:
+            raise ValueError(f"k must be >= 1, got {k}")
+        if candidate_multiplier < 1:
+            raise ValueError(f"candidate_multiplier must be >= 1, got {candidate_multiplier}")
+        # Over-fetch from the vector index, then SQL-filter by validity.
+        level_values = [level.value for level in levels] if levels else None
+        excl_bytes = [iid.bytes for iid in exclude_ids]
+        hits = self._vector_index.search(
+            self._connect(),
+            query_vec,
+            kind=ItemKind.MEMORY_ITEM.value,
+            model=model,
+            rebuild_sql=_INDEX_REBUILD_SQL["memory_item"],
+            levels=level_values,
+            exclude_ids=excl_bytes,
+            include_cold=include_cold,
+            k=k * candidate_multiplier,
+        )
+        if not hits:
+            return []
+        ids = [u for u, _, _ in hits]
+        placeholders = ",".join("?" for _ in ids)
+        if as_of is None:
+            # Default: current-state. Exclude any row that has been
+            # invalidated, regardless of when.
+            sql = (
+                "SELECT id, content FROM memory_items "  # noqa: S608
+                f"WHERE id IN ({placeholders}) "
+                "AND invalidated_at IS NULL"
+            )
+            params: list[Any] = [u.bytes for u in ids]
+        else:
+            # As-of mode: surface items whose validity covers `as_of`.
+            as_of_iso = iso(as_of)
+            sql = (
+                "SELECT id, content FROM memory_items "  # noqa: S608
+                f"WHERE id IN ({placeholders}) "
+                "  AND (valid_from IS NULL OR valid_from <= ?) "
+                "  AND (valid_until IS NULL OR valid_until > ?) "
+                "  AND (invalidated_at IS NULL OR invalidated_at > ?)"
+            )
+            params = [*(u.bytes for u in ids), as_of_iso, as_of_iso, as_of_iso]
+        rows = self._connect().execute(sql, params).fetchall()
+        content: dict[bytes, str] = {bytes(r["id"]): r["content"] for r in rows}
+        # Preserve vector-search ordering for items that passed the filter.
+        filtered: list[tuple[UUID, str, float]] = [
+            (u, content[u.bytes], score)
+            for u, _, score in hits
+            if u.bytes in content
+        ]
+        return filtered[:k]
+
+    # --- conflicts (Stage 8) -----------------------------------------------
+
+    def record_conflict(self, conflict: Conflict) -> None:
+        self._connect().execute(
+            "INSERT INTO conflicts "
+            "(id, source_item_id, target_item_id, similarity, verdict, "
+            " status, resolution, resolved_winner_id, resolved_at, "
+            " detected_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                conflict.id.bytes,
+                conflict.source_item_id.bytes,
+                conflict.target_item_id.bytes,
+                conflict.similarity,
+                conflict.verdict.value,
+                conflict.status.value,
+                conflict.resolution.value if conflict.resolution else None,
+                conflict.resolved_winner_id.bytes if conflict.resolved_winner_id else None,
+                iso(conflict.resolved_at) if conflict.resolved_at else None,
+                iso(conflict.detected_at),
+            ),
+        )
+
+    def get_conflict(self, conflict_id: UUID) -> Conflict | None:
+        row = (
+            self._connect()
+            .execute("SELECT * FROM conflicts WHERE id = ?", (conflict_id.bytes,))
+            .fetchone()
+        )
+        return _row_to_conflict(row) if row is not None else None
+
+    def list_conflicts(
+        self,
+        *,
+        status: ConflictStatus | None = None,
+        memory_item_id: UUID | None = None,
+        limit: int = 100,
+    ) -> list[Conflict]:
+        if limit < 1:
+            raise ValueError(f"limit must be >= 1, got {limit}")
+        sql = "SELECT * FROM conflicts WHERE 1=1"
+        params: list[Any] = []
+        if status is not None:
+            sql += " AND status = ?"
+            params.append(status.value)
+        if memory_item_id is not None:
+            sql += " AND (source_item_id = ? OR target_item_id = ?)"
+            params.extend((memory_item_id.bytes, memory_item_id.bytes))
+        sql += " ORDER BY detected_at DESC, id DESC LIMIT ?"
+        params.append(limit)
+        rows = self._connect().execute(sql, params).fetchall()
+        return [_row_to_conflict(r) for r in rows]
+
+    def resolve_conflict(
+        self,
+        conflict_id: UUID,
+        *,
+        resolution: Resolution,
+        resolved_winner_id: UUID | None,
+        resolved_at: datetime,
+    ) -> Conflict:
+        # Read first so we can validate winner-vs-source/target and the
+        # status precondition without racing the UPDATE.
+        existing = self.get_conflict(conflict_id)
+        if existing is None:
+            raise KeyError(f"conflict {conflict_id} not found")
+        if existing.status is ConflictStatus.RESOLVED:
+            raise RuntimeError(
+                f"conflict {conflict_id} is already resolved "
+                f"(resolution={existing.resolution})"
+            )
+        if resolution is not Resolution.KEEP_BOTH and resolved_winner_id is None:
+            raise ValueError(
+                f"resolution={resolution.value} requires resolved_winner_id"
+            )
+        if resolved_winner_id is not None and resolved_winner_id not in (
+            existing.source_item_id,
+            existing.target_item_id,
+        ):
+            raise ValueError(
+                "resolved_winner_id must equal source_item_id or target_item_id"
+            )
+        self._connect().execute(
+            "UPDATE conflicts SET status = 'resolved', resolution = ?, "
+            "resolved_winner_id = ?, resolved_at = ? WHERE id = ?",
+            (
+                resolution.value,
+                resolved_winner_id.bytes if resolved_winner_id is not None else None,
+                iso(resolved_at),
+                conflict_id.bytes,
+            ),
+        )
+        result = self.get_conflict(conflict_id)
+        if result is None:  # pragma: no cover - raced delete
+            raise KeyError(conflict_id)
+        return result
+
+    def count_conflicts(self) -> int:
+        return int(self._connect().execute("SELECT COUNT(*) FROM conflicts").fetchone()[0])
+
+    def count_conflicts_by_status(self) -> dict[ConflictStatus, int]:
+        rows = (
+            self._connect()
+            .execute("SELECT status, COUNT(*) AS n FROM conflicts GROUP BY status")
+            .fetchall()
+        )
+        result: dict[ConflictStatus, int] = dict.fromkeys(ConflictStatus, 0)
+        for row in rows:
+            result[ConflictStatus(row["status"])] = int(row["n"])
         return result
 
     # --- procedures ---------------------------------------------------------
