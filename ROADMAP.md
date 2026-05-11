@@ -238,40 +238,40 @@ A stage is "done" when its **Definition of Done** checks all pass. If a check is
 
 ---
 
-### Stage 9 — Multi-tenant and production  *(targets `v0.4.0`)*
+### Stage 9 — Multi-tenant and production  *(targets `v0.4.0`; Stage 9a partial shipped)*
 
 **Goal.** Engram runs as a service: Postgres backend, async API, observability, isolation.
 
 **Scope.**
-- Postgres backend with `pgvector`. Tenant isolation via row-level security and per-tenant connection roles.
-- Async API (`async def observe`, `async def retrieve`, …) parallel to the sync surface.
-- Observability: OpenTelemetry spans on every public call; Prometheus metrics for queue depths, batch sizes, decay-tick durations, provider latency.
-- Memory inspector: a separate package (`engram-inspector`) — small web UI to browse the hierarchy.
-- Security audit: dependency review, threat-model refresh, prompt-injection corpus expansion, secret-scanning sweep.
+- Postgres backend with `pgvector`. Tenant isolation via row-level security and per-tenant connection roles. *(Deferred to v0.4.0 proper -- needs Docker for local testing.)*
+- Async API (`async def observe`, `async def retrieve`, …) parallel to the sync surface. ✓ (Stage 9a; routes through `asyncio.to_thread` over SQLite. Postgres-native async in v0.4.0.)
+- Observability: OpenTelemetry spans on every public call; Prometheus metrics for queue depths, batch sizes, decay-tick durations, provider latency. ✓ (Stage 9a; spans + counters on public `Memory` calls via the optional `[otel]` extra. Decay-tick / batcher instrumentation rolls in alongside their modules.)
+- Memory inspector: a separate package (`engram-inspector`) — small web UI to browse the hierarchy. *(Deferred to v0.4.0.)*
+- Security audit: dependency review, threat-model refresh, prompt-injection corpus expansion, secret-scanning sweep. *(Judge prompt-injection corpus shipped in v0.3.1.)*
 
 **Definition of done.**
-- Multi-tenant load test: 100 tenants × 1k QPS sustained for 1 hour with no cross-tenant leakage. Verified.
-- Async throughput ≥ 5× sync on bound provider calls.
-- Threat model updated; new attack surfaces (RLS bypass, async-cancellation invariants) covered by tests.
+- Multi-tenant load test: 100 tenants × 1k QPS sustained for 1 hour with no cross-tenant leakage. Verified. *(Requires Postgres; deferred to v0.4.0.)*
+- Async throughput ≥ 5× sync on bound provider calls. *(Deferred to v0.4.0 -- depends on async-native Postgres.)*
+- Threat model updated; new attack surfaces (RLS bypass, async-cancellation invariants) covered by tests. *(Deferred to v0.4.0.)*
 
 ---
 
-### Stage 10 — Stable release and paper  *(targets `v1.0.0`)*
+### Stage 10 — Stable release and paper  *(targets `v1.0.0`; scaffold + docs + reproduction tooling shipped)*
 
 **Goal.** Frozen public API, full benchmark suite, paper preprint, docs site.
 
 **Scope.**
-- Semver-stable API surface; deprecation policy documented.
-- Benchmark results published in `benchmarks/` with reproduction scripts and a CI job that re-runs them on a tagged release.
-- Paper preprint on arXiv.
-- Documentation site (mkdocs-material) with API reference, tutorials, and a memory-mental-model explainer.
+- Semver-stable API surface; deprecation policy documented. ✓ (`docs/project/api-stability.md` + `docs/project/deprecation-policy.md`.)
+- Benchmark results published in `benchmarks/` with reproduction scripts and a CI job that re-runs them on a tagged release. ✓ (`scripts/reproduce_benchmarks.py` runs every suite against `FakeProvider`; CI hook lands once the user is ready to publish.)
+- Paper preprint on arXiv. *(Deferred -- requires the LongMemEval re-judge + LoCoMo real-LLM run for headline numbers.)*
+- Documentation site (mkdocs-material) with API reference, tutorials, and a memory-mental-model explainer. ✓ (`mkdocs.yml` + `docs/` with auto-generated API ref via `mkdocstrings[python]`. New `[docs]` extra.)
 
 **Definition of done.**
-- All public symbols documented; doc build is part of CI.
-- Preprint accepted to arXiv; cited in README.
+- All public symbols documented; doc build is part of CI. ✓ (mkdocs build clean -- only warnings on two `:raises:` docstring formatting issues in the storage protocol, non-blocking.)
+- Preprint accepted to arXiv; cited in README. *(Deferred -- depends on paid LLM runs.)*
 - Public API has zero `# TODO` and no breaking changes since `v0.4.0`.
-- **LongMemEval:** ≥ 5 points absolute over best public number cited in `benchmarks/SCOREBOARD.md`. Manifest committed.
-- **LoCoMo adversarial:** ≥ 10 points absolute over best non-Engram approach. Manifest committed.
+- **LongMemEval:** ≥ 5 points absolute over best public number cited in `benchmarks/SCOREBOARD.md`. Manifest committed. *(Same-model-judge caveat from the 71.4% v0.1.0 run pending a GPT-4o re-judge; ~$5 paid run.)*
+- **LoCoMo adversarial:** ≥ 10 points absolute over best non-Engram approach. Manifest committed. *(Pending paid run.)*
 - **Procedural transfer:** ≥ 10% lift over episodic-only Engram (i.e. abstraction layer is provably load-bearing). Manifest committed.
 
 ---

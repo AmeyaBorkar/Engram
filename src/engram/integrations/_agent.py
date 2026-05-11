@@ -64,8 +64,8 @@ class EngramAgent:
       retrieve_k: how many memories to surface per turn.
       auto_observe: when True (default), every user message is
         observed as an event for future retrieval.
-      include_in_context: which of the retrieved fields to show the
-        LLM (`level` and/or `score`).
+      include_level: tag each surfaced memory with its level.
+      include_score: tag each surfaced memory with its score.
     """
 
     DEFAULT_SYSTEM = (

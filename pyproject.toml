@@ -101,6 +101,17 @@ dev = [
     # Framework integrations (v0.2.1).
     "langgraph>=0.2",
     "llama-index-core>=0.12",
+    # Docs site (Stage 10).
+    "mkdocs>=1.6",
+    "mkdocs-material>=9.5",
+    "mkdocstrings[python]>=0.26",
+]
+docs = [
+    # Stage 10 docs site stack. Users who only want to build the docs
+    # without the full dev toolchain.
+    "mkdocs>=1.6",
+    "mkdocs-material>=9.5",
+    "mkdocstrings[python]>=0.26",
 ]
 
 [project.scripts]

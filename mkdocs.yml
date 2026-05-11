@@ -1,0 +1,98 @@
+site_name: Engram
+site_description: Hierarchical memory with consolidation and principled decay for LLM agents and assistants.
+site_url: https://github.com/AmeyaBorkar/Engram
+repo_name: AmeyaBorkar/Engram
+repo_url: https://github.com/AmeyaBorkar/Engram
+
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.indexes
+    - navigation.top
+    - content.code.copy
+    - content.code.annotate
+    - search.suggest
+    - search.highlight
+    - toc.follow
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: deep purple
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: deep purple
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+plugins:
+  - search
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          paths: [src]
+          options:
+            show_source: true
+            show_root_heading: true
+            show_root_full_path: false
+            members_order: source
+            docstring_style: google
+            docstring_section_style: list
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting started:
+    - getting-started/install.md
+    - getting-started/quickstart.md
+    - getting-started/concepts.md
+  - Guides:
+    - guides/observe-retrieve.md
+    - guides/consolidation.md
+    - guides/decay.md
+    - guides/procedural-memory.md
+    - guides/contradiction-temporal.md
+    - guides/integrations.md
+  - API reference:
+    - api/memory.md
+    - api/schemas.md
+    - api/storage.md
+    - api/reconcile.md
+    - api/integrations.md
+  - Operations:
+    - operations/observability.md
+    - operations/multi-tenant.md
+    - operations/performance.md
+  - Project:
+    - project/api-stability.md
+    - project/deprecation-policy.md
+    - project/security.md
+    - Roadmap: https://github.com/AmeyaBorkar/Engram/blob/main/ROADMAP.md
+    - Changelog: https://github.com/AmeyaBorkar/Engram/blob/main/CHANGELOG.md
