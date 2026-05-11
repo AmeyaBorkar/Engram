@@ -6,13 +6,7 @@ running on the user's GPU or CPU.
 
 Defaults to `BAAI/bge-large-en-v1.5` -- 330 M params, 1024-dim, top-tier
 on MTEB retrieval (~54). Override with any sentence-transformers model
-id. Some other strong choices:
-
-  * `BAAI/bge-base-en-v1.5`            -- 110M, 768-dim, faster
-  * `BAAI/bge-m3`                      -- 568M, multilingual, 1024-dim
-  * `mixedbread-ai/mxbai-embed-large-v1` -- ~330M, 1024-dim, MTEB ~54.4
-  * `intfloat/e5-large-v2`             -- ~335M, 1024-dim
-  * `nomic-ai/nomic-embed-text-v1.5`   -- 137M, 768-dim, matryoshka
+id. `RECOMMENDED_MODELS` enumerates the top choices.
 
 GPU auto-detect: `torch.cuda.is_available()` chooses CUDA; CPU falls
 out otherwise. Override explicitly via `device="cuda:1"` etc. Embeddings
@@ -38,6 +32,70 @@ except ImportError as _exc:  # pragma: no cover
     ) from _exc
 
 _LOG = logging.getLogger("engram.providers.local")
+
+
+# Top embedders ranked roughly by MTEB retrieval score. Pick by the
+# tier that fits your GPU memory + latency budget. Each entry is
+# (HF_id, dim, approximate_params, notes). The dim is fixed; some
+# matryoshka models support truncation, but we use the native dim.
+RECOMMENDED_MODELS: dict[str, dict[str, object]] = {
+    # ---- Tier S: state of the art -----------------------------------
+    "nvidia/NV-Embed-v2": {
+        "dim": 4096,
+        "params": "7.85B",
+        "notes": (
+            "MTEB ~69 retrieval, top of the leaderboard as of 2024-09. "
+            "Heavy: ~16 GB VRAM in fp16. CPU is impractical."
+        ),
+    },
+    "dunzhang/stella_en_1.5B_v5": {
+        "dim": 8192,
+        "params": "1.5B",
+        "notes": (
+            "MTEB ~66 retrieval; great quality-per-VRAM. Matryoshka-"
+            "trained -- truncating to 1024-dim still scores strongly."
+        ),
+    },
+    # ---- Tier A: production workhorses ------------------------------
+    "BAAI/bge-large-en-v1.5": {
+        "dim": 1024,
+        "params": "330M",
+        "notes": (
+            "Default. MTEB ~54 retrieval, ~1.3 GiB on disk, fits in 4 GB "
+            "VRAM at fp16. The Stage 6 LongMemEval-S 71.4% receipt used "
+            "this."
+        ),
+    },
+    "mixedbread-ai/mxbai-embed-large-v1": {
+        "dim": 1024,
+        "params": "330M",
+        "notes": "MTEB ~54.4 retrieval. Drop-in alternative to bge-large.",
+    },
+    "BAAI/bge-m3": {
+        "dim": 1024,
+        "params": "568M",
+        "notes": (
+            "Multilingual; dense+sparse+colbert in one model. Use when "
+            "the corpus isn't predominantly English."
+        ),
+    },
+    # ---- Tier B: smaller / faster -----------------------------------
+    "BAAI/bge-base-en-v1.5": {
+        "dim": 768,
+        "params": "110M",
+        "notes": "Faster, lower-quality variant of bge-large.",
+    },
+    "intfloat/e5-large-v2": {
+        "dim": 1024,
+        "params": "335M",
+        "notes": "Strong alt to bge-large; needs 'query:'/'passage:' prefixes.",
+    },
+    "nomic-ai/nomic-embed-text-v1.5": {
+        "dim": 768,
+        "params": "137M",
+        "notes": "Matryoshka-trained; can truncate to 64-768 dims.",
+    },
+}
 
 
 def _detect_device() -> str:
