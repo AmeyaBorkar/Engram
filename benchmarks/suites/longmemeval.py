@@ -528,138 +528,22 @@ class LongMemEvalSuite:
             storage = SqliteStorage(":memory:")
             storage.initialize()
             try:
-                memory = Memory(
+                self._run_one_question(
+                    q,
+                    q_idx=q_idx,
+                    questions=questions,
                     storage=storage,
                     embedder=embedder,
                     chat=chat,
-                    consolidate_chat=self._consolidate_chat,
-                    retrieve_params=default_retrieve_params,
-                    reranker=self._reranker,
+                    judge_chat=judge_chat,
+                    default_retrieve_params=default_retrieve_params,
+                    per_question=per_question,
+                    per_type_scores=per_type_scores,
+                    retrieve_ms=retrieve_ms,
+                    answer_ms=answer_ms,
+                    judge_ms=judge_ms,
+                    log_interval=log_interval,
                 )
-                t_ingest = time.perf_counter()
-                turns = _ingest_haystack(memory, q)
-                ingest_ms = (time.perf_counter() - t_ingest) * 1000.0
-
-                # Optional consolidation pass (Engram's novelty):
-                # cluster the haystack events and abstract each cluster
-                # into a Level.SUMMARY MemoryItem. The retrieve below
-                # then surfaces SUMMARY hits alongside raw EVENTs --
-                # higher-level memories outrank single turns when the
-                # confidence is high. Cost: ~1 chat call per cluster.
-                # Uses the async parallel path so 30-cluster haystacks
-                # finish in seconds instead of minutes.
-                consolidate_ms = 0.0
-                if self._consolidate:
-                    t_consolidate = time.perf_counter()
-                    try:
-                        cons_result = asyncio.run(memory.aconsolidate())
-                        consolidate_ms = (time.perf_counter() - t_consolidate) * 1000.0
-                        _LOG.info(
-                            "  consolidated: %d clusters -> %d abstractions in %.1fs",
-                            getattr(cons_result, "clusters_formed", 0),
-                            getattr(cons_result, "abstractions_created", 0),
-                            consolidate_ms / 1000.0,
-                        )
-                    except Exception as exc:
-                        _LOG.warning(
-                            "  consolidate failed for q %d/%d: %s",
-                            q_idx + 1,
-                            len(questions),
-                            exc,
-                        )
-
-                t0 = time.perf_counter()
-                # Per-call kwargs pick up Memory's defaults set above.
-                # Explicit reinforce=False keeps decay state unperturbed
-                # so a re-run of the same suite is bit-identical.
-                # `as_of=question_date` anchors the recency-boost
-                # reference time at the moment the question was asked
-                # (rather than wall-clock "now"). Only pass it when
-                # recency is actually on -- otherwise as_of would
-                # accidentally hide consolidation memory_items whose
-                # valid_from (= wall-clock now) is in the future
-                # relative to the question's haystack date.
-                retrieve_kwargs: dict[str, Any] = {
-                    "k": self._k,
-                    "reinforce": False,
-                }
-                if self._recency_lambda > 0:
-                    question_dt = _parse_haystack_date(q.question_date)
-                    if question_dt is not None:
-                        retrieve_kwargs["as_of"] = question_dt
-                # Auto-temporal: scan the question for year tokens; if
-                # any are present, surgically filter the rerank pool to
-                # events mentioning at least one of those years. If
-                # that filter empties the pool (year named is outside
-                # the haystack span), fall back to an unfiltered
-                # retrieve so we never lose a question to the filter.
-                if self._auto_temporal:
-                    filt = _build_auto_temporal_filter(q.question)
-                    if filt:
-                        retrieve_kwargs["lexical_filter"] = filt
-                results = memory.retrieve(q.question, **retrieve_kwargs)
-                if (
-                    self._auto_temporal
-                    and not results
-                    and retrieve_kwargs.get("lexical_filter")
-                ):
-                    retrieve_kwargs.pop("lexical_filter", None)
-                    results = memory.retrieve(q.question, **retrieve_kwargs)
-                retrieve_ms.append((time.perf_counter() - t0) * 1000.0)
-
-                memory_text = _format_memory(results)
-
-                t0 = time.perf_counter()
-                response = self._answer_with_phase_e(
-                    chat=chat,
-                    memory=memory,
-                    memory_text=memory_text,
-                    question=q.question,
-                    question_date=q.question_date,
-                )
-                answer_ms.append((time.perf_counter() - t0) * 1000.0)
-
-                t0 = time.perf_counter()
-                correct = _judge(
-                    judge_chat,
-                    qtype=q.qtype,
-                    question=q.question,
-                    gold=q.gold,
-                    response=response,
-                )
-                judge_ms.append((time.perf_counter() - t0) * 1000.0)
-
-                score = 1.0 if correct else 0.0
-                per_type_scores.setdefault(q.qtype, []).append(score)
-                per_question.append(
-                    {
-                        "question_id": q.qid,
-                        "question_type": q.qtype,
-                        "question": q.question,
-                        "gold": q.gold,
-                        "response": response,
-                        "score": score,
-                        "k": self._k,
-                        "turns_ingested": turns,
-                        "consolidate_ms": consolidate_ms,
-                    }
-                )
-                if (q_idx + 1) % log_interval == 0 or q_idx == len(questions) - 1:
-                    correct_so_far = sum(s for vs in per_type_scores.values() for s in vs)
-                    total = sum(len(vs) for vs in per_type_scores.values())
-                    _LOG.info(
-                        "q %d/%d [%s] -> %s "
-                        "(ingest %d turns in %.1fs, ans %.1fs, jud %.1fs; acc=%.3f)",
-                        q_idx + 1,
-                        len(questions),
-                        q.qtype,
-                        "PASS" if score == 1.0 else "FAIL",
-                        turns,
-                        ingest_ms / 1000.0,
-                        answer_ms[-1] / 1000.0,
-                        judge_ms[-1] / 1000.0,
-                        correct_so_far / total if total else 0.0,
-                    )
             finally:
                 storage.close()
 
@@ -686,6 +570,181 @@ class LongMemEvalSuite:
                 "judge": judge_ms,
             },
         )
+
+    def _run_one_question(
+        self,
+        q: _Question,
+        *,
+        q_idx: int,
+        questions: Sequence[_Question],
+        storage: Any,
+        embedder: Any,
+        chat: Any,
+        judge_chat: Any,
+        default_retrieve_params: RetrieveParams,
+        per_question: list[dict[str, Any]],
+        per_type_scores: dict[str, list[float]],
+        retrieve_ms: list[float],
+        answer_ms: list[float],
+        judge_ms: list[float],
+        log_interval: int,
+    ) -> None:
+        """Run the ingest + retrieve + answer + judge pipeline for one
+        question, with full per-question exception isolation.
+
+        Wraps the whole body in `try/except Exception`: any failure
+        (content-filter rejection from a chat provider, network blip,
+        parse error, even a defensive RuntimeError from the engine)
+        scores the question as 0 and records the exception message on
+        the per-question manifest entry. The next question proceeds
+        normally -- a single bad request never costs more than its own
+        slot in the manifest.
+
+        KeyboardInterrupt and SystemExit are NOT swallowed so Ctrl+C
+        still aborts the run cleanly.
+        """
+        ingest_ms = 0.0
+        consolidate_ms = 0.0
+        turns = 0
+        response = ""
+        score = 0.0
+        error_msg: str | None = None
+        try:
+            memory = Memory(
+                storage=storage,
+                embedder=embedder,
+                chat=chat,
+                consolidate_chat=self._consolidate_chat,
+                retrieve_params=default_retrieve_params,
+                reranker=self._reranker,
+            )
+            t_ingest = time.perf_counter()
+            turns = _ingest_haystack(memory, q)
+            ingest_ms = (time.perf_counter() - t_ingest) * 1000.0
+
+            if self._consolidate:
+                t_consolidate = time.perf_counter()
+                try:
+                    cons_result = asyncio.run(memory.aconsolidate())
+                    consolidate_ms = (time.perf_counter() - t_consolidate) * 1000.0
+                    _LOG.info(
+                        "  consolidated: %d clusters -> %d abstractions in %.1fs",
+                        getattr(cons_result, "clusters_formed", 0),
+                        getattr(cons_result, "abstractions_created", 0),
+                        consolidate_ms / 1000.0,
+                    )
+                except Exception as exc:
+                    _LOG.warning(
+                        "  consolidate failed for q %d/%d: %s",
+                        q_idx + 1,
+                        len(questions),
+                        exc,
+                    )
+
+            t0 = time.perf_counter()
+            retrieve_kwargs: dict[str, Any] = {
+                "k": self._k,
+                "reinforce": False,
+            }
+            if self._recency_lambda > 0:
+                question_dt = _parse_haystack_date(q.question_date)
+                if question_dt is not None:
+                    retrieve_kwargs["as_of"] = question_dt
+            if self._auto_temporal:
+                filt = _build_auto_temporal_filter(q.question)
+                if filt:
+                    retrieve_kwargs["lexical_filter"] = filt
+            results = memory.retrieve(q.question, **retrieve_kwargs)
+            if (
+                self._auto_temporal
+                and not results
+                and retrieve_kwargs.get("lexical_filter")
+            ):
+                retrieve_kwargs.pop("lexical_filter", None)
+                results = memory.retrieve(q.question, **retrieve_kwargs)
+            retrieve_ms.append((time.perf_counter() - t0) * 1000.0)
+
+            memory_text = _format_memory(results)
+
+            t0 = time.perf_counter()
+            response = self._answer_with_phase_e(
+                chat=chat,
+                memory=memory,
+                memory_text=memory_text,
+                question=q.question,
+                question_date=q.question_date,
+            )
+            answer_ms.append((time.perf_counter() - t0) * 1000.0)
+
+            t0 = time.perf_counter()
+            correct = _judge(
+                judge_chat,
+                qtype=q.qtype,
+                question=q.question,
+                gold=q.gold,
+                response=response,
+            )
+            judge_ms.append((time.perf_counter() - t0) * 1000.0)
+
+            score = 1.0 if correct else 0.0
+        except (KeyboardInterrupt, SystemExit):
+            raise
+        except Exception as exc:
+            # Content-filter rejections, rate-limit drops, network blips,
+            # parse failures all land here. Record the failure on the
+            # manifest, log it, score 0, and let the outer loop move on.
+            error_msg = f"{type(exc).__name__}: {exc}"
+            _LOG.warning(
+                "q %d/%d [%s] -> ERROR (%s)",
+                q_idx + 1,
+                len(questions),
+                q.qtype,
+                error_msg,
+            )
+            score = 0.0
+            # Keep latency arrays aligned: append placeholders for any
+            # phase that didn't finish so the per-phase latency stats
+            # don't grow misaligned with `per_question`.
+            if len(retrieve_ms) <= q_idx:
+                retrieve_ms.append(0.0)
+            if len(answer_ms) <= q_idx:
+                answer_ms.append(0.0)
+            if len(judge_ms) <= q_idx:
+                judge_ms.append(0.0)
+
+        per_type_scores.setdefault(q.qtype, []).append(score)
+        entry: dict[str, Any] = {
+            "question_id": q.qid,
+            "question_type": q.qtype,
+            "question": q.question,
+            "gold": q.gold,
+            "response": response,
+            "score": score,
+            "k": self._k,
+            "turns_ingested": turns,
+            "consolidate_ms": consolidate_ms,
+        }
+        if error_msg is not None:
+            entry["error"] = error_msg
+        per_question.append(entry)
+
+        if (q_idx + 1) % log_interval == 0 or q_idx == len(questions) - 1:
+            correct_so_far = sum(s for vs in per_type_scores.values() for s in vs)
+            total = sum(len(vs) for vs in per_type_scores.values())
+            verdict = "ERROR" if error_msg else ("PASS" if score == 1.0 else "FAIL")
+            _LOG.info(
+                "q %d/%d [%s] -> %s "
+                "(ingest %d turns in %.1fs, ans %.1fs, jud %.1fs; acc=%.3f)",
+                q_idx + 1,
+                len(questions),
+                q.qtype,
+                verdict,
+                turns,
+                ingest_ms / 1000.0,
+                answer_ms[-1] / 1000.0 if answer_ms else 0.0,
+                judge_ms[-1] / 1000.0 if judge_ms else 0.0,
+                correct_so_far / total if total else 0.0,
+            )
 
     def _answer_with_phase_e(
         self,
