@@ -47,6 +47,15 @@ class RetrieveParams:
                               embedding. Trades one chat call for a
                               precision boost on questions whose phrasing
                               differs from how memories were stored.
+    `multi_query_n`        -- if >= 2 AND a chat provider is configured,
+                              expand the query into N total queries
+                              (original + N-1 paraphrases), retrieve
+                              each independently, and fuse via
+                              Reciprocal Rank Fusion. Recall-complete
+                              at the cost of N retrievals. 1 = off.
+    `rrf_k`                -- smoothing constant for RRF when
+                              multi_query_n >= 2. Default 60 is the
+                              standard value from the RRF paper.
     """
 
     k: int = 10
@@ -58,6 +67,8 @@ class RetrieveParams:
     reinforce_on_use: bool = True
     as_of: datetime | None = None
     hyde: bool = False
+    multi_query_n: int = 1
+    rrf_k: int = 60
 
     def __post_init__(self) -> None:
         if self.k < 1:
@@ -74,3 +85,7 @@ class RetrieveParams:
             raise ValueError(f"drill_k must be >= 0, got {self.drill_k}")
         if self.candidate_multiplier < 1:
             raise ValueError(f"candidate_multiplier must be >= 1, got {self.candidate_multiplier}")
+        if self.multi_query_n < 1:
+            raise ValueError(f"multi_query_n must be >= 1, got {self.multi_query_n}")
+        if self.rrf_k < 1:
+            raise ValueError(f"rrf_k must be >= 1, got {self.rrf_k}")

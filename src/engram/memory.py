@@ -51,6 +51,7 @@ from engram.retrieve import (
     RetrievePrefer,
 )
 from engram.retrieve._hyde import hyde_transform
+from engram.retrieve._multi_query import expand_queries, reciprocal_rank_fusion
 from engram.schemas import (
     Conflict,
     ConflictStatus,
@@ -218,6 +219,7 @@ class Memory:
         reranker: Reranker | None = None,
         as_of: datetime | None = None,
         hyde: bool | None = None,
+        multi_query_n: int | None = None,
     ) -> list[RetrievalResult]:
         """Return up to `k` items most relevant to `query`, coarse-to-fine.
 
@@ -256,6 +258,9 @@ class Memory:
           hyde: if True and a chat provider is configured, transform
             the query into a hypothetical answer before retrieval
             (Tier 1 precision boost).
+          multi_query_n: if >= 2 and a chat provider is configured,
+            expand the query into N variants (original + paraphrases)
+            and fuse the per-variant rankings via RRF. 1 = off.
         """
         defaults = self._retrieve_params
         params = RetrieveParams(
@@ -272,6 +277,10 @@ class Memory:
             reinforce_on_use=(reinforce if reinforce is not None else defaults.reinforce_on_use),
             as_of=as_of if as_of is not None else defaults.as_of,
             hyde=hyde if hyde is not None else defaults.hyde,
+            multi_query_n=(
+                multi_query_n if multi_query_n is not None else defaults.multi_query_n
+            ),
+            rrf_k=defaults.rrf_k,
         )
         effective_reranker = reranker if reranker is not None else self._default_reranker
         # HyDE: transform the query into a hypothetical answer before
@@ -286,9 +295,16 @@ class Memory:
             prefer=params.prefer,
         ) as s:
             t0 = time.perf_counter()
-            results = self._retriever.retrieve(
-                effective_query, params=params, reranker=effective_reranker
-            )
+            if params.multi_query_n >= 2 and self._chat is not None:
+                results = self._multi_query_retrieve(
+                    effective_query,
+                    params=params,
+                    reranker=effective_reranker,
+                )
+            else:
+                results = self._retriever.retrieve(
+                    effective_query, params=params, reranker=effective_reranker
+                )
             elapsed_ms = (time.perf_counter() - t0) * 1000.0
             METRICS.retrieve_call(k=params.k)
             METRICS.retrieve_latency(elapsed_ms, k=params.k)
@@ -532,6 +548,80 @@ class Memory:
         if result is None:  # pragma: no cover - raced delete
             raise KeyError(procedure_id)
         return result
+
+    def _multi_query_retrieve(
+        self,
+        query: str,
+        *,
+        params: RetrieveParams,
+        reranker: Reranker | None,
+    ) -> list[RetrievalResult]:
+        """Multi-query expansion + RRF fusion.
+
+        Generates `params.multi_query_n - 1` paraphrases via the chat
+        provider, retrieves each (with multi-query disabled to avoid
+        recursion), and fuses the rankings via Reciprocal Rank Fusion.
+        """
+        assert self._chat is not None
+        queries = expand_queries(query, params.multi_query_n, self._chat)
+        # Per-query params: turn multi-query off + the reranker off
+        # (we rerank ONCE post-fusion if a reranker is given).
+        leaf_params = RetrieveParams(
+            k=params.k,
+            prefer=params.prefer,
+            confidence_threshold=params.confidence_threshold,
+            drill_k=params.drill_k,
+            candidate_multiplier=params.candidate_multiplier,
+            include_cold=params.include_cold,
+            reinforce_on_use=False,  # reinforce once post-fusion below
+            as_of=params.as_of,
+            hyde=False,  # already applied upstream if requested
+            multi_query_n=1,
+            rrf_k=params.rrf_k,
+        )
+        rankings: list[list[RetrievalResult]] = []
+        for q in queries:
+            rankings.append(
+                self._retriever.retrieve(q, params=leaf_params, reranker=None)
+            )
+        fused = reciprocal_rank_fusion(rankings, k=params.rrf_k)
+        # If the caller wants a reranker, apply it ONCE to the fused
+        # top-(k*multiplier) for sharpness, then slice to k.
+        if reranker is not None and fused:
+            from engram.retrieve._reranker import RerankCandidate
+
+            slice_size = min(len(fused), params.k * params.candidate_multiplier)
+            cands = [
+                RerankCandidate(result=r, prior_score=r.score)
+                for r in fused[:slice_size]
+            ]
+            rerank_scores = reranker.rerank(query, cands)
+            paired = sorted(
+                zip(fused[:slice_size], rerank_scores, strict=True),
+                key=lambda pair: pair[1],
+                reverse=True,
+            )
+            fused = [
+                RetrievalResult(
+                    item_id=r.item_id,
+                    level=r.level,
+                    content=r.content,
+                    confidence=r.confidence,
+                    score=score,
+                    supported_by=r.supported_by,
+                )
+                for r, score in paired
+            ]
+        sliced = fused[: params.k]
+        # Reinforcement-on-use closes the loop once at the surface level.
+        if params.reinforce_on_use:
+            for r in sliced:
+                try:
+                    kind = ItemKind.EVENT if r.level.value == "event" else ItemKind.MEMORY_ITEM
+                    self._engine.reinforce(r.item_id, kind)
+                except (KeyError, RuntimeError, ValueError):
+                    pass
+        return sliced
 
     # --- Stage 8: contradiction & temporal reasoning -----------------------
 
