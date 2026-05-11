@@ -26,6 +26,7 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from engram.integrations._context import format_context
+from engram.integrations._verify import verify_answer
 from engram.memory import Memory
 from engram.providers._message import Message
 from engram.providers._protocols import ChatProvider
@@ -76,6 +77,11 @@ class EngramAgent:
         a deterministic provider this is just a wasted N-1 calls.
         Voting: normalize (strip + lowercase), count occurrences,
         return the most common; ties broken by first-seen.
+      verify: if True, run a verification pass after the initial chat
+        ("does this context support this answer?"). If the verdict is
+        no, re-retrieve + re-chat up to `verify_max_retries` times.
+      verify_max_retries: bound on the verify-driven retry loop.
+        Default 1 -- one retry on top of the initial chat.
     """
 
     DEFAULT_SYSTEM = (
@@ -103,10 +109,16 @@ class EngramAgent:
         include_score: bool = False,
         cot: bool = False,
         self_consistency_n: int = 1,
+        verify: bool = False,
+        verify_max_retries: int = 1,
     ) -> None:
         if self_consistency_n < 1:
             raise ValueError(
                 f"self_consistency_n must be >= 1, got {self_consistency_n}"
+            )
+        if verify_max_retries < 0:
+            raise ValueError(
+                f"verify_max_retries must be >= 0, got {verify_max_retries}"
             )
         self._memory = memory
         self._chat = chat
@@ -119,6 +131,8 @@ class EngramAgent:
         self._include_score = include_score
         self._cot = cot
         self._self_consistency_n = self_consistency_n
+        self._verify = verify
+        self._verify_max_retries = verify_max_retries
 
     @property
     def memory(self) -> Memory:
@@ -156,6 +170,47 @@ class EngramAgent:
         else:
             samples = ()
             reply = self._chat.chat(messages)
+
+        # Verification pass (Tier 3): does the retrieved context
+        # support the answer? If not, re-retrieve and re-chat up to
+        # `verify_max_retries` times. The retry retrieves the same
+        # query (a refined query is the ReAct loop's job, not the
+        # verifier's).
+        if self._verify:
+            # Each loop iter: verify -> if unsupported AND retries
+            # remaining -> re-retrieve + re-chat. The final iteration
+            # is verify-and-accept (we're out of retries either way).
+            for attempt in range(self._verify_max_retries + 1):
+                verdict = verify_answer(
+                    question=user_message,
+                    context=context,
+                    answer=reply,
+                    chat=self._chat,
+                )
+                if verdict.supported or attempt == self._verify_max_retries:
+                    break
+                # Retry: re-retrieve (in case the corpus has changed
+                # via observations made during this turn) and re-chat.
+                results = self._memory.retrieve(
+                    user_message, k=self._retrieve_k
+                )
+                context = format_context(
+                    results,
+                    include_level=self._include_level,
+                    include_score=self._include_score,
+                )
+                if context:
+                    system = (
+                        f"{self._system_prompt}\n\nRelevant memories:\n{context}"
+                    )
+                else:
+                    system = self._system_prompt
+                if self._cot:
+                    system = f"{system}\n\n{self.COT_INSTRUCTION}"
+                messages = [Message(role="system", content=system)]
+                messages.extend(history)
+                messages.append(Message(role="user", content=user_message))
+                reply = self._chat.chat(messages)
 
         observed_event_ids: list[UUID] = []
         if self._auto_observe:
