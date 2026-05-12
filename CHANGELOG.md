@@ -6,6 +6,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Onc
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-05-12
+
+### Fixed
+
+- **Author metadata**: the legacy `Author:` core-metadata field was empty
+  in v0.2.0 because PEP 621 routes `{name, email}` entries into the
+  `Author-email` field only. Added a name-only entry to the `authors`
+  array so both `Author: Ameya Borkar` and `Author-email: Ameya Borkar
+  <ameyaborkar17@gmail.com>` show up in `pip show` and on the PyPI
+  project page. Metadata-only patch; no code changes.
+
 ## [0.2.0] — 2026-05-12
 
 ### Changed

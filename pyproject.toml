@@ -16,12 +16,20 @@ build-backend = "hatchling.build"
 # requests for both `engram` and `engram-memory` are tracked
 # separately; if they succeed we'll mirror future releases.
 name = "engrampy"
-version = "0.2.0"
+version = "0.2.1"
 description = "Hierarchical memory with consolidation and principled decay for LLM agents and assistants."
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.10"
-authors = [{ name = "Ameya Borkar", email = "ameyaborkar17@gmail.com" }]
+# Two-entry workaround: PEP 621 only writes the legacy `Author:`
+# core-metadata field when an entry has a name and NO email. So one
+# name-only entry populates `Author: Ameya Borkar` and the second
+# (name + email) populates `Author-email: Ameya Borkar <...>`. Both
+# fields visible to `pip show` and the PyPI project page.
+authors = [
+    { name = "Ameya Borkar" },
+    { name = "Ameya Borkar", email = "ameyaborkar17@gmail.com" },
+]
 keywords = ["llm", "memory", "agents", "rag", "consolidation", "retrieval"]
 classifiers = [
     "Development Status :: 4 - Beta",
