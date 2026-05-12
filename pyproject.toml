@@ -3,13 +3,20 @@ requires = ["hatchling>=1.24"]
 build-backend = "hatchling.build"
 
 [project]
-# `engram` on PyPI is squatted as a placeholder; v0.1.0 ships under
-# `engram-memory`. The Python import name stays `engram` -- the wheel
-# packages `src/engram/`, so users `pip install engram-memory` and
-# `import engram`. A PEP 541 reclaim request for `engram` itself is
-# tracked separately; if it succeeds we'll mirror future releases there.
-name = "engram-memory"
-version = "0.1.0"
+# PyPI name history:
+#   - `engram` is squatted as a placeholder (single 1163-byte upload
+#     from 2025-04-21 with summary "Do not use. Placeholder.").
+#   - `engram-memory` was the v0.1.0 distribution name but was claimed
+#     out from under us by an unrelated party on 2026-02-10 who
+#     published 0.4.0, 0.4.1, and 0.5.0b1 within hours, pointing the
+#     metadata at github.com/Ashish-dwi99/Engram.
+# We ship under `engrampy` instead. The Python IMPORT name stays
+# `engram` -- the wheel packages `src/engram/`, so users
+# `pip install engrampy` and `import engram`. PEP 541 reclaim
+# requests for both `engram` and `engram-memory` are tracked
+# separately; if they succeed we'll mirror future releases.
+name = "engrampy"
+version = "0.2.0"
 description = "Hierarchical memory with consolidation and principled decay for LLM agents and assistants."
 readme = "README.md"
 license = { file = "LICENSE" }

@@ -6,6 +6,97 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Onc
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-05-12
+
+### Changed
+
+- **Distribution name moved to `engrampy`**. The original `engram-memory`
+  PyPI name was claimed out from under the project on 2026-02-10 by an
+  unrelated party publishing 0.4.0 / 0.4.1 / 0.5.0b1 pointing at
+  `github.com/Ashish-dwi99/Engram`. The Python import name is unchanged
+  (`from engram import Memory` works as before). Users on `engram-memory`
+  ≤ 0.1.0 should switch to `pip install engrampy`. PEP 541 reclaim
+  requests for both `engram` (placeholder) and `engram-memory` (active
+  squat) are pending.
+
+### Added
+
+- **Retrieval-side hybrid stack** (Stage F):
+  - `engram.retrieve._bm25.BM25Index` — vectorized (numpy scatter-add) BM25
+    with Lucene-style k1/b parameters, lazy index build, frozen-after-search
+    invariant.
+  - `engram.retrieve._bm25.reciprocal_rank_fusion` — RRF for fusing dense +
+    lexical + recent-window candidate streams.
+  - `engram.retrieve._mmr.mmr_select` — vectorized greedy MMR with
+    min-max-normalized relevance so `λ` controls the diversity trade-off
+    as documented (fixed a math bug where unnormalized cross-encoder
+    logits dwarfed the redundancy term).
+  - Recency boost on the rerank scores: `score + λ·exp(-days/decay)`.
+    Additive (not multiplicative) so it preserves direction on negative
+    reranker logits.
+  - Per-question recent-window stream and per-question auto-temporal year
+    extraction in the LongMemEval bench suite, with empty-pool fallback.
+- **Cross-encoder reranker**: `engram.retrieve.BGEReranker` (BAAI/bge-reranker-v2-m3
+  by default). Reads through the `[reranker]` extra.
+- **Async parallel consolidation**: `Memory.aconsolidate` and
+  `ConsolidationEngine.aconsolidate` use `asyncio.gather` over clusters with
+  a semaphore-bounded concurrency limit. ~30× speedup on typical
+  LongMemEval haystacks vs serial.
+- **Persistent disk cache** for `(chat, embed)` provider responses:
+  `engram.providers._disk_cache.CachedChat` / `CachedEmbedder` /
+  `with_disk_cache()`. SQLite-backed; useful for benchmark re-runs.
+- **Asymmetric query prompts** in `LocalEmbedder` (e.g. `s2p_query` for
+  Stella, instruction prefix for E5), plus a per-instance LRU result cache.
+- **Storage performance**: composite indexes (migration `0009_perf_indexes.sql`),
+  PRAGMA `cache_size = 64MB` + `mmap_size = 256MB`, batched embedding +
+  `created_at` lookups via `get_embeddings_batch` / `get_created_at_batch`.
+- **OpenRouter chat + embedder** behind a single `OPENROUTER_API_KEY`
+  (`engram.providers.openrouter`). Optional `HTTP-Referer` /
+  `X-Title` ranking headers documented in `.env.example`.
+- **`Level.GLOBAL` + `Level.TOPIC`** hierarchy levels and aggregate
+  `user_state` storage.
+- **Conflict-aware retrieval**: `RetrieveParams.surface_conflicts` co-surfaces
+  contradictory memory_items when a confident answer exists.
+- **Bench harness improvements**:
+  - `engram-bench run longmemeval` now wires every retrieve-side knob:
+    `--bm25-weight`, `--mmr-lambda`, `--recency-lambda`, `--lexical-filter`,
+    `--auto-temporal`, `--recent-window-k`, `--disk-cache`, `--drill-k`,
+    `--confidence-threshold`, `--rerank-pool-multiplier`, `--bm25-k1`,
+    `--bm25-b`, `--recency-decay-days`, `--mmr-pool-size`.
+  - Per-question exception isolation: a content-filter rejection or
+    network blip on one question scores it 0 and continues the run instead
+    of crashing.
+  - `--consolidate` triggers the parallel `aconsolidate` path.
+- **Evaluation infrastructure**:
+  - `scripts/retrieval_eval.py` — retrieval-only evaluator with
+    recall@k / hit@k / multi_recall@k / MRR / first-correct-rank /
+    precision@k at multiple k cutoffs. No LLM calls.
+  - `scripts/ablate_longmemeval.py` — per-question, per-config ablation
+    matrix with retrieval-only or full LLM scoring.
+  - `scripts/sweep.py` — single-knob hyperparameter sweep with bootstrap CIs
+    and McNemar significance tests vs a baseline value.
+  - `scripts/retrieval_trace.py` — per-question per-stage trace dump
+    (dense top-N, BM25 top-N, recent-window, plus final top-k per config),
+    with answer-session annotation.
+  - `scripts/run_all_evals.py` — orchestrator that runs all of the above
+    in one command and emits a consolidated `REPORT.md`.
+  - `scripts/_stats.py` — bootstrap mean / paired-diff CIs and McNemar's
+    exact / chi-square tests.
+- **`docs/EVAL_PROTOCOL.md`** — formal per-component evaluation protocol:
+  hypothesis, knobs, primary metric, decision rule, known issues. Standard
+  sweep grids, statistical-test definitions, reproducibility checklist.
+
+### Fixed
+
+- MMR no longer degenerates to relevance-sort when cross-encoder logits
+  have a wide range — relevance is min-max normalized to [0, 1] inside
+  `mmr_select` before greedy selection so `λ` has the documented meaning.
+- Recency boost no longer inverts on negative reranker logits — switched
+  to additive `score + λ·decay`.
+- LongMemEval haystack date strings now parsed into `Event.created_at`
+  so `--recency-lambda` and recent-window retrieval have real timestamps
+  to work with.
+
 ### Added
 
 - Project scaffolding: `pyproject.toml` (hatchling build), `LICENSE` (MIT), `CONTRIBUTING.md`, `SECURITY.md`, `CHANGELOG.md`, `.gitignore`.

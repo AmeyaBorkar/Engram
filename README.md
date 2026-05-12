@@ -67,12 +67,13 @@ The four moving parts:
 ## Quick start
 
 ```bash
-pip install engram-memory
+pip install engrampy
 ```
 
-> The PyPI distribution name is `engram-memory` (the bare `engram` name
-> is squatted as a placeholder; a PEP 541 reclaim is pending). The
-> Python import name is just `engram`.
+> The PyPI distribution name is `engrampy`. The Python import name is
+> just `engram` (so `from engram import Memory` works as expected).
+> The bare `engram` and `engram-memory` names on PyPI are squatted by
+> unrelated parties — PEP 541 reclaim requests are pending.
 
 ```python
 from engram import Memory
