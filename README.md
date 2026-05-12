@@ -2,19 +2,19 @@
 
 > Hierarchical memory with consolidation and principled decay for LLM agents and assistants.
 
-[![PyPI](https://img.shields.io/badge/pypi-coming_soon-lightgrey)]()
+[![PyPI](https://img.shields.io/pypi/v/engrampy?color=blue)](https://pypi.org/project/engrampy/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Paper](https://img.shields.io/badge/paper-in_progress-orange)]()
 
-Engram is a memory layer for LLM systems that does what existing memory libraries don't: it *consolidates*. Raw events get abstracted into general patterns, redundant or contradicted memories decay, and retrieval reads across a hierarchy from specific episodes to compressed knowledge — the way human memory actually works.
+Engram is a memory layer for LLM systems that does what existing memory libraries don't: it *consolidates*. Raw events get abstracted into general patterns, redundant or contradicted memories decay.
 
-It is designed as a single primitive that serves both **agents** (procedural memory: "in situations like this, this approach worked") and **assistants** (semantic memory: "the user has a golden retriever they care about"), with the same algorithm and the same API.
+It is designed as a single primitive that serves both **agents** (procedural memory: "in situations like this, this approach worked") and **assistants** (semantic memory: "the user has a golden retriever named Max").
 
 ---
 
 ## Why Engram exists
 
-Every production LLM system today has a memory problem. The complaint is universal — *"it doesn't remember me"* — and the typical solution is some variation of *"dump everything into a vector store and search by cosine similarity."*
+Every production LLM system today has a memory problem. The complaint is universal — *"it doesn't remember me"* — and the typical solution is some variation of *"dump everything into a vector database with a search bar"*.
 
 That isn't memory. It's a logbook with a search bar.
 
@@ -33,33 +33,33 @@ Engram is built around these three principles.
 Engram organizes memory as a hierarchy with three things flowing through it:
 
 ```
-                      ┌──────────────────────────────┐
-                      │   Consolidated abstractions  │   ← retrieved when general
-                      │   (semantic / procedural)    │      patterns suffice
-                      └──────────────▲───────────────┘
-                                     │  consolidation
-                                     │  (clustering + abstraction)
-                      ┌──────────────┴───────────────┐
-                      │   Mid-level summaries        │
-                      │   (episode clusters)         │
-                      └──────────────▲───────────────┘
-                                     │
-                      ┌──────────────┴───────────────┐
-                      │   Raw event log              │   ← retrieved when
-                      │   (episodic memory)          │      specifics matter
-                      └──────────────────────────────┘
-                                     │
-                                     ▼
-                              decay function
-                          (recency, reinforcement,
-                           corroboration, contradiction)
+                       ┌──────────────────────────────┐
+                       │   Consolidated abstractions  │   ← retrieved when general
+                       │   (semantic / procedural)    │      patterns suffice
+                       └──────────────▲───────────────┘
+                                      │  consolidation
+                                      │  (clustering + abstraction)
+                       ┌──────────────┴───────────────┐
+                       │   Mid-level summaries        │
+                       │   (episode clusters)         │
+                       └──────────────▲───────────────┘
+                                      │
+                       ┌──────────────┴───────────────┐
+                       │   Raw event log              │   ← retrieved when
+                       │   (episodic memory)          │      specifics matter
+                       └──────────────────────────────┘
+                                      │
+                                      ▼
+                               decay function
+                           (recency, reinforcement,
+                            corroboration, contradiction)
 ```
 
 The four moving parts:
 
 - **Event log.** Every observation lands here first, with provenance and timestamp.
 - **Consolidation pass.** Periodically (or on trigger), the system clusters related events, extracts abstractions, and links them to their supporting evidence.
-- **Decay.** Memories at every level have weights driven by reinforcement (was this retrieved? did it lead to a successful outcome?), corroboration (how many independent events support it?), contradiction (was it ever overruled?), and recency.
+- **Decay.** Memories at every level have weights driven by reinforcement (was this retrieved? did it lead to a successful outcome?), corroboration (how many independent events support it?), contradiction detection, and recency.
 - **Hierarchical retrieval.** Queries read across the whole hierarchy, preferring abstractions when they suffice and drilling into specifics when they don't.
 
 ---
@@ -69,11 +69,6 @@ The four moving parts:
 ```bash
 pip install engrampy
 ```
-
-> The PyPI distribution name is `engrampy`. The Python import name is
-> just `engram` (so `from engram import Memory` works as expected).
-> The bare `engram` and `engram-memory` names on PyPI are squatted by
-> unrelated parties — PEP 541 reclaim requests are pending.
 
 ```python
 from engram import Memory
@@ -170,11 +165,11 @@ $$
 w_{t+1} = w_t \cdot \alpha^{\Delta t} + \beta \cdot r_t + \gamma \cdot c_t - \delta \cdot x_t
 $$
 
-Where $r_t$ is reinforcement (was it retrieved and useful?), $c_t$ is new corroboration, $x_t$ is contradiction, and $\alpha, \beta, \gamma, \delta$ are tunable. Items below a threshold are pruned (or kept as cold storage, depending on configuration).
+Where $r_t$ is reinforcement (was it retrieved and useful?), $c_t$ is new corroboration, $x_t$ is contradiction, and $\alpha, \beta, \gamma, \delta$ are tunable. Items below a threshold are pruned.
 
 ### Retrieval
 
-Retrieval is **coarse-to-fine** by default: search abstractions first, then drill into supporting episodes only if the query demands specifics or the top-level results are low-confidence. This is both faster and more grounded than flat vector search.
+Retrieval is **coarse-to-fine** by default: search abstractions first, then drill into supporting episodes only if the query demands specifics or the top-level results are low-confidence. This trades latency for relevance control.
 
 ---
 
@@ -191,7 +186,7 @@ Retrieval is **coarse-to-fine** by default: search abstractions first, then dril
 | **Procedural memory** | — | — | ✓ |
 | **Coarse-to-fine retrieval** | — | — | ✓ |
 
-The headline difference is that Engram treats memory as a *living hierarchy that changes over time*, not as a static append-only store with a search index. The downstream effects — better recall on long conversations, transferable agent procedures, graceful handling of stale or contradictory information — fall out of that.
+The headline difference is that Engram treats memory as a *living hierarchy that changes over time*, not as a static append-only store with a search index. The downstream effects — better recall on long-horizon tasks, cheaper retrieval, and principled forgetting — compound.
 
 ---
 
@@ -207,7 +202,7 @@ Tracked suites:
 
 Tracked baselines: Chroma (flat dense), Chroma + BM25 (hybrid), Letta / MemGPT, Zep / Graphiti, Cognee, HippoRAG, mem0, A-MEM, full-context (as upper bound).
 
-The full plan — targets, why-we-think-we-can-win, and the reproducibility discipline — is in [`benchmarks/SOTA.md`](./benchmarks/SOTA.md). The running comparison is in [`benchmarks/SCOREBOARD.md`](./benchmarks/SCOREBOARD.md). A claim of "we beat X" requires a committed manifest in `benchmarks/runs/`; without one it doesn't count.
+The full plan — targets, why-we-think-we-can-win, and the reproducibility discipline — is in [`benchmarks/SOTA.md`](./benchmarks/SOTA.md). The running comparison is in [`benchmarks/SCOREBOARD.md`](./benchmarks/SCOREBOARD.md).
 
 ---
 
@@ -215,7 +210,7 @@ The full plan — targets, why-we-think-we-can-win, and the reproducibility disc
 
 Stage-by-stage breakdown — including cross-cutting standards on speed, quality, and security — in [`ROADMAP.md`](./ROADMAP.md). High-level milestones:
 
-**v0.1 — Core primitive.**
+**v0.1 — Core primitive (released).**
 Event log, basic consolidation, decay, coarse-to-fine retrieval. SQLite backend. Reference benchmarks against flat vector store.
 
 **v0.2 — Procedural memory.**
@@ -252,7 +247,7 @@ If you use Engram in research, please cite (citation will be added when the pape
 ```bibtex
 @misc{engram2026,
   title  = {Engram: Hierarchical Memory with Consolidation and Decay for LLM Systems},
-  author = {[your name]},
+  author = {Borkar, Ameya},
   year   = {2026},
   note   = {Preprint forthcoming},
 }
@@ -281,4 +276,4 @@ MIT. See [`LICENSE`](./LICENSE).
 
 ## Acknowledgments
 
-Engram draws on ideas from cognitive neuroscience (complementary learning systems, episodic-to-semantic consolidation, Ebbinghaus decay), spaced repetition systems, and prior memory libraries (mem0, Letta/MemGPT, Zep). Standing on shoulders.
+Engram draws on ideas from cognitive neuroscience (complementary learning systems, episodic-to-semantic consolidation, Ebbinghaus decay), spaced repetition systems, and prior memory libraries (MemGPT, Zep, mem0).
