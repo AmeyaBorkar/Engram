@@ -30,7 +30,7 @@ if TYPE_CHECKING:  # pragma: no cover - import-only for typing
     from opentelemetry.trace import Span, Tracer
 
 INSTRUMENTATION_NAME = "engram"
-INSTRUMENTATION_VERSION = "0.3.1"
+INSTRUMENTATION_VERSION = "0.2.1"
 
 
 try:
