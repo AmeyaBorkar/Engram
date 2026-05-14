@@ -13,7 +13,7 @@ counters/histograms for observable signals. The implementation is
     OTel isn't present.
 
 The user opts in via the `[otel]` extra (`pip install
-engram-memory[otel]`) and then configures their own provider.
+engrampy[otel]`) and then configures their own provider.
 
 No SDK imports here -- this module touches only the `opentelemetry-api`
 surface, which is stable and lightweight. The SDK is for callers.
