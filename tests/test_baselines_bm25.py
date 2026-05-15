@@ -35,11 +35,13 @@ def test_bm25_term_only_in_some_docs() -> None:
     b.add("alpha beta gamma")
     b.add("delta epsilon zeta")
     out = b.topk("alpha", k=2)
-    # Only doc 0 contains 'alpha'; it should rank first with positive score,
-    # and doc 1 should have score 0.
+    # Only doc 0 contains 'alpha'; zero-scored docs are dropped from
+    # the result (matches the engine's BM25Index behaviour — pure
+    # zero-score 'matches' add no information to RRF or downstream
+    # consumers, and including them silently inflated baselines).
+    assert len(out) == 1
     assert out[0][0] == 0
     assert out[0][1] > 0
-    assert out[1][1] == pytest.approx(0.0)
 
 
 def test_bm25_tokenizer_handles_punctuation_and_case() -> None:
