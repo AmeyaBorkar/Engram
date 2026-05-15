@@ -325,7 +325,16 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--qid", default=None)
     parser.add_argument("--qtype", default=None)
-    parser.add_argument("--limit", type=int, default=1)
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help=(
+            "Cap on questions after filtering. None (default) = all "
+            "matching. The previous default of 1 made --stats-only "
+            "useless by accident."
+        ),
+    )
     parser.add_argument("--config", default="baseline", choices=sorted(CONFIGS.keys()))
     parser.add_argument("--k", type=int, default=10)
     parser.add_argument("--width", type=int, default=100, help="Content preview width.")
