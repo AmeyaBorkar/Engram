@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+
+import pytest
 from pathlib import Path
 
 from engram.bench import FakeProvider, load_suite, run
@@ -25,7 +27,7 @@ def test_recall_smoke_suite_runs_engram_at_recall_1(tmp_path: Path) -> None:
     # engram is always in the metrics; chroma/chroma+bm25 are present iff
     # chromadb is installed locally.
     assert "engram_recall@10" in metrics
-    assert metrics["engram_recall@10"] == 1.0
+    assert metrics["engram_recall@10"] == pytest.approx(1.0)
 
 
 def test_recall_smoke_per_question_payload_well_formed(tmp_path: Path) -> None:

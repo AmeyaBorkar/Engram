@@ -42,8 +42,10 @@ def test_run_noop_writes_manifest(tmp_path: Path) -> None:
     payload = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert payload["suite"] == "noop"
     assert payload["provider"] == "fake"
-    assert payload["aggregate_metrics"] == {"noop": 1.0}
-    assert payload["confidence_intervals"] == {"noop": [1.0, 1.0]}
+    assert payload["aggregate_metrics"]["noop"] == pytest.approx(1.0)
+    ci = payload["confidence_intervals"]["noop"]
+    assert ci[0] == pytest.approx(1.0)
+    assert ci[1] == pytest.approx(1.0)
 
 
 def test_cli_run_noop(tmp_path: Path) -> None:
