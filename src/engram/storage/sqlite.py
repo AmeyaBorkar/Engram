@@ -314,7 +314,20 @@ class SqliteStorage:
     def __init__(self, path: str | Path = ":memory:") -> None:
         self._path = str(path)
         self._lock = threading.Lock()
-        self._connections: dict[int, sqlite3.Connection] = {}
+        # `_local` holds the per-thread sqlite3.Connection.  Using a
+        # threading.local instead of a tid-keyed dict means a recycled
+        # OS thread id can't hand a new thread the connection of a dead
+        # one — the previous design cached connections by
+        # `threading.get_ident()`, but tids are recycled, so a dead
+        # thread's bound connection could be returned to a new thread
+        # and explode on `check_same_thread`.
+        #
+        # `_all_connections` is a sidecar set for close() / __exit__ to
+        # find every live connection.  Holds strong references, so a
+        # connection survives until close() is called; that mirrors the
+        # previous semantics (caller-owned lifecycle).
+        self._local = threading.local()
+        self._all_connections: list[sqlite3.Connection] = []
         self._initialized = False
         self._vector_index = VectorIndex()
         # Lexical BM25 index over event content. Lazy-built on the
@@ -363,11 +376,21 @@ class SqliteStorage:
             self._initialized = True
 
     def close(self) -> None:
+        # close() can be invoked from any thread, but `sqlite3.Connection`
+        # with check_same_thread=True only allows `.close()` from its
+        # creating thread.  Wrap each close in suppress() so a
+        # cross-thread close call against an orphaned connection (e.g.,
+        # close() called from main after a worker thread exited) does
+        # not raise; the process exit reaps OS resources anyway.
         with self._lock:
-            for conn in list(self._connections.values()):
-                with contextlib.suppress(sqlite3.Error):
+            for conn in list(self._all_connections):
+                with contextlib.suppress(sqlite3.Error, sqlite3.ProgrammingError):
                     conn.close()
-            self._connections.clear()
+            self._all_connections.clear()
+            # threading.local has no `clear()` reachable across threads;
+            # rebind the calling thread's slot if present.
+            if getattr(self._local, "conn", None) is not None:
+                self._local.conn = None
             self._initialized = False
 
     def _connect(self) -> sqlite3.Connection:
@@ -382,8 +405,7 @@ class SqliteStorage:
         double-checked-locking pattern) can fetch a connection without
         re-acquiring and deadlocking on a non-reentrant Lock.
         """
-        tid = threading.get_ident()
-        conn = self._connections.get(tid)
+        conn = getattr(self._local, "conn", None)
         if conn is not None:
             return conn
         conn = sqlite3.connect(
@@ -444,7 +466,8 @@ class SqliteStorage:
         # `wal_autocheckpoint=1000` is the SQLite default; the
         # bench writes everything in one big transaction per
         # haystack so we don't tune this knob.
-        self._connections[tid] = conn
+        self._local.conn = conn
+        self._all_connections.append(conn)
         return conn
 
     @contextmanager
