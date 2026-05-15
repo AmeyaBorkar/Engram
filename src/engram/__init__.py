@@ -62,4 +62,13 @@ __all__ = [
     "new_id",
     "stats",
 ]
-__version__ = "0.2.1"
+try:
+    # Source of truth: the installed distribution's metadata (read once
+    # at import).  Falls back to a placeholder if the package isn't
+    # installed (e.g., running directly out of a checkout without
+    # `pip install -e .`) so import never breaks.
+    from importlib.metadata import PackageNotFoundError, version as _pkg_version
+
+    __version__: str = _pkg_version("engrampy")
+except PackageNotFoundError:  # pragma: no cover - dev tree without install
+    __version__ = "0.0.0+unknown"

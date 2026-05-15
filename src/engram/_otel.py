@@ -30,7 +30,15 @@ if TYPE_CHECKING:  # pragma: no cover - import-only for typing
     from opentelemetry.trace import Span, Tracer
 
 INSTRUMENTATION_NAME = "engram"
-INSTRUMENTATION_VERSION = "0.2.1"
+# Mirror the package version so OTel telemetry attribution doesn't drift
+# from the installed distribution's metadata.  Read once at import.
+try:
+    from importlib.metadata import PackageNotFoundError as _PNFE
+    from importlib.metadata import version as _pkg_version
+
+    INSTRUMENTATION_VERSION: str = _pkg_version("engrampy")
+except _PNFE:  # pragma: no cover - dev tree without install
+    INSTRUMENTATION_VERSION = "0.0.0+unknown"
 
 
 try:
