@@ -49,7 +49,16 @@ def applied_versions(conn: sqlite3.Connection) -> set[int]:
 
 
 def apply_migrations(conn: sqlite3.Connection) -> list[int]:
-    """Apply every pending migration in order. Return the versions applied."""
+    """Apply every pending migration in order. Return the versions applied.
+
+    Some migrations (0007, 0008) toggle `PRAGMA foreign_keys = OFF` to
+    rebuild a table.  If the migration body raises before reaching the
+    trailing `PRAGMA foreign_keys = ON`, the connection inherits an
+    OFF state that lets subsequent inserts violate FK constraints
+    silently.  We wrap the apply loop in a try/finally and restore the
+    pre-migration setting so a partial failure can't poison the
+    connection's FK enforcement.
+    """
     applied = applied_versions(conn)
     pending = [
         (version, filename) for version, filename in list_migrations() if version not in applied
@@ -57,16 +66,32 @@ def apply_migrations(conn: sqlite3.Connection) -> list[int]:
     if not pending:
         return []
 
+    fk_was_on = bool(conn.execute("PRAGMA foreign_keys").fetchone()[0])
     pkg = resources.files(__name__)
     newly_applied: list[int] = []
-    for version, filename in pending:
-        sql = (pkg / filename).read_text(encoding="utf-8")
-        conn.executescript(sql)
-        recorded = {row[0] for row in conn.execute("SELECT version FROM schema_migrations")}
-        if version not in recorded:
-            raise RuntimeError(
-                f"migration {filename} did not record version {version} in "
-                f"schema_migrations - every migration script must INSERT its own version"
-            )
-        newly_applied.append(version)
+    try:
+        for version, filename in pending:
+            sql = (pkg / filename).read_text(encoding="utf-8")
+            try:
+                conn.executescript(sql)
+            except sqlite3.Error as exc:
+                # Enrich the error with the migration filename and version
+                # so a typo in 0010_*.sql doesn't surface as a bare SQL
+                # syntax error with no context.
+                raise RuntimeError(
+                    f"migration {filename} (version {version}) failed: {exc}"
+                ) from exc
+            recorded = {row[0] for row in conn.execute("SELECT version FROM schema_migrations")}
+            if version not in recorded:
+                raise RuntimeError(
+                    f"migration {filename} did not record version {version} in "
+                    f"schema_migrations - every migration script must INSERT its own version"
+                )
+            newly_applied.append(version)
+    finally:
+        # Restore the FK state regardless of success/failure.  If a
+        # migration left foreign_keys OFF mid-rebuild, this resets to the
+        # pre-migration value so downstream connection users don't
+        # silently insert orphan rows.
+        conn.execute(f"PRAGMA foreign_keys = {'ON' if fk_was_on else 'OFF'}")
     return newly_applied
