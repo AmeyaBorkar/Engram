@@ -35,6 +35,44 @@ except ImportError as _exc:  # pragma: no cover
 if TYPE_CHECKING:
     from openai import AsyncOpenAI, OpenAI
 
+# Defaults that override the SDK's 600s read timeout and unbounded
+# completion length.  A stuck endpoint shouldn't hang a benchmark for ten
+# minutes per call; a runaway agentic loop shouldn't be allowed to bill
+# tens of thousands of output tokens unless the caller explicitly opts in.
+_DEFAULT_TIMEOUT_SECONDS: float = 60.0
+_DEFAULT_CONNECT_TIMEOUT_SECONDS: float = 10.0
+_DEFAULT_MAX_TOKENS: int = 1024
+
+
+def _build_sdk_kwargs(
+    api_key: str | None,
+    base_url: str | None,
+    default_headers: dict[str, str] | None,
+    timeout: float | None,
+) -> dict[str, Any]:
+    """Assemble the kwargs passed to `OpenAI()` / `AsyncOpenAI()`.
+
+    Centralized so the chat and embed adapters apply identical timeout +
+    auth handling.  `api_key=None` is included so the SDK can fall back
+    to OPENAI_API_KEY; we deliberately do NOT filter it out because the
+    SDK reads its own env fallback when the kwarg is None.
+    """
+    kwargs: dict[str, Any] = {"api_key": api_key}
+    if base_url is not None:
+        kwargs["base_url"] = base_url
+    if default_headers is not None:
+        kwargs["default_headers"] = default_headers
+    if timeout is not None:
+        try:
+            import httpx  # noqa: PLC0415  # optional dep, only at SDK construction
+
+            kwargs["timeout"] = httpx.Timeout(
+                timeout, connect=_DEFAULT_CONNECT_TIMEOUT_SECONDS
+            )
+        except ImportError:  # pragma: no cover - httpx ships with openai SDK
+            kwargs["timeout"] = timeout
+    return kwargs
+
 
 class OpenAIEmbedder:
     """OpenAI embeddings adapter (`text-embedding-3-small` by default).
@@ -66,6 +104,7 @@ class OpenAIEmbedder:
         async_client: AsyncOpenAI | None = None,
         default_headers: dict[str, str] | None = None,
         send_dimensions: bool | None = None,
+        timeout: float | None = _DEFAULT_TIMEOUT_SECONDS,
     ) -> None:
         if dim < 1:
             raise ValueError(f"dim must be >= 1, got {dim}")
@@ -79,11 +118,7 @@ class OpenAIEmbedder:
         if send_dimensions is None:
             send_dimensions = model in _SUPPORTS_DIMENSIONS
         self._send_dimensions = send_dimensions
-        sdk_kwargs: dict[str, Any] = {"api_key": api_key}
-        if base_url is not None:
-            sdk_kwargs["base_url"] = base_url
-        if self._default_headers is not None:
-            sdk_kwargs["default_headers"] = self._default_headers
+        sdk_kwargs = _build_sdk_kwargs(api_key, base_url, self._default_headers, timeout)
         self._client: OpenAI = client if client is not None else _openai_module.OpenAI(**sdk_kwargs)
         self._aclient: AsyncOpenAI = (
             async_client if async_client is not None else _openai_module.AsyncOpenAI(**sdk_kwargs)
@@ -128,16 +163,19 @@ class OpenAIChat:
         async_client: AsyncOpenAI | None = None,
         completion_kwargs: dict[str, Any] | None = None,
         default_headers: dict[str, str] | None = None,
+        timeout: float | None = _DEFAULT_TIMEOUT_SECONDS,
+        max_tokens: int | None = _DEFAULT_MAX_TOKENS,
     ) -> None:
         self.model = model
         self._kwargs: dict[str, Any] = dict(completion_kwargs or {})
+        # If the caller's completion_kwargs already pins max_tokens, respect
+        # it; otherwise apply the default cap so a runaway loop or
+        # misbehaving endpoint can't bill an unbounded output.
+        if max_tokens is not None and "max_tokens" not in self._kwargs:
+            self._kwargs["max_tokens"] = max_tokens
         self._base_url = base_url
         self._default_headers = dict(default_headers) if default_headers else None
-        sdk_kwargs: dict[str, Any] = {"api_key": api_key}
-        if base_url is not None:
-            sdk_kwargs["base_url"] = base_url
-        if self._default_headers is not None:
-            sdk_kwargs["default_headers"] = self._default_headers
+        sdk_kwargs = _build_sdk_kwargs(api_key, base_url, self._default_headers, timeout)
         self._client: OpenAI = client if client is not None else _openai_module.OpenAI(**sdk_kwargs)
         self._aclient: AsyncOpenAI = (
             async_client if async_client is not None else _openai_module.AsyncOpenAI(**sdk_kwargs)

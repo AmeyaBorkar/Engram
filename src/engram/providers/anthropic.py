@@ -35,6 +35,25 @@ if TYPE_CHECKING:
 
 
 _DEFAULT_MAX_TOKENS = 1024
+# Anthropic SDK's default request timeout is 600s — far longer than
+# anything an interactive workload should tolerate. A stuck endpoint
+# should bubble up promptly instead of hanging the caller for ten minutes.
+_DEFAULT_TIMEOUT_SECONDS: float = 60.0
+_DEFAULT_CONNECT_TIMEOUT_SECONDS: float = 10.0
+
+
+def _build_sdk_kwargs(api_key: str | None, timeout: float | None) -> dict[str, Any]:
+    kwargs: dict[str, Any] = {"api_key": api_key}
+    if timeout is not None:
+        try:
+            import httpx  # noqa: PLC0415
+
+            kwargs["timeout"] = httpx.Timeout(
+                timeout, connect=_DEFAULT_CONNECT_TIMEOUT_SECONDS
+            )
+        except ImportError:  # pragma: no cover - httpx ships with anthropic SDK
+            kwargs["timeout"] = timeout
+    return kwargs
 
 
 class AnthropicChat:
@@ -51,19 +70,21 @@ class AnthropicChat:
         client: Anthropic | None = None,
         async_client: AsyncAnthropic | None = None,
         completion_kwargs: dict[str, Any] | None = None,
+        timeout: float | None = _DEFAULT_TIMEOUT_SECONDS,
     ) -> None:
         if max_tokens < 1:
             raise ValueError(f"max_tokens must be >= 1, got {max_tokens}")
         self.model = model
         self._max_tokens = max_tokens
         self._kwargs: dict[str, Any] = dict(completion_kwargs or {})
+        sdk_kwargs = _build_sdk_kwargs(api_key, timeout)
         self._client: Anthropic = (
-            client if client is not None else _anthropic_module.Anthropic(api_key=api_key)
+            client if client is not None else _anthropic_module.Anthropic(**sdk_kwargs)
         )
         self._aclient: AsyncAnthropic = (
             async_client
             if async_client is not None
-            else _anthropic_module.AsyncAnthropic(api_key=api_key)
+            else _anthropic_module.AsyncAnthropic(**sdk_kwargs)
         )
 
     def chat(self, messages: Sequence[Message]) -> str:
