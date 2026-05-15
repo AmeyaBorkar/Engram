@@ -15,6 +15,7 @@ from __future__ import annotations
 import contextlib
 import sqlite3
 import threading
+import warnings
 from collections.abc import Iterable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -380,7 +381,28 @@ class SqliteStorage:
             check_same_thread=True,
         )
         conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA journal_mode = WAL")
+        # PRAGMA journal_mode = WAL returns the mode SQLite actually settled
+        # on.  Some filesystems (NFS, sshfs, read-only mounts) silently fall
+        # back to DELETE/MEMORY — which kills the concurrency story without
+        # any indication.  Read the result and warn so misconfigured paths
+        # surface loudly instead of looking like a working WAL deployment.
+        mode_row = conn.execute("PRAGMA journal_mode = WAL").fetchone()
+        actual_mode = mode_row[0] if mode_row else ""
+        if (
+            isinstance(actual_mode, str)
+            and actual_mode.lower() != "wal"
+            # `:memory:` cannot use WAL by design and returns "memory" — no
+            # need to warn on an unavoidable behavior.
+            and self._path != ":memory:"
+        ):
+            warnings.warn(
+                f"SqliteStorage requested journal_mode=WAL but SQLite settled "
+                f"on {actual_mode!r} for {self._path!r}.  Concurrent writers "
+                f"may serialize through file-level locks instead of WAL; "
+                f"check the underlying filesystem.",
+                RuntimeWarning,
+                stacklevel=4,
+            )
         conn.execute("PRAGMA foreign_keys = ON")
         conn.execute("PRAGMA synchronous = NORMAL")
         conn.execute("PRAGMA temp_store = MEMORY")
