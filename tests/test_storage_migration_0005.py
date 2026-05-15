@@ -7,6 +7,8 @@ from importlib import resources
 from pathlib import Path
 from uuid import uuid4
 
+import pytest
+
 from engram.storage import SqliteStorage
 from engram.storage.migrations import list_migrations
 
@@ -115,7 +117,7 @@ class TestFreshUpgrade:
                     "VALUES (?, 'summary', 'x', '', '', '', '')",
                     (mid,),
                 )
-            try:
+            with pytest.raises(sqlite3.IntegrityError):
                 conn.execute(
                     "INSERT INTO conflicts "
                     "(id, source_item_id, target_item_id, similarity, "
@@ -124,10 +126,6 @@ class TestFreshUpgrade:
                     " '2026-05-01T00:00:00+00:00', '2026-05-01T00:00:00+00:00')",
                     (uuid4().bytes, a, b),
                 )
-            except sqlite3.IntegrityError:
-                pass
-            else:  # pragma: no cover
-                raise AssertionError("CHECK accepted bogus resolution post-0005")
 
 
 class TestUpgradeFromV4:
