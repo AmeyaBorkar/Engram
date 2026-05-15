@@ -29,6 +29,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import math
 import time
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -171,13 +172,28 @@ class LoCoMoSuite:
                     vectors = embedder.embed([e.content for e in events])
                     with storage.transaction():
                         for e, v in zip(events, vectors, strict=True):
+                            # L2-normalize before storage so cosine
+                            # similarity at query time matches what the
+                            # in-memory vector index expects (unit-norm
+                            # rows).  Mirror of LongMemEval's ingest
+                            # path — without this, LoCoMo retrieval
+                            # scores were wrong by a model-dependent
+                            # constant and comparisons against published
+                            # LoCoMo numbers (or against the BM25/Chroma
+                            # baselines) were not apples-to-apples.
+                            norm = math.sqrt(sum(x * x for x in v))
+                            normalized = (
+                                tuple(x / norm for x in v)
+                                if norm > 0.0
+                                else tuple(v)
+                            )
                             storage.insert_embedding(
                                 Embedding(
                                     item_id=e.id,
                                     item_kind=ItemKind.EVENT,
                                     model=embedder.model,
                                     dim=embedder.dim,
-                                    vector=tuple(v),
+                                    vector=normalized,
                                 )
                             )
                     memory = Memory(storage=storage, embedder=embedder)
