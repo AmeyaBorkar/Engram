@@ -367,6 +367,12 @@ class SqliteStorage:
             conn.execute("PRAGMA foreign_keys = ON")
             conn.execute("PRAGMA synchronous = NORMAL")
             conn.execute("PRAGMA temp_store = MEMORY")
+            # Wait up to 5s for a writer lock instead of failing immediately
+            # with SQLITE_BUSY.  Combined with BEGIN IMMEDIATE in
+            # transaction(), this gives concurrent writers a real shot at
+            # serializing through the WAL instead of surfacing flaky
+            # OperationalError to the caller.
+            conn.execute("PRAGMA busy_timeout = 5000")
             # cache_size: negative -> KB; 64 MB of page cache for hot
             # PK lookups. The bench ingests 500 events per question and
             # then drills against them; a smaller cache flushes the
@@ -388,11 +394,22 @@ class SqliteStorage:
         if conn.in_transaction:
             yield
             return
-        conn.execute("BEGIN")
+        # BEGIN IMMEDIATE acquires the write lock at transaction start
+        # instead of deferring it until the first write.  Without this,
+        # two concurrent writers can both pass BEGIN, both attempt to
+        # write, and one gets SQLITE_BUSY mid-transaction — discarding
+        # any work done in the block.
+        conn.execute("BEGIN IMMEDIATE")
         try:
             yield
         except BaseException:
-            conn.execute("ROLLBACK")
+            # ROLLBACK itself can raise if the connection is in a broken
+            # state.  Suppress so the original exception (which is more
+            # actionable) is what the caller sees.
+            try:
+                conn.execute("ROLLBACK")
+            except sqlite3.Error:
+                pass
             raise
         else:
             conn.execute("COMMIT")
