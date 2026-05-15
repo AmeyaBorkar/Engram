@@ -222,7 +222,18 @@ def _judge(
     gold: str,
     response: str,
 ) -> bool:
-    instructions = _JUDGE_INSTRUCTIONS.get(qtype, _JUDGE_INSTRUCTIONS["multi-session"])
+    # The per-qtype rubrics meaningfully differ (single-session-preference
+    # accepts partial coverage, temporal-reasoning tolerates off-by-one
+    # days).  Silently falling back to multi-session if the qtype is
+    # unknown produces wrong-rubric scoring that's invisible in the
+    # aggregate.  Raise so a future LongMemEval version adding a new
+    # qtype fails the bench loudly until the rubric is wired in.
+    if qtype not in _JUDGE_INSTRUCTIONS:
+        raise RuntimeError(
+            f"unknown LongMemEval qtype {qtype!r}; rubric must be added to "
+            f"_JUDGE_INSTRUCTIONS before scoring"
+        )
+    instructions = _JUDGE_INSTRUCTIONS[qtype]
     prompt = _read_prompt("judge").format(
         instructions=instructions,
         question=question,
