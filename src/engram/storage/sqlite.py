@@ -1556,6 +1556,13 @@ class SqliteStorage:
         deleted = int(cursor.rowcount)
         if deleted:
             self._vector_index.mark_dirty(kind=kind.value)
+            # BM25 covers events only; if we just dropped cold event rows
+            # the cached inverted index now points at ids that the
+            # post-fetch SQL will silently drop, returning fewer than k
+            # hits with no error to the caller.  Invalidate so the next
+            # search rebuilds against the surviving corpus.
+            if kind is ItemKind.EVENT:
+                self._bm25_events_dirty = True
         return deleted
 
     def decay_totals(self, kind: ItemKind) -> dict[str, int]:
