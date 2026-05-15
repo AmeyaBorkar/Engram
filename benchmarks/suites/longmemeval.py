@@ -314,6 +314,16 @@ def _ingest_haystack(memory: Memory, q: _Question) -> int:
                 # opaque to retrieve / rerank, so this is a free
                 # observability hook with no behavior change.
                 metadata["session_id"] = session_id
+            # `has_answer` is LongMemEval's per-turn ground-truth flag:
+            # True  -> this exact turn contains the answer
+            # False -> in an answer session but not the answer turn
+            # None  -> no label (almost always non-answer-session turn)
+            # We preserve it so retrieval evals can compute event-level
+            # recall ("did we surface the *actual* gold turn?") in
+            # addition to the coarser session-level recall.
+            ha = turn.get("has_answer")
+            if ha is not None:
+                metadata["has_answer"] = bool(ha)
             if session_dt is not None:
                 events.append(
                     Event(
