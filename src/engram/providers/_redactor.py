@@ -18,11 +18,21 @@ from dataclasses import dataclass, field
 from typing import Any
 
 # fmt: off
+# Bearer / API-key value char-class: covers base64 (incl. `+`, `/`, `=`),
+# JWT (`.`), and url-safe-base64 (`_`, `-`) tokens. Truncating at `=` is
+# specifically dangerous for JWTs whose signature ends in `=` padding, and
+# for any base64 payload — partial leakage is worse than no leakage here.
+_TOKEN_CHARS = r"A-Za-z0-9._\-+/="
+
 _DEFAULT_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"sk-ant-[A-Za-z0-9_\-]{20,}"),                  # Anthropic API key
     re.compile(r"sk-[A-Za-z0-9_\-]{20,}"),                       # OpenAI / generic sk- key
     re.compile(r"AKIA[0-9A-Z]{16}"),                             # AWS access key id
-    re.compile(r"(?i)bearer\s+[A-Za-z0-9._\-]+"),                # Bearer tokens
+    re.compile(rf"(?i)bearer\s+[{_TOKEN_CHARS}]+"),              # Bearer tokens (any case)
+    # Authorization header value (covers any scheme, not just Bearer).
+    re.compile(rf"(?i)authorization\s*:\s*\S+(?:\s+[{_TOKEN_CHARS}]+)?"),
+    # Common API-key headers: x-api-key, api-key, anthropic-api-key, openai-api-key.
+    re.compile(rf"(?i)(?:x-)?(?:[a-z]+-)?api[-_]?key\s*[:=]\s*[{_TOKEN_CHARS}]+"),
     re.compile(r"[\w.+\-]+@[\w\-]+\.[\w.\-]+"),                  # email
     re.compile(r"\b\d{3}-\d{2}-\d{4}\b"),                        # US SSN
     re.compile(r"\b(?:\d[ \-]?){13,19}\b"),                      # credit-card-shaped

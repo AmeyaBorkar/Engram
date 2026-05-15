@@ -32,6 +32,47 @@ def test_redacts_bearer_token() -> None:
     assert "abc.def.ghi" not in redacted
 
 
+def test_redacts_bearer_token_with_base64_chars() -> None:
+    """Base64 / JWT payloads contain `=`, `+`, `/` -- the bearer pattern
+    must cover the full token, not truncate at the first such char."""
+    r = Redactor.default()
+    # JWT-shaped: three dot-separated base64url segments, trailing `=`
+    redacted = r.redact("Bearer eyJhbGc.eyJzdWI=.signaturewith+slash/here==")
+    assert "eyJ" not in redacted
+    assert "signature" not in redacted
+    assert "==" not in redacted
+
+
+def test_redacts_authorization_header_arbitrary_case() -> None:
+    """Authorization headers should be scrubbed regardless of case + scheme."""
+    r = Redactor.default()
+    for line in [
+        "AUTHORIZATION: Token abc123xyz456def",
+        "authorization: ApiKey deadbeefcafe1234",
+        "Authorization:Basic dXNlcjpwYXNzd29yZA==",
+    ]:
+        redacted = r.redact(line)
+        assert "abc123" not in redacted
+        assert "deadbeef" not in redacted
+        assert "dXNlcjp" not in redacted
+
+
+def test_redacts_x_api_key_header() -> None:
+    r = Redactor.default()
+    for line in [
+        "x-api-key: abc123def456ghi",
+        "X-API-Key: longtokenvalue9876",
+        "anthropic-api-key=sk-ant-api01-abcdefghijklmnop12345",
+        "openai-api-key: sk-thisIsLongEnoughToMatch12345",
+    ]:
+        redacted = r.redact(line)
+        assert "abc123" not in redacted
+        assert "longtoken" not in redacted
+        # The sk-ant rule fires first on the anthropic line and that's fine.
+        assert "sk-ant-api01-abc" not in redacted
+        assert "sk-this" not in redacted
+
+
 def test_redacts_email() -> None:
     r = Redactor.default()
     redacted = r.redact("Contact ameya@example.com please.")
