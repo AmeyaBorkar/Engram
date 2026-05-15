@@ -51,11 +51,27 @@ class _PseudoChatMessage:
     additional_kwargs: dict[str, Any] = field(default_factory=dict)
 
     def as_chat_message(self) -> Any:
-        """Convert to a real `llama_index.core.base.llms.types.ChatMessage`."""
+        """Convert to a real `llama_index.core.base.llms.types.ChatMessage`.
+
+        `MessageRole(self.role)` raises ValueError for any role string
+        outside LlamaIndex's enum (system / user / assistant / function /
+        tool / chatbot / model / developer).  When the caller built this
+        pseudo-message with a custom or typo'd role, we surface a clearer
+        error pointing at the offending value instead of a deep-stack
+        pydantic / enum error from inside LlamaIndex.
+        """
         from llama_index.core.base.llms.types import ChatMessage, MessageRole
 
+        try:
+            role = MessageRole(self.role)
+        except ValueError as exc:
+            valid = ", ".join(repr(m.value) for m in MessageRole)
+            raise ValueError(
+                f"role {self.role!r} is not a LlamaIndex MessageRole; "
+                f"valid values are: {valid}"
+            ) from exc
         return ChatMessage(
-            role=MessageRole(self.role),
+            role=role,
             content=self.content,
             additional_kwargs=self.additional_kwargs,
         )
