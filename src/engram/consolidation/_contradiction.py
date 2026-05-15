@@ -25,6 +25,7 @@ output, parsed with Pydantic, no free-form prose accepted.
 from __future__ import annotations
 
 import json
+import logging
 import re
 from dataclasses import dataclass
 from importlib import resources
@@ -38,6 +39,8 @@ from engram.providers._message import Message
 from engram.providers._protocols import ChatProvider
 from engram.schemas import Verdict
 from engram._security.prompt_injection import looks_like_injection
+
+_LOG = logging.getLogger(__name__)
 
 JUDGE_PROMPT_NAME = "judge"
 JUDGE_PROMPT_VERSION = "v1"
@@ -161,15 +164,18 @@ def judge(
     through .reasoning fields if the schema is ever widened.
     """
     if looks_like_injection(a) or looks_like_injection(b):
+        _LOG.debug("judge: short-circuit UNRELATED on injection-shaped input")
         return Verdict.UNRELATED
     prompt = render_judge_prompt(a=a, b=b)
     messages: list[Message] = [Message(role="user", content=prompt)]
     last_response = ""
+    parse_failures = 0
     for _ in range(max_retries + 1):
         last_response = chat.chat(messages)
         try:
             return parse_judge_response(last_response).verdict
         except AbstractionParseError:
+            parse_failures += 1
             messages = [
                 *messages,
                 Message(role="assistant", content=last_response),
@@ -181,6 +187,13 @@ def judge(
                     ),
                 ),
             ]
+    # All retries exhausted with parse failures.  Log so a misbehaving
+    # chat provider (consistently malformed JSON) surfaces to operators
+    # rather than producing a silent stream of UNRELATED verdicts.
+    _LOG.warning(
+        "judge: parse failed across %d attempts, returning UNRELATED",
+        parse_failures,
+    )
     return Verdict.UNRELATED
 
 
