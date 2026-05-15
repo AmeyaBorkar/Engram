@@ -1326,7 +1326,20 @@ class Memory:
         if supporting_event_ids:
             event_ids = list(supporting_event_ids)
         elif existing is None:
-            placeholder = self.observe(f"user-state seed: {content[:200]}")
+            # Synthesize a seed event so the user-state has at least one
+            # provenance link.  Use metadata to mark it instead of
+            # embedding a 'user-state seed: ' prefix in the content —
+            # the prefix used to be both attacker-spoofable (user can
+            # send a message starting with that exact string) and a
+            # readability nuisance when the event surfaced through
+            # ordinary retrieves.  Truncate the content at 200 chars
+            # since the seed is documentation, not the source of truth.
+            placeholder = self.observe(
+                Event(
+                    content=content[:200],
+                    metadata={"engram_user_state_seed": True},
+                )
+            )
             event_ids = [placeholder.id]
         else:
             # Reuse existing provenance.
