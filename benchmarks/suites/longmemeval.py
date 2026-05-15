@@ -374,11 +374,15 @@ class LongMemEvalSuite:
     ) -> None:
         self._path = DATASET_ROOT / dataset_filename
         self.dataset_checksum: str = _checksum(self._path)
-        self._k = int(os.environ.get("LONGMEMEVAL_K", k if k is not None else 10))
-        env_max = os.environ.get("LONGMEMEVAL_MAX_QUESTIONS")
-        self._max = (
-            int(env_max) if env_max else (max_questions if max_questions is not None else None)
-        )
+        # Constructor defaults: do NOT read env here. The module-level
+        # `SUITE = LongMemEvalSuite()` is created at import time; reading
+        # env at import time means in-process re-imports see stale env
+        # values (and `--limit` overrides are masked by an earlier
+        # invocation's env). Env reads happen in `run()` instead.
+        self._ctor_k = k
+        self._ctor_max = max_questions
+        self._k = k if k is not None else 10
+        self._max = max_questions
         self._provider: Provider | None = None
         # Phase E knobs -- populated via `configure(**)` from the bench CLI.
         self._hyde: bool = False
@@ -412,6 +416,7 @@ class LongMemEvalSuite:
     def configure(
         self,
         *,
+        max_questions: int | None = None,
         k: int | None = None,
         seed: int | None = None,
         hyde: bool = False,
@@ -446,6 +451,8 @@ class LongMemEvalSuite:
         opt-in; defaults reproduce the v0.1.0 baseline path so the
         suite stays bit-identical when no flags are passed.
         """
+        if max_questions is not None:
+            self._max = max_questions
         if k is not None:
             self._k = k
         self._seed = seed
@@ -492,6 +499,25 @@ class LongMemEvalSuite:
                 "longmemeval requires a Provider with both `embedder` and `chat` "
                 "attributes. Use --embedder openai --chat openai (or similar)."
             )
+
+        # Read env vars at run() time, not import time: the SUITE singleton
+        # is built at module import, which happens before the bench CLI
+        # parses --limit. Reading here also lets in-process re-runs pick
+        # up changed env between invocations.
+        env_max = os.environ.get("LONGMEMEVAL_MAX_QUESTIONS")
+        if env_max:
+            # Env overrides ctor only when configure(max_questions=...)
+            # hasn't already supplied an explicit cap. The audit's H-74
+            # fix prefers suite_config (i.e. CLI --limit) over env, so
+            # only apply env when no explicit configure() value is set.
+            if self._max is None:
+                self._max = int(env_max)
+        env_k = os.environ.get("LONGMEMEVAL_K")
+        if env_k and self._ctor_k is None:
+            # Only apply env when ctor didn't set k AND configure() didn't.
+            # (configure() always sets self._k when k is non-None, but the
+            # ctor stores the original here for the env-vs-default tiebreak.)
+            self._k = int(env_k)
 
         questions = _load_dataset(self._path)
         if not questions:

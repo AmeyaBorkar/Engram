@@ -53,6 +53,8 @@ def run(
     provider: Provider,
     runs_dir: Path,
     suite_config: dict[str, Any] | None = None,
+    provider_hash: str | None = None,
+    engram_config: dict[str, Any] | None = None,
 ) -> Path:
     """Run `suite_name` against `provider`, writing a manifest to `runs_dir`.
 
@@ -60,6 +62,15 @@ def run(
     `configure(**cfg)` method before `setup`. Suites that don't expose
     `configure` silently ignore it; suites that do (e.g. longmemeval)
     pick up the Phase E knobs without the loader knowing about them.
+
+    `provider_hash` defaults to `provider.manifest_hash()`; pass an
+    override when the caller wants to record the *unwrapped* provider
+    identity (e.g. when a transparent disk cache has been wrapped
+    around the inner embedder/chat -- see `_cli._resolve_provider`).
+
+    `engram_config`, when given, is recorded verbatim on the manifest
+    so reproducers can read the active retrieval knobs without having
+    to scrape `git log` or SCOREBOARD.md.
 
     Returns the manifest path.
     """
@@ -79,12 +90,13 @@ def run(
     manifest: Manifest = manifest_from_run(
         suite_name=result.name,
         provider_name=provider.name,
-        provider_hash=provider.manifest_hash(),
+        provider_hash=provider_hash if provider_hash is not None else provider.manifest_hash(),
         dataset_version=suite.dataset_version,
         dataset_checksum=suite.dataset_checksum,
         aggregate_metrics=result.aggregate_metrics,
         confidence_intervals=result.confidence_intervals,
         per_question=result.per_question,
         latency_ms=result.latency_ms,
+        engram_config=engram_config,
     )
     return manifest.write(runs_dir)

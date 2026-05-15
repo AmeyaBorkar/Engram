@@ -429,8 +429,15 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _resolve_provider(args: argparse.Namespace) -> Provider:
+def _resolve_provider(args: argparse.Namespace) -> tuple[Provider, str]:
     """Build a Provider from CLI flags. `--provider fake` is a shortcut.
+
+    Returns ``(provider, provider_hash)``. The hash is captured BEFORE
+    any ``with_disk_cache`` wrapping so runs with disk-cache on vs off
+    produce the same `provider_hash` in the manifest -- the cache is a
+    transparent optimisation, not a different provider. (If the wrapper
+    suffixed the hash, two otherwise-identical runs would appear as
+    distinct experiments in SCOREBOARD.)
 
     When `--disk-cache PATH` is set, the resulting chat + embed
     providers are wrapped with `with_disk_cache(path=PATH)` so every
@@ -443,12 +450,14 @@ def _resolve_provider(args: argparse.Namespace) -> Provider:
                 "warning: --provider fake overrides --embedder/--chat",
                 file=sys.stderr,
             )
-        return FakeProvider()
+        provider: Provider = FakeProvider()
+        return provider, provider.manifest_hash()
 
     embedder = args.embedder or "fake"
     chat = args.chat or "fake"
     if embedder == "fake" and chat == "fake":
-        return FakeProvider()
+        provider = FakeProvider()
+        return provider, provider.manifest_hash()
     # CLI uses "fp16"/"fp32" as shorthand; the embedder accepts the
     # full names so map here.
     dtype_map = {"auto": "auto", "fp16": "float16", "fp32": "float32"}
@@ -461,6 +470,12 @@ def _resolve_provider(args: argparse.Namespace) -> Provider:
         embed_dtype=dtype_map[args.dtype],
         chat_model=args.chat_model,
     )
+    # Snapshot the hash BEFORE disk-cache wrapping. `with_disk_cache`
+    # suffixes `/disk-cached` onto manifest_hash() -- that's intentional
+    # for debugging, but the bench manifest should treat cache on/off as
+    # the same experiment so re-running with `--disk-cache` doesn't
+    # produce a "new" SCOREBOARD row.
+    provider_hash = provider.manifest_hash()
     if args.disk_cache is not None:
         from engram.providers._disk_cache import with_disk_cache
 
@@ -469,7 +484,7 @@ def _resolve_provider(args: argparse.Namespace) -> Provider:
         provider.embedder = with_disk_cache(provider.embedder, path=str(cache_path))
         provider.chat = with_disk_cache(provider.chat, path=str(cache_path))
         print(f"disk cache enabled: {cache_path}", file=sys.stderr)
-    return provider
+    return provider, provider_hash
 
 
 def _resolve_suite_config(args: argparse.Namespace) -> dict[str, Any]:
@@ -484,6 +499,13 @@ def _resolve_suite_config(args: argparse.Namespace) -> dict[str, Any]:
     catalog -- it just receives ChatProvider instances.
     """
     cfg: dict[str, Any] = {}
+    if args.limit is not None:
+        # Plumbed through `suite_config` rather than via `os.environ`
+        # so a single in-process invocation can run multiple suites
+        # without env-var leakage, and so suites that don't read a
+        # suite-specific env var (LoCoMo, recall-smoke, ...) still
+        # respect --limit.
+        cfg["max_questions"] = args.limit
     if args.k is not None:
         cfg["k"] = args.k
     if args.seed is not None:
@@ -552,6 +574,26 @@ def _resolve_suite_config(args: argparse.Namespace) -> dict[str, Any]:
     return cfg
 
 
+# Keys excluded from the manifest's `engram_config` snapshot: either
+# they're non-JSON-serializable provider instances or they're already
+# captured elsewhere (provider name + hash, suite name).
+_NON_SERIALIZABLE_CFG_KEYS: frozenset[str] = frozenset(
+    {"reranker", "consolidate_chat", "judge_chat"}
+)
+
+
+def _serializable_engram_config(suite_config: dict[str, Any]) -> dict[str, Any]:
+    """Return the manifest-safe view of suite_config.
+
+    Drops ChatProvider / Reranker instances (not JSON-serializable);
+    everything else passes through. This becomes the manifest's
+    `engram_config` field so a reproducer can read the active retrieval
+    knobs straight from the manifest (the audit was right: not from git
+    log or SCOREBOARD).
+    """
+    return {k: v for k, v in suite_config.items() if k not in _NON_SERIALIZABLE_CFG_KEYS}
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -562,21 +604,19 @@ def main(argv: list[str] | None = None) -> int:
         # `.env` may carry `ENGRAM_LOG_LEVEL=DEBUG`; load it before
         # configuring logging so user overrides take effect.
         _configure_logging(os.environ.get("ENGRAM_LOG_LEVEL", "INFO"))
-        # `--limit` overrides the suite-specific cap env vars. Set them
-        # BEFORE importing the suite -- the suite reads them at module
-        # import time in its `SUITE = ...()` line.
         if args.limit is not None:
-            for var in ("LONGMEMEVAL_MAX_QUESTIONS", "LOCOMO_MAX_QUESTIONS"):
-                os.environ[var] = str(args.limit)
             print(f"--limit {args.limit} applied", file=sys.stderr)
         try:
-            provider = _resolve_provider(args)
+            provider, provider_hash = _resolve_provider(args)
             suite_config = _resolve_suite_config(args)
+            engram_config = _serializable_engram_config(suite_config)
             manifest_path = run_suite(
                 args.suite,
                 provider=provider,
+                provider_hash=provider_hash,
                 runs_dir=args.runs_dir,
                 suite_config=suite_config,
+                engram_config=engram_config,
             )
         except (ValueError, TypeError, RuntimeError) as exc:
             print(f"error: {exc}", file=sys.stderr)

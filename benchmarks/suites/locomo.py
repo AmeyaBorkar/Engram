@@ -136,6 +136,22 @@ class LoCoMoSuite:
         self.dataset_version = f"locomo-{split}-v1"
         self.dataset_checksum: str = _checksum(split)
         self._provider: Provider | None = None
+        # Question-count cap, plumbed in via configure(max_questions=).
+        # Pre-audit, LoCoMo silently ignored `--limit` because it only
+        # honoured a never-set `LOCOMO_MAX_QUESTIONS` env. Now respects
+        # suite_config so a single CLI knob covers every suite.
+        self._max_questions: int | None = None
+
+    def configure(self, *, max_questions: int | None = None, **_unused: Any) -> None:
+        """Pick up `--limit` (or other future knobs) from `suite_config`.
+
+        Extra kwargs are tolerated and ignored so the bench CLI can
+        pass the same `suite_config` dict to every suite (LongMemEval
+        cares about hyde/MMR/recency, LoCoMo doesn't) without each
+        suite having to enumerate every flag the CLI knows about.
+        """
+        if max_questions is not None:
+            self._max_questions = max_questions
 
     def setup(self, provider: Provider) -> None:
         self._provider = provider
@@ -153,9 +169,23 @@ class LoCoMoSuite:
         retrieve_ms: list[float] = []
         per_type_scores: dict[str, list[float]] = {s: [] for s in _SPLITS}
 
+        # Per-question cap: count questions across ALL splits and stop
+        # once we've reached the limit. Mirrors LongMemEval's `--limit`
+        # semantics so a single CLI knob covers every suite.
+        questions_seen = 0
         any_data = False
         for split in splits_to_run:
+            if (
+                self._max_questions is not None
+                and questions_seen >= self._max_questions
+            ):
+                break
             for conversation in _load_split(split):
+                if (
+                    self._max_questions is not None
+                    and questions_seen >= self._max_questions
+                ):
+                    break
                 any_data = True
                 storage = SqliteStorage(":memory:")
                 storage.initialize()
@@ -182,6 +212,11 @@ class LoCoMoSuite:
                             )
                     memory = Memory(storage=storage, embedder=embedder)
                     for q in conversation.questions:
+                        if (
+                            self._max_questions is not None
+                            and questions_seen >= self._max_questions
+                        ):
+                            break
                         t0 = time.perf_counter()
                         results = memory.retrieve(q.text, k=K, reinforce=False)
                         retrieve_ms.append((time.perf_counter() - t0) * 1000.0)
@@ -196,6 +231,7 @@ class LoCoMoSuite:
                                 "k": K,
                             }
                         )
+                        questions_seen += 1
                 finally:
                     storage.close()
 

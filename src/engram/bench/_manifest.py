@@ -13,7 +13,9 @@ from __future__ import annotations
 
 import ctypes
 import json
+import os
 import platform
+import secrets
 import subprocess
 import sys
 from dataclasses import asdict, dataclass, field
@@ -48,12 +50,35 @@ class Manifest:
         return json.dumps(asdict(self), indent=2, default=str, sort_keys=True)
 
     def write(self, runs_dir: Path) -> Path:
-        """Write the manifest to `runs_dir`. Returns the file path."""
+        """Write the manifest atomically to `runs_dir`.
+
+        Two writes scheduled within the same second used to collide on
+        the second-precision timestamp filename and silently overwrite
+        each other -- evidence loss for SCOREBOARD-backing runs. Two
+        defences:
+
+        1. A 4-hex-char random suffix is appended to every filename, so
+           collisions across rapid back-to-back invocations resolve to
+           distinct paths even when wall-clock timestamps are identical.
+        2. The write is two-step (tempfile + atomic ``os.replace``) so
+           a partial write (disk-full, signal mid-flush) leaves the
+           manifest absent rather than truncated.
+
+        Returns the final file path.
+        """
         runs_dir.mkdir(parents=True, exist_ok=True)
         sha = (self.git_commit[:8] or "nogit") + ("-dirty" if self.git_dirty else "")
+        # 4-hex-char salt -> 65k cardinality per (ts, sha, suite) tuple,
+        # so two writes within the same second still resolve to distinct
+        # filenames. Placed BEFORE the suite slug so downstream tooling
+        # (and SCOREBOARD scripts) can still pattern-match
+        # `*-{suite}.json` to find every manifest for a given suite.
+        salt = secrets.token_hex(2)
         ts = self.timestamp.replace(":", "").replace("-", "").replace(".", "_")
-        path = runs_dir / f"{ts}-{sha}-{self.suite}.json"
-        path.write_text(self.to_json(), encoding="utf-8")
+        path = runs_dir / f"{ts}-{sha}-{salt}-{self.suite}.json"
+        tmp = path.with_suffix(path.suffix + ".part")
+        tmp.write_text(self.to_json(), encoding="utf-8")
+        os.replace(tmp, path)
         return path
 
 
