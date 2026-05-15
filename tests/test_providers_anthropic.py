@@ -130,3 +130,63 @@ def test_anthropic_chat_manifest_hash_pins_model_max_tokens_kwargs() -> None:
     assert a.manifest_hash() != b.manifest_hash()
     assert a.manifest_hash() != c.manifest_hash()
     assert a.manifest_hash() != d.manifest_hash()
+
+
+# --- per-call kwargs ------------------------------------------------------
+
+
+def test_anthropic_chat_per_call_kwargs_override_constructor() -> None:
+    client = MagicMock()
+    client.messages.create.return_value = _make_response(_text_block("ok"))
+    c = AnthropicChat(
+        client=client,
+        async_client=AsyncMock(),
+        completion_kwargs={"temperature": 0.0, "top_p": 0.9},
+    )
+    c.chat([Message(role="user", content="x")], extra={"temperature": 0.7})
+    kw = client.messages.create.call_args.kwargs
+    assert kw["temperature"] == 0.7  # overridden
+    assert kw["top_p"] == 0.9  # passed through
+
+
+def test_anthropic_chat_per_call_kwargs_async() -> None:
+    aclient = AsyncMock()
+    aclient.messages.create.return_value = _make_response(_text_block("ok"))
+    c = AnthropicChat(client=MagicMock(), async_client=aclient)
+    asyncio.run(
+        c.achat([Message(role="user", content="x")], extra={"temperature": 0.5})
+    )
+    kw = aclient.messages.create.call_args.kwargs
+    assert kw["temperature"] == 0.5
+
+
+def test_anthropic_chat_per_call_kwargs_does_not_mutate_constructor_state() -> None:
+    client = MagicMock()
+    client.messages.create.return_value = _make_response(_text_block("ok"))
+    c = AnthropicChat(
+        client=client,
+        async_client=AsyncMock(),
+        completion_kwargs={"temperature": 0.0},
+    )
+    c.chat([Message(role="user", content="x")], extra={"temperature": 1.0})
+    c.chat([Message(role="user", content="x")])
+    last_kw = client.messages.create.call_args.kwargs
+    assert last_kw["temperature"] == 0.0
+
+
+# --- close / context manager ---------------------------------------------
+
+
+def test_anthropic_chat_close_idempotent() -> None:
+    client = MagicMock()
+    c = AnthropicChat(client=client, async_client=AsyncMock())
+    c.close()
+    c.close()
+
+
+def test_anthropic_chat_context_manager_closes() -> None:
+    client = MagicMock()
+    aclient = AsyncMock()
+    with AnthropicChat(client=client, async_client=aclient) as c:
+        assert isinstance(c, AnthropicChat)
+    assert client.close.called
