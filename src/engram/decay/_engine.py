@@ -220,11 +220,20 @@ class DecayEngine:
         total_deleted = 0
         per_kind: dict[ItemKind, dict[str, int]] = {}
 
-        for kind in self._kinds:
-            kind_processed = 0
-            kind_pruned = 0
-            kind_deleted = 0
-            with self._storage.transaction():
+        # Wrap the whole sweep in a single transaction so a tick is
+        # atomic across kinds.  Previously each kind opened its own
+        # transaction — a failure mid-tick committed earlier kinds but
+        # rolled back later ones, leaving the database at inconsistent
+        # `last_decayed_at` values across kinds and producing replay
+        # drift on re-run.  The storage layer treats nested
+        # `transaction()` blocks as re-entrant no-ops, so per-call
+        # transactions inside `update_decay_state` and
+        # `delete_cold_items` continue to work.
+        with self._storage.transaction():
+            for kind in self._kinds:
+                kind_processed = 0
+                kind_pruned = 0
+                kind_deleted = 0
                 # Materialize the hot snapshot so we can update during the
                 # same transaction without disturbing the iterator's view.
                 states = list(self._storage.iter_decay_states(kind, batch_size=self._batch_size))
@@ -260,14 +269,14 @@ class DecayEngine:
                         # they remain cold (auditable). Counts as 0 deleted.
                         kind_deleted = 0
 
-            per_kind[kind] = {
-                "processed": kind_processed,
-                "pruned": kind_pruned,
-                "deleted": kind_deleted,
-            }
-            total_processed += kind_processed
-            total_pruned += kind_pruned
-            total_deleted += kind_deleted
+                per_kind[kind] = {
+                    "processed": kind_processed,
+                    "pruned": kind_pruned,
+                    "deleted": kind_deleted,
+                }
+                total_processed += kind_processed
+                total_pruned += kind_pruned
+                total_deleted += kind_deleted
 
         duration_ms = (time.perf_counter() - wall_started) * 1000.0
         result = TickResult(
