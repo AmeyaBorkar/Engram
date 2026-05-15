@@ -16,6 +16,15 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from engram.ids import new_id
 
+# Schema-level upper bounds to keep ingestion bounded.  Generous enough not
+# to break legitimate use (a long observation, a deep abstraction, a
+# verbose procedure) but tight enough that an attacker-shaped multi-MB
+# blob can't ride through embedding + storage + retrieval untruncated.
+# Tune deliberately if a workload needs more — these are public defaults
+# documented in the schema contract.
+_MAX_CONTENT_LEN: int = 64 * 1024  # 64 KiB per stored text field
+_MAX_EMBED_DIM: int = 8192          # widest cap covers Qwen3-8B / Stella
+
 
 class Level(str, Enum):
     """Hierarchy level a `MemoryItem` occupies.
@@ -135,7 +144,7 @@ class Event(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     id: UUID = Field(default_factory=new_id)
-    content: str
+    content: str = Field(max_length=_MAX_CONTENT_LEN)
     metadata: dict[str, Any] = Field(default_factory=dict)
     source: str | None = None
     created_at: datetime = Field(default_factory=_utcnow)
@@ -177,7 +186,7 @@ class MemoryItem(BaseModel):
 
     id: UUID = Field(default_factory=new_id)
     level: Level
-    content: str
+    content: str = Field(max_length=_MAX_CONTENT_LEN)
     weight: float = Field(default=1.0, ge=0.0, le=1.0)
     cluster_id: UUID | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
@@ -230,8 +239,8 @@ class Procedure(BaseModel):
     model_config = ConfigDict(frozen=False)
 
     id: UUID = Field(default_factory=new_id)
-    situation: str
-    action: str
+    situation: str = Field(max_length=_MAX_CONTENT_LEN)
+    action: str = Field(max_length=_MAX_CONTENT_LEN)
     outcome: Outcome = Outcome.UNKNOWN
     weight: float = Field(default=1.0, ge=0.0, le=1.0)
     metadata: dict[str, Any] = Field(default_factory=dict)
@@ -266,7 +275,7 @@ class Embedding(BaseModel):
     item_id: UUID
     item_kind: ItemKind
     model: str
-    dim: int = Field(gt=0)
+    dim: int = Field(gt=0, le=_MAX_EMBED_DIM)
     vector: tuple[float, ...]
     created_at: datetime = Field(default_factory=_utcnow)
 
