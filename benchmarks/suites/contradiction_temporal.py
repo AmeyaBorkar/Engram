@@ -290,9 +290,17 @@ def _retrieve_ids(
 
 def _contradiction_scores(
     memory: Memory, storage: SqliteStorage
-) -> tuple[float, float, float, int, int]:
+) -> tuple[float, float, float, int, int, bool]:
     """Returns:
-      (baseline_score, engram_score, lift, n_observed_open, n_resolved)
+      (pre_reconcile_score, post_reconcile_score, lift,
+       n_observed_open, n_resolved, n_observed_truncated)
+
+    Naming note: the audit (M-164) called out that "baseline vs Engram"
+    was misleading -- both measurements come from the same engine; only
+    the reconcile step differs. The honest naming is
+    "pre-reconcile vs post-reconcile". A third-party baseline (e.g. a
+    raw vector store with no conflict-tracking) would live in a
+    separate suite.
     """
     # Seed every pair: A first (older), B second (newer). Record the
     # CONTRADICT. Baseline measurement happens before any reconcile.
@@ -325,23 +333,32 @@ def _contradiction_scores(
         pair_records.append((pair, a, b, conflict))
 
     # Observability check: every seeded conflict shows up as OPEN.
+    # Use a limit ABOVE len(pair_records) so we never silently truncate;
+    # if the result hits the limit anyway, flag it on the manifest so a
+    # reader knows the number is a lower bound. Pre-audit a hard 1000
+    # cap meant the metric could go stale once seeded pairs exceeded it
+    # without any signal.
     from engram import ConflictStatus
 
-    open_rows = storage.list_conflicts(status=ConflictStatus.OPEN, limit=1000)
+    observability_limit = max(2 * len(pair_records) + 1, 1024)
+    open_rows = storage.list_conflicts(
+        status=ConflictStatus.OPEN, limit=observability_limit
+    )
     n_observed_open = len(open_rows)
+    n_observed_truncated = bool(n_observed_open >= observability_limit)
 
-    # Baseline (no reconcile): score is "retrieve surfaces ONLY the
-    # winner" -- i.e. the loser is excluded. With no reconcile, both
-    # items are visible at retrieve(k=10), so this is 0. Same metric
-    # as the engram score below to keep them apples-to-apples.
-    baseline_hits = 0
+    # Pre-reconcile measurement: score is "retrieve surfaces ONLY the
+    # winner". With no reconcile, both items are visible at
+    # retrieve(k=10), so this is 0. Same metric as the post-reconcile
+    # number below to keep them apples-to-apples.
+    pre_hits = 0
     for pair, a, b, _ in pair_records:
         ids = _retrieve_ids(memory, pair.cluster_text, k=10)
         expected_winner = b.id if pair.winner_is_b else a.id
         expected_loser = a.id if pair.winner_is_b else b.id
         if expected_winner in ids and expected_loser not in ids:
-            baseline_hits += 1
-    baseline_score = baseline_hits / len(pair_records)
+            pre_hits += 1
+    pre_reconcile_score = pre_hits / len(pair_records)
 
     # Reconcile everything: PREFER_RECENT means B wins (we seeded B at
     # 2026-04 vs A at 2026-01).
@@ -355,18 +372,25 @@ def _contradiction_scores(
         )
         resolved += 1
 
-    # Engram measurement: post-reconcile, retrieve should surface only
-    # the winner. Score = "loser is gone AND winner is on top" rate.
-    engram_hits = 0
+    # Post-reconcile measurement: retrieve should surface only the
+    # winner. Score = "loser is gone AND winner is on top" rate.
+    post_hits = 0
     for pair, a, b, _ in pair_records:
         ids = _retrieve_ids(memory, pair.cluster_text, k=10)
         expected_winner = b.id if pair.winner_is_b else a.id
         expected_loser = a.id if pair.winner_is_b else b.id
         if expected_winner in ids and expected_loser not in ids:
-            engram_hits += 1
-    engram_score = engram_hits / len(pair_records)
+            post_hits += 1
+    post_reconcile_score = post_hits / len(pair_records)
 
-    return baseline_score, engram_score, engram_score - baseline_score, n_observed_open, resolved
+    return (
+        pre_reconcile_score,
+        post_reconcile_score,
+        post_reconcile_score - pre_reconcile_score,
+        n_observed_open,
+        resolved,
+        n_observed_truncated,
+    )
 
 
 def _temporal_score(memory: Memory, storage: SqliteStorage) -> float:
@@ -460,11 +484,12 @@ class ContradictionTemporalSuite:
             memory_c = Memory(storage=storage_c, embedder=embedder)
             t0 = time.perf_counter()
             (
-                baseline,
-                engram,
+                pre_reconcile_score,
+                post_reconcile_score,
                 lift,
                 n_open,
                 n_resolved,
+                n_observed_truncated,
             ) = _contradiction_scores(memory_c, storage_c)
             contradiction_ms = (time.perf_counter() - t0) * 1000.0
         finally:
@@ -482,12 +507,21 @@ class ContradictionTemporalSuite:
             storage_t.close()
 
         metrics: dict[str, float] = {
-            "baseline_score": baseline,
-            "engram_score": engram,
+            # Pre-audit naming was "baseline_score" / "engram_score",
+            # but both come from the same engine; only the reconcile
+            # step differs. The honest naming is pre/post-reconcile.
+            # The old keys are kept as aliases so existing SCOREBOARD
+            # scrapers don't break; new readers should prefer the
+            # `*_reconcile_score` names.
+            "pre_reconcile_score": pre_reconcile_score,
+            "post_reconcile_score": post_reconcile_score,
+            "baseline_score": pre_reconcile_score,
+            "engram_score": post_reconcile_score,
             "lift": lift,
             "temporal_accuracy": temporal,
             "n_pairs": float(len(CONTRADICTION_PAIRS)),
             "n_observed_open_conflicts": float(n_open),
+            "n_observed_open_truncated": 1.0 if n_observed_truncated else 0.0,
             "n_resolved_conflicts": float(n_resolved),
             "n_temporal_triples": float(len(TEMPORAL_TRIPLES)),
         }

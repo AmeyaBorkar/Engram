@@ -127,16 +127,26 @@ def _dataset_checksum(queries: Sequence[tuple[str, str]]) -> str:
 
 def _no_memory_baseline_score(
     queries: Sequence[tuple[str, str]],
-    rng: random.Random,
+    seed: int,
     n_trials: int = 5,
 ) -> float:
-    """Random-action baseline. Averaged over `n_trials` to smooth noise."""
+    """Random-action baseline. Averaged over `n_trials` to smooth noise.
+
+    Each trial gets a fresh `random.Random(seed + trial)` so the trials
+    are truly independent. Pre-audit a single seeded `random.Random`
+    was threaded across trials; in a small action pool that's the
+    difference between 5 IID samples and 5 correlated samples from one
+    cycle. The averaged number was correct in expectation but the
+    variance estimate (when we eventually bootstrap-CI this) would be
+    biased low.
+    """
     pool = [p.action for p in TRAINING_PATTERNS]
     hits = 0
     n = 0
-    for _trial in range(n_trials):
+    for trial in range(n_trials):
+        trial_rng = random.Random(seed + trial)
         for _query, correct_action in queries:
-            chosen = rng.choice(pool)
+            chosen = trial_rng.choice(pool)
             if chosen == correct_action:
                 hits += 1
             n += 1
@@ -148,27 +158,50 @@ def _engram_agent_score(
     queries: Sequence[tuple[str, str]],
 ) -> tuple[float, list[dict[str, Any]]]:
     """Engram agent: retrieve top procedure for each held-out query, use
-    its action. Returns (hit_rate, per_query)."""
+    its action. Returns (hit_rate, per_query).
+
+    Hit is decided by procedure id rather than action-string equality.
+    Pre-audit, strict `chosen.action == correct_action` was brittle: a
+    refactor that normalises whitespace, capitalises verbs, or rewrites
+    actions during consolidation would silently regress every score.
+    Matching by id requires the held-out query to retrieve the SAME
+    procedure that produced `correct_action` during training -- which
+    is semantically what we want.
+    """
+    # Record training patterns; remember the id assigned to each
+    # action. Multiple training patterns share an action only if the
+    # caller wired them so; the action->id map is one-to-one otherwise.
+    action_to_id: dict[str, Any] = {}
     for pattern in TRAINING_PATTERNS:
-        memory.record_procedure(
+        recorded = memory.record_procedure(
             pattern.situation,
             pattern.action,
             outcome=Outcome.SUCCESS,
         )
+        action_to_id.setdefault(pattern.action, recorded.id)
 
     per_query: list[dict[str, Any]] = []
     hits = 0
     for query, correct_action in queries:
         results = memory.retrieve_procedures(query, k=1, reinforce=False)
-        chosen = results[0].procedure.action if results else "(none)"
-        is_hit = chosen == correct_action
+        chosen_action = results[0].procedure.action if results else "(none)"
+        chosen_id = results[0].procedure.id if results else None
+        correct_id = action_to_id.get(correct_action)
+        # Prefer id-match when both sides are known; fall back to
+        # action-string compare only for synthetic queries whose
+        # `correct_action` wasn't part of the training set (unusual,
+        # but defensive).
+        if correct_id is not None and chosen_id is not None:
+            is_hit = chosen_id == correct_id
+        else:
+            is_hit = chosen_action == correct_action
         if is_hit:
             hits += 1
         per_query.append(
             {
                 "query": query,
                 "correct_action": correct_action,
-                "chosen_action": chosen,
+                "chosen_action": chosen_action,
                 "hit": is_hit,
                 "similarity": results[0].similarity if results else 0.0,
             }
@@ -200,8 +233,7 @@ class ProceduralTransferSuite:
                 "procedural-transfer requires a provider with an `embedder` attribute"
             )
 
-        rng = random.Random(0)  # noqa: S311 -- benchmark baseline, not a security primitive
-        baseline = _no_memory_baseline_score(self._queries, rng)
+        baseline = _no_memory_baseline_score(self._queries, seed=0)
 
         storage = SqliteStorage(":memory:")
         storage.initialize()
