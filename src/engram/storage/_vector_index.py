@@ -50,6 +50,13 @@ class _IndexShard:
     levels: list[str] = field(default_factory=list)  # parallel; 'event'/'summary'/...
     dim: int = 0
     dirty: bool = True
+    # `level_masks[level]` is a parallel boolean array True at rows
+    # whose level matches.  Populated lazily on first level-filtered
+    # search and invalidated alongside `dirty=True`.  Without this,
+    # each search rebuilt the mask as a Python list comprehension over
+    # `levels` — O(n) Python ops per call on a 100k-row shard.
+    level_masks: dict[str, npt.NDArray[np.bool_]] = field(default_factory=dict)
+    id_to_idx: dict[bytes, int] = field(default_factory=dict)
 
 
 class VectorIndex:
@@ -130,12 +137,10 @@ class VectorIndex:
         if not include_cold and shard.cold is not None:
             scores = np.where(shard.cold, -np.inf, scores)
         if levels is not None:
-            level_set = set(levels)
-            level_mask = np.asarray([lv in level_set for lv in shard.levels], dtype=np.bool_)
+            level_mask = _level_mask(shard, levels)
             scores = np.where(level_mask, scores, -np.inf)
         if exclude_ids:
-            excl = set(exclude_ids)
-            id_mask = np.asarray([iid in excl for iid in shard.ids], dtype=np.bool_)
+            id_mask = _exclude_mask(shard, exclude_ids)
             scores = np.where(id_mask, -np.inf, scores)
 
         n = scores.shape[0]
@@ -162,6 +167,10 @@ def _rebuild_shard(
 ) -> None:
     """One full materialization. Holds the shard lock; safe to call repeatedly."""
     rows = conn.execute(sql, (model,)).fetchall()
+    # Invalidate any cached masks regardless of whether we rebuild
+    # from rows or end empty; the next search will rebuild on demand.
+    shard.level_masks = {}
+    shard.id_to_idx = {}
     if not rows:
         shard.matrix = np.zeros((0, max(shard.dim, 1)), dtype=np.float32)
         shard.ids = []
@@ -189,3 +198,37 @@ def _rebuild_shard(
     shard.cold = np.asarray(cold_flags, dtype=np.bool_)
     shard.levels = levels
     shard.dirty = False
+
+
+def _level_mask(shard: _IndexShard, levels: list[str]) -> npt.NDArray[np.bool_]:
+    """Boolean mask over shard rows whose level is in `levels`.
+
+    Per-level masks are memoized on the shard so a search with
+    `levels=['summary']` doesn't rebuild the boolean from a Python list
+    comprehension on every call.  For a 100k-row shard that previously
+    cost 1-3ms per search; now it's a vectorized OR.
+    """
+    out = np.zeros(len(shard.levels), dtype=np.bool_)
+    for level in levels:
+        cached = shard.level_masks.get(level)
+        if cached is None:
+            cached = np.asarray(
+                [lv == level for lv in shard.levels], dtype=np.bool_
+            )
+            shard.level_masks[level] = cached
+        out |= cached
+    return out
+
+
+def _exclude_mask(
+    shard: _IndexShard, exclude_ids: list[bytes]
+) -> npt.NDArray[np.bool_]:
+    """Boolean mask True at rows whose id is in `exclude_ids`."""
+    if not shard.id_to_idx:
+        shard.id_to_idx = {iid: i for i, iid in enumerate(shard.ids)}
+    out = np.zeros(len(shard.ids), dtype=np.bool_)
+    for iid in exclude_ids:
+        idx = shard.id_to_idx.get(iid)
+        if idx is not None:
+            out[idx] = True
+    return out
