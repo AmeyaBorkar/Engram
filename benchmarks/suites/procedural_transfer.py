@@ -148,27 +148,50 @@ def _engram_agent_score(
     queries: Sequence[tuple[str, str]],
 ) -> tuple[float, list[dict[str, Any]]]:
     """Engram agent: retrieve top procedure for each held-out query, use
-    its action. Returns (hit_rate, per_query)."""
+    its action. Returns (hit_rate, per_query).
+
+    Hit is decided by procedure id rather than action-string equality.
+    Strict string compare was brittle: a future refactor that
+    normalizes whitespace, capitalizes verbs, or rewrites actions
+    during consolidation would silently regress every score.  Matching
+    by id requires the held-out query to retrieve the SAME procedure
+    that produced `correct_action` during training — semantically what
+    we want.
+    """
+    # Record training patterns and remember the id assigned to each
+    # action.  Multiple training patterns share an action only if the
+    # caller wired them that way; the action -> id map is one-to-one
+    # otherwise.
+    action_to_id: dict[str, Any] = {}
     for pattern in TRAINING_PATTERNS:
-        memory.record_procedure(
+        recorded = memory.record_procedure(
             pattern.situation,
             pattern.action,
             outcome=Outcome.SUCCESS,
         )
+        action_to_id.setdefault(pattern.action, recorded.id)
 
     per_query: list[dict[str, Any]] = []
     hits = 0
     for query, correct_action in queries:
         results = memory.retrieve_procedures(query, k=1, reinforce=False)
-        chosen = results[0].procedure.action if results else "(none)"
-        is_hit = chosen == correct_action
+        chosen_action = results[0].procedure.action if results else "(none)"
+        chosen_id = results[0].procedure.id if results else None
+        correct_id = action_to_id.get(correct_action)
+        # Match by id when both sides are known; fall back to action
+        # string compare for synthetic queries whose `correct_action`
+        # wasn't part of the training set (unusual, but defensive).
+        if correct_id is not None and chosen_id is not None:
+            is_hit = chosen_id == correct_id
+        else:
+            is_hit = chosen_action == correct_action
         if is_hit:
             hits += 1
         per_query.append(
             {
                 "query": query,
                 "correct_action": correct_action,
-                "chosen_action": chosen,
+                "chosen_action": chosen_action,
                 "hit": is_hit,
                 "similarity": results[0].similarity if results else 0.0,
             }
