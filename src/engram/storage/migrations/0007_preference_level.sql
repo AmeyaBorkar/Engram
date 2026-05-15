@@ -41,7 +41,17 @@ CREATE TABLE memory_items_new (
     tenant_id           TEXT
 );
 
-INSERT INTO memory_items_new SELECT
+-- Explicit column lists on both sides protect against silent
+-- column-order drift if a future migration adds/reorders columns on
+-- either table.  Positional INSERT...SELECT with matching counts
+-- would still 'succeed' but write data into the wrong slots.
+INSERT INTO memory_items_new (
+    id, level, content, weight, cluster_id, metadata, created_at, updated_at,
+    reinforcement_count, corroboration_count, contradiction_count,
+    last_decayed_at, cold_at,
+    valid_from, valid_until, invalidated_at, invalidated_by, source_trust,
+    tenant_id
+) SELECT
     id, level, content, weight, cluster_id, metadata, created_at, updated_at,
     reinforcement_count, corroboration_count, contradiction_count,
     last_decayed_at, cold_at,
