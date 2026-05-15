@@ -338,10 +338,17 @@ class SqliteStorage:
         self.close()
 
     def initialize(self) -> None:
+        # Double-checked locking: the fast path is a lock-free read, the
+        # slow path serializes migration application so two threads
+        # racing on first-use can't both apply migrations and collide on
+        # the schema_migrations UNIQUE constraint after partial DDL.
         if self._initialized:
             return
-        apply_migrations(self._connect())
-        self._initialized = True
+        with self._lock:
+            if self._initialized:
+                return
+            apply_migrations(self._connect_unlocked())
+            self._initialized = True
 
     def close(self) -> None:
         with self._lock:
@@ -352,41 +359,51 @@ class SqliteStorage:
             self._initialized = False
 
     def _connect(self) -> sqlite3.Connection:
-        tid = threading.get_ident()
         with self._lock:
-            conn = self._connections.get(tid)
-            if conn is not None:
-                return conn
-            conn = sqlite3.connect(
-                self._path,
-                isolation_level=None,
-                check_same_thread=True,
-            )
-            conn.row_factory = sqlite3.Row
-            conn.execute("PRAGMA journal_mode = WAL")
-            conn.execute("PRAGMA foreign_keys = ON")
-            conn.execute("PRAGMA synchronous = NORMAL")
-            conn.execute("PRAGMA temp_store = MEMORY")
-            # Wait up to 5s for a writer lock instead of failing immediately
-            # with SQLITE_BUSY.  Combined with BEGIN IMMEDIATE in
-            # transaction(), this gives concurrent writers a real shot at
-            # serializing through the WAL instead of surfacing flaky
-            # OperationalError to the caller.
-            conn.execute("PRAGMA busy_timeout = 5000")
-            # cache_size: negative -> KB; 64 MB of page cache for hot
-            # PK lookups. The bench ingests 500 events per question and
-            # then drills against them; a smaller cache flushes the
-            # working set on every haystack switch.
-            conn.execute("PRAGMA cache_size = -65536")
-            # mmap_size: 256 MB. No-op for :memory: but a real win for
-            # disk-backed stores -- B-tree pages get faulted in once
-            # and stay resident across queries.
-            conn.execute("PRAGMA mmap_size = 268435456")
-            # `wal_autocheckpoint=1000` is the SQLite default; the
-            # bench writes everything in one big transaction per
-            # haystack so we don't tune this knob.
-            self._connections[tid] = conn
+            return self._connect_unlocked()
+
+    def _connect_unlocked(self) -> sqlite3.Connection:
+        """Get-or-create the current thread's connection.
+
+        Caller must hold `self._lock`.  Split out from `_connect` so
+        `initialize()` (which already holds the lock for its
+        double-checked-locking pattern) can fetch a connection without
+        re-acquiring and deadlocking on a non-reentrant Lock.
+        """
+        tid = threading.get_ident()
+        conn = self._connections.get(tid)
+        if conn is not None:
             return conn
+        conn = sqlite3.connect(
+            self._path,
+            isolation_level=None,
+            check_same_thread=True,
+        )
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode = WAL")
+        conn.execute("PRAGMA foreign_keys = ON")
+        conn.execute("PRAGMA synchronous = NORMAL")
+        conn.execute("PRAGMA temp_store = MEMORY")
+        # Wait up to 5s for a writer lock instead of failing immediately
+        # with SQLITE_BUSY.  Combined with BEGIN IMMEDIATE in
+        # transaction(), this gives concurrent writers a real shot at
+        # serializing through the WAL instead of surfacing flaky
+        # OperationalError to the caller.
+        conn.execute("PRAGMA busy_timeout = 5000")
+        # cache_size: negative -> KB; 64 MB of page cache for hot
+        # PK lookups. The bench ingests 500 events per question and
+        # then drills against them; a smaller cache flushes the
+        # working set on every haystack switch.
+        conn.execute("PRAGMA cache_size = -65536")
+        # mmap_size: 256 MB. No-op for :memory: but a real win for
+        # disk-backed stores -- B-tree pages get faulted in once
+        # and stay resident across queries.
+        conn.execute("PRAGMA mmap_size = 268435456")
+        # `wal_autocheckpoint=1000` is the SQLite default; the
+        # bench writes everything in one big transaction per
+        # haystack so we don't tune this knob.
+        self._connections[tid] = conn
+        return conn
 
     @contextmanager
     def transaction(self) -> Iterator[None]:
