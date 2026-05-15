@@ -78,10 +78,14 @@ def test_weight_stays_in_unit_interval(tmp_path: Path, steps: list[tuple]) -> No
                     memory.corroborate(event.id, ItemKind.EVENT, count=count, now=cursor)
                 else:  # tick
                     memory.tick(now=cursor)
-            except RuntimeError:
-                # Item went cold mid-sequence; further signals are
-                # rejected. That's by-design behavior.
-                pass
+            except RuntimeError as exc:
+                # Item went cold mid-sequence; the decay engine rejects
+                # further signals against cold items with a RuntimeError
+                # whose message explicitly says so.  Match on the
+                # message so any OTHER RuntimeError (storage error,
+                # transaction failure, etc.) still surfaces.
+                if "cold" not in str(exc).lower():
+                    raise
 
             state = storage.get_decay_state(event.id, ItemKind.EVENT)
             assert state is not None
@@ -114,8 +118,10 @@ def test_signal_counters_are_non_decreasing(tmp_path: Path, steps: list[tuple]) 
                     memory.corroborate(event.id, ItemKind.EVENT, count=count, now=cursor)
                 else:
                     memory.tick(now=cursor)
-            except RuntimeError:
-                pass
+            except RuntimeError as exc:
+                # Same narrow-match contract as above.
+                if "cold" not in str(exc).lower():
+                    raise
             state = storage.get_decay_state(event.id, ItemKind.EVENT)
             assert state is not None
             current = (
