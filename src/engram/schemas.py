@@ -436,5 +436,11 @@ class DecayState(BaseModel):
     reinforcement_count: int = Field(default=0, ge=0)
     corroboration_count: int = Field(default=0, ge=0)
     contradiction_count: int = Field(default=0, ge=0)
-    last_decayed_at: datetime
+    # Symmetric with every other timestamp on every other schema:
+    # `created_at`, `updated_at`, `valid_from`, `Conflict.detected_at`,
+    # `Embedding.created_at` all default via `_utcnow`.  Forcing callers
+    # to synthesize `last_decayed_at` by hand is a frequent source of
+    # naive-datetime bugs (`datetime.utcnow()` instead of
+    # `datetime.now(tz=utc)`).
+    last_decayed_at: datetime = Field(default_factory=_utcnow)
     cold_at: datetime | None = None
