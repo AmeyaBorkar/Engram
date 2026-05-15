@@ -81,7 +81,13 @@ class EngramAgent:
         ("does this context support this answer?"). If the verdict is
         no, re-retrieve + re-chat up to `verify_max_retries` times.
       verify_max_retries: bound on the verify-driven retry loop.
-        Default 1 -- one retry on top of the initial chat.
+        Default 1.  Call-count formula: the retry loop runs at most
+        `verify_max_retries + 1` iterations, each containing one
+        verifier chat call.  When verification fails at iteration N <
+        verify_max_retries, that iteration also performs one extra
+        chat to produce a refined answer — total chats in the worst
+        case is `2 * verify_max_retries + 1` (one initial chat + one
+        verifier + one refined-chat per retry, then a final verifier).
     """
 
     DEFAULT_SYSTEM = (
