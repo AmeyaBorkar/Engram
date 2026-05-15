@@ -17,15 +17,32 @@ halves the model VRAM footprint (BGE-reranker-v2-m3: ~2.3 GB fp32 ->
 ~1.1 GB fp16) so a 12 GB GPU can host the reranker alongside a
 1.5 B-param embedder (stella) without OOM.
 
-Lazy import: `sentence-transformers` only imports inside the BGE
-adapter's `__init__`. Users who don't install the `[reranker]` extra
-can still `import engram.retrieve` -- they just can't construct a
-`BGEReranker` instance.
+Lazy load: the model is constructed on the first `rerank()` call,
+not at `__init__`. Constructing a `BGEReranker(...)` is cheap; the
+1-2 GB load only happens when you actually rerank. Pre-warm by
+calling `rerank(q, [])` if you want the load to happen at a known
+time. `unload()` releases the model.
+
+Thread safety: a single `CrossEncoder.predict` call is internally
+batched; concurrent `rerank()` calls share the same underlying
+model. The torch / numpy paths are not guaranteed re-entrant on the
+same tensors, so this class serializes calls behind an internal
+lock. Callers that need parallel scoring across multiple cores
+should construct one reranker per worker.
+
+Async: `arerank()` hops onto `asyncio.to_thread` so the cross-
+encoder forward pass does not block the event loop. The optional
+`executor` kwarg lets callers route the work through a shared
+`concurrent.futures.Executor` (e.g. a process pool) when the GIL is
+the bottleneck.
 """
 
 from __future__ import annotations
 
+import asyncio
+import threading
 from collections.abc import Sequence
+from concurrent.futures import Executor
 from typing import TYPE_CHECKING, Any, Literal
 
 from engram.retrieve._reranker import RerankCandidate
@@ -74,26 +91,20 @@ class BGEReranker:
         batch_size: int | None = None,
         dtype: DType = "auto",
     ) -> None:
-        try:
-            from sentence_transformers import CrossEncoder
-        except ImportError as exc:  # pragma: no cover - tested via skip
-            raise ImportError(
-                "BGEReranker requires the `[reranker]` extra "
-                "(pip install engram-memory[reranker])"
-            ) from exc
-
         self._model_name = model
         self._max_length = max_length
         self._device = device
         self._batch_size = (
             batch_size if batch_size is not None else self._default_batch_size(device)
         )
-        self._model: Any = CrossEncoder(model, max_length=max_length, device=device)
-        resolved_dtype = _resolve_dtype(dtype, device or "cpu")
-        self._dtype = resolved_dtype
-        if resolved_dtype == "float16":
-            # CrossEncoder exposes the underlying HF model at .model.
-            self._model.model.half()
+        self._dtype: str = _resolve_dtype(dtype, device or "cpu")
+        # Lazy state. The model load is deferred to the first call.
+        self._model: Any = None
+        self._load_lock = threading.Lock()
+        # The cross-encoder + its underlying torch / numpy paths are
+        # not guaranteed re-entrant on the same tensors; serialize
+        # calls behind an internal lock.
+        self._predict_lock = threading.Lock()
 
     @staticmethod
     def _default_batch_size(device: str | None) -> int:
@@ -107,6 +118,43 @@ class BGEReranker:
     def name(self) -> str:
         return f"bge-reranker:{self._model_name}"
 
+    @property
+    def is_loaded(self) -> bool:
+        """True once the underlying CrossEncoder has been built."""
+        return self._model is not None
+
+    def _ensure_loaded(self) -> None:
+        """Load the cross-encoder if it has not been already.
+
+        Thread-safe via `_load_lock`. Idempotent after a successful load.
+        """
+        if self._model is not None:
+            return
+        with self._load_lock:
+            if self._model is not None:
+                return
+            try:
+                from sentence_transformers import CrossEncoder
+            except ImportError as exc:  # pragma: no cover - tested via skip
+                raise ImportError(
+                    "BGEReranker requires the `[reranker]` extra "
+                    "(pip install engram-memory[reranker])"
+                ) from exc
+            model = CrossEncoder(
+                self._model_name,
+                max_length=self._max_length,
+                device=self._device,
+            )
+            if self._dtype == "float16":
+                # CrossEncoder exposes the underlying HF model at .model.
+                model.model.half()
+            self._model = model
+
+    def unload(self) -> None:
+        """Release the loaded model. Next `rerank()` will re-load."""
+        with self._load_lock:
+            self._model = None
+
     def rerank(
         self,
         query: str,
@@ -114,14 +162,40 @@ class BGEReranker:
     ) -> list[float]:
         if not candidates:
             return []
+        self._ensure_loaded()
         pairs = [(query, cand.result.content) for cand in candidates]
-        scores = self._model.predict(
-            pairs,
-            batch_size=self._batch_size,
-            show_progress_bar=False,
-            convert_to_numpy=True,
-        )
+        with self._predict_lock:
+            scores = self._model.predict(
+                pairs,
+                batch_size=self._batch_size,
+                show_progress_bar=False,
+                convert_to_numpy=True,
+            )
         return [float(s) for s in scores]
+
+    async def arerank(
+        self,
+        query: str,
+        candidates: Sequence[RerankCandidate],
+        *,
+        executor: Executor | None = None,
+    ) -> list[float]:
+        """Async wrapper that runs the cross-encoder off the event loop.
+
+        Pass `executor` to dispatch the work through a shared
+        `concurrent.futures.Executor` (e.g. a process pool) when the
+        GIL is the bottleneck; default `None` uses asyncio's default
+        thread pool.
+        """
+        if not candidates:
+            return []
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(
+            executor,
+            self.rerank,
+            query,
+            list(candidates),
+        )
 
 
 __all__ = ["DEFAULT_MODEL", "BGEReranker"]
