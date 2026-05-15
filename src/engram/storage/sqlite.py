@@ -415,6 +415,15 @@ class SqliteStorage:
                 stacklevel=4,
             )
         conn.execute("PRAGMA foreign_keys = ON")
+        # synchronous=NORMAL is the standard recommendation under WAL: writes
+        # land in the WAL synchronously (so a single-row commit is durable
+        # against process crashes / kernel panics), but the periodic
+        # checkpoint that moves data from WAL into the main db file is
+        # async.  Durability window: a power loss in the ~1s between the
+        # commit and the next checkpoint can lose the most recent
+        # transaction.  Acceptable for memory / bench / agent workloads;
+        # production deployments with stricter durability requirements
+        # should bump to FULL via a custom subclass.
         conn.execute("PRAGMA synchronous = NORMAL")
         conn.execute("PRAGMA temp_store = MEMORY")
         # Wait up to 5s for a writer lock instead of failing immediately
