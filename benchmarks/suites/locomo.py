@@ -127,6 +127,33 @@ def _exact_match(answer: str, hits_text: list[str]) -> float:
     return 1.0 if any(answer_l in t.lower() for t in hits_text) else 0.0
 
 
+def _bootstrap_ci(values: list[float], *, seed: int = 1337) -> tuple[float, float]:
+    """Bootstrap a 95% CI on the mean. Empty / single -> (mean, mean).
+
+    Local copy of the same helper LongMemEval ships. Kept inline so the
+    suite has no cross-suite import dependency -- bench suites are
+    designed to be independently loadable.
+    """
+    if not values:
+        return (0.0, 0.0)
+    try:
+        import numpy as _np
+    except ImportError:  # pragma: no cover - numpy is a core dep
+        m = sum(values) / len(values)
+        return (m, m)
+    arr = _np.asarray(values, dtype=_np.float64)
+    mean = float(arr.mean())
+    if arr.size < 2:
+        return (mean, mean)
+    rng = _np.random.default_rng(seed)
+    n_iters = 5000
+    idx = rng.integers(0, arr.size, size=(n_iters, arr.size))
+    resamples = arr[idx].mean(axis=1)
+    lo = float(_np.quantile(resamples, 0.025))
+    hi = float(_np.quantile(resamples, 0.975))
+    return (lo, hi)
+
+
 class LoCoMoSuite:
     name: str = "locomo"
     dataset_version: str
@@ -167,7 +194,14 @@ class LoCoMoSuite:
         splits_to_run = list(_SPLITS) if self.split == "all" else [self.split]
         per_question: list[dict[str, Any]] = []
         retrieve_ms: list[float] = []
-        per_type_scores: dict[str, list[float]] = {s: [] for s in _SPLITS}
+        # Don't pre-populate per_type_scores with the SPLIT filenames.
+        # Pre-audit, splits like `single_hop` (filename) and qtypes like
+        # `single-hop` (dataset value, naming convention varies) could
+        # both end up in the dict as separate buckets, double-counting
+        # the same question. Now we only `setdefault` from the canonical
+        # `q.qtype` field so the aggregate exactly matches the dataset's
+        # own taxonomy.
+        per_type_scores: dict[str, list[float]] = {}
 
         # Per-question cap: count questions across ALL splits and stop
         # once we've reached the limit. Mirrors LongMemEval's `--limit`
@@ -217,20 +251,40 @@ class LoCoMoSuite:
                             and questions_seen >= self._max_questions
                         ):
                             break
-                        t0 = time.perf_counter()
-                        results = memory.retrieve(q.text, k=K, reinforce=False)
-                        retrieve_ms.append((time.perf_counter() - t0) * 1000.0)
-                        score = _exact_match(q.answer, [r.content for r in results])
+                        # Per-question try/except (matches LongMemEval):
+                        # one bad retrieval should never abort the
+                        # entire LoCoMo split. The error lands on the
+                        # per_question entry; the question scores 0 and
+                        # the loop moves on. Pre-audit a single failure
+                        # killed every subsequent question.
+                        error_msg: str | None = None
+                        score = 0.0
+                        try:
+                            t0 = time.perf_counter()
+                            results = memory.retrieve(q.text, k=K, reinforce=False)
+                            retrieve_ms.append((time.perf_counter() - t0) * 1000.0)
+                            score = _exact_match(q.answer, [r.content for r in results])
+                        except (KeyboardInterrupt, SystemExit):
+                            raise
+                        except Exception as exc:
+                            error_msg = f"{type(exc).__name__}: {exc}"
+                            _LOG.warning(
+                                "locomo [%s/%s] -> ERROR (%s)",
+                                conversation.id,
+                                q.id,
+                                error_msg,
+                            )
                         per_type_scores.setdefault(q.qtype, []).append(score)
-                        per_question.append(
-                            {
-                                "conversation_id": conversation.id,
-                                "question_id": q.id,
-                                "qtype": q.qtype,
-                                "score": score,
-                                "k": K,
-                            }
-                        )
+                        entry: dict[str, Any] = {
+                            "conversation_id": conversation.id,
+                            "question_id": q.id,
+                            "qtype": q.qtype,
+                            "score": score,
+                            "k": K,
+                        }
+                        if error_msg is not None:
+                            entry["error"] = error_msg
+                        per_question.append(entry)
                         questions_seen += 1
                 finally:
                     storage.close()
@@ -253,13 +307,25 @@ class LoCoMoSuite:
         }
         flat_scores = [s for vals in per_type_scores.values() for s in vals]
         overall = sum(flat_scores) / len(flat_scores) if flat_scores else 0.0
+        n_errored = sum(1 for e in per_question if e.get("error"))
         metrics: dict[str, float] = {
             "accuracy": overall,
             "n_questions": float(len(flat_scores)),
+            "n_errored": float(n_errored),
         }
         for qtype, acc in per_type_acc.items():
             metrics[f"accuracy_{qtype}"] = acc
-        cis: dict[str, tuple[float, float]] = {k: (v, v) for k, v in metrics.items()}
+        # Real bootstrap CIs on the bounded-mean metrics. Pre-audit
+        # these were zero-width (v, v) placeholders -- "Engram beats
+        # baseline by 0.03 [0.03, 0.03]" carries no statistical meaning.
+        cis: dict[str, tuple[float, float]] = {
+            "accuracy": _bootstrap_ci(flat_scores),
+        }
+        for qtype, s in per_type_scores.items():
+            cis[f"accuracy_{qtype}"] = _bootstrap_ci(s)
+        # Counts: zero-width by construction (no resampling distribution).
+        for name in ("n_questions", "n_errored"):
+            cis[name] = (metrics[name], metrics[name])
         return SuiteResult(
             name=self.name,
             aggregate_metrics=metrics,

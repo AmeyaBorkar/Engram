@@ -179,6 +179,71 @@ def _checksum(path: Path) -> str:
     return f"longmemeval/{path.name}/{h.hexdigest()}"
 
 
+def _seed_everything(seed: int) -> None:
+    """Seed every RNG that affects retrieval / reranking determinism.
+
+    Pre-audit `--seed` only seeded stdlib `random`, which is unused on
+    the hot retrieve path. NumPy (bootstrap), Torch (BGE reranker +
+    sentence-transformers), and HuggingFace Transformers all carry
+    their own RNGs that decide GPU sampling kernels, dropout, and
+    tokenizer fallbacks. Seeding them all is the only way `--seed N`
+    means "rerun is bit-identical" rather than "rerun's bootstrap CI
+    is bit-identical."
+    """
+    import random as _random
+
+    _random.seed(seed)
+    try:
+        import numpy as _np
+
+        _np.random.seed(seed)
+    except ImportError:  # pragma: no cover - numpy is a core dep
+        pass
+    try:
+        import torch as _torch
+
+        _torch.manual_seed(seed)
+        if _torch.cuda.is_available():
+            _torch.cuda.manual_seed_all(seed)
+    except ImportError:
+        # torch is optional (bench extra); fine to skip when absent.
+        pass
+    try:
+        from transformers import set_seed as _set_seed  # type: ignore[import-not-found]
+
+        _set_seed(seed)
+    except ImportError:
+        pass
+
+
+def _bootstrap_ci(values: list[float], *, seed: int = 1337) -> tuple[float, float]:
+    """Bootstrap a 95% CI on the mean. Empty / single-value -> (mean, mean).
+
+    Used to back the suite's `confidence_intervals` field with real
+    bounds instead of the pre-audit zero-width `(v, v)` placeholder.
+    Local copy of `scripts/_stats.bootstrap_mean_ci` so the suite has
+    no script-layer dependency.
+    """
+    if not values:
+        return (0.0, 0.0)
+    try:
+        import numpy as _np
+    except ImportError:  # pragma: no cover - numpy is a core dep
+        m = sum(values) / len(values)
+        return (m, m)
+    arr = _np.asarray(values, dtype=_np.float64)
+    mean = float(arr.mean())
+    if arr.size < 2:
+        return (mean, mean)
+    rng = _np.random.default_rng(seed)
+    n_iters = 5000
+    idx = rng.integers(0, arr.size, size=(n_iters, arr.size))
+    resamples = arr[idx].mean(axis=1)
+    lo = float(_np.quantile(resamples, 0.025))
+    hi = float(_np.quantile(resamples, 0.975))
+    return (lo, hi)
+
+
 def _read_prompt(name: str) -> str:
     return (PROMPTS_DIR / f"longmemeval_{name}_v1.txt").read_text(encoding="utf-8")
 
@@ -230,10 +295,27 @@ def _judge(
         response=response,
     )
     messages = [Message(role="user", content=prompt)]
-    raw = chat.chat(messages).strip().lower()
-    # The official scorer uses substring match for "yes" -- we mirror it
-    # so verdicts are comparable across runs.
-    return "yes" in raw and "no" not in raw.split("yes", 1)[0]
+    raw = chat.chat(messages)
+    return _judge_parse(raw)
+
+
+def _judge_parse(raw: str) -> bool:
+    """Parse a judge reply into a bool, matching the official LongMemEval scorer.
+
+    The official scorer (`evaluate_qa.py` in the LongMemEval repo)
+    strips whitespace, takes the first line, lowercases, and demands
+    exact match against "yes". Anything else, including CoT prefaces
+    that contain "yes" inside a sentence, scores 0. The previous
+    substring search (`"yes" in raw and "no" not in raw.split("yes")[0]`)
+    accepted noise the official scorer rejects -- diverged verdicts
+    silently inflated our reported accuracy vs published numbers.
+    """
+    if not raw:
+        return False
+    first = raw.strip().splitlines()
+    if not first:
+        return False
+    return first[0].strip().lower() == "yes"
 
 
 _HAYSTACK_DATE_DOW_RE = re.compile(r"\s*\([A-Za-z]+\)\s*")
@@ -340,7 +422,18 @@ def _ingest_haystack(memory: Memory, q: _Question) -> int:
         return 0
     embedder = memory.embedder
     storage = memory.storage
-    vectors = embedder.embed(contents)
+    # Chunk embed calls to bound peak memory: at ~500 turns and
+    # ~4096-dim embeddings, the full materialised result is ~50 MB of
+    # Python floats per question -- a real cliff when the harness is
+    # already holding the haystack content + reranker model in RAM.
+    # 512 items per chunk is a sweet spot for sentence-transformers
+    # (saturates GPU batch throughput) and OpenAI (one request well
+    # below their per-call token cap).
+    chunk_size = 512
+    vectors: list[Any] = []
+    for start in range(0, len(contents), chunk_size):
+        end = start + chunk_size
+        vectors.extend(embedder.embed(contents[start:end]))
     with storage.transaction():
         storage.insert_events(events)
         for event, raw_vec in zip(events, vectors, strict=True):
@@ -457,9 +550,7 @@ class LongMemEvalSuite:
             self._k = k
         self._seed = seed
         if seed is not None:
-            import random
-
-            random.seed(seed)
+            _seed_everything(seed)
         self._hyde = hyde
         self._multi_query_n = multi_query_n
         self._decompose = decompose
@@ -540,6 +631,7 @@ class LongMemEvalSuite:
         retrieve_ms: list[float] = []
         answer_ms: list[float] = []
         judge_ms: list[float] = []
+        ingest_ms_all: list[float] = []
         per_type_scores: dict[str, list[float]] = {}
         # Log every question for small smoke runs; every 10 for full runs
         # so 500-question manifests don't bury the user in INFO lines.
@@ -599,29 +691,98 @@ class LongMemEvalSuite:
                     retrieve_ms=retrieve_ms,
                     answer_ms=answer_ms,
                     judge_ms=judge_ms,
+                    ingest_ms_all=ingest_ms_all,
                     log_interval=log_interval,
                 )
             finally:
                 storage.close()
 
         flat = [s for vals in per_type_scores.values() for s in vals]
+        # Track errored vs completed separately. Pre-audit, infra errors
+        # (content-filter rejections, 429s, transient network blips)
+        # scored as 0 and were indistinguishable from genuine wrong
+        # answers in the headline `accuracy`, silently contaminating
+        # SOTA comparisons. Now we expose both `accuracy` (scores / N,
+        # the harshest "errors are failures" reading) AND
+        # `accuracy_correct` (correct / n_completed, the official
+        # LongMemEval reading that drops infra failures).
+        n_errored = sum(1 for e in per_question if e.get("error"))
+        n_total = len(per_question)
+        n_completed = n_total - n_errored
+        # `accuracy` keeps the pre-audit reading (errored questions
+        # count as wrong) so existing SCOREBOARD claims stay comparable
+        # while we transition. `accuracy_correct` is the
+        # comparable-to-published-LongMemEval reading: drop errored
+        # rows from BOTH numerator and denominator, so the metric isn't
+        # contaminated by transient 429s / content-filter rejections.
+        completed_scores = [
+            float(e.get("score", 0.0))
+            for e in per_question
+            if not e.get("error")
+        ]
         accuracy = sum(flat) / len(flat) if flat else 0.0
+        accuracy_correct = (
+            sum(completed_scores) / len(completed_scores)
+            if completed_scores
+            else 0.0
+        )
+        if n_total > 0 and n_errored / n_total > 0.01:
+            _LOG.warning(
+                "longmemeval: %d/%d questions errored (%.1f%%); "
+                "see per-question `error` fields and use `accuracy_correct` "
+                "for the comparable-to-published number.",
+                n_errored,
+                n_total,
+                100.0 * n_errored / n_total,
+            )
         metrics: dict[str, float] = {
             "accuracy": accuracy,
+            "accuracy_correct": accuracy_correct,
             "n_questions": float(len(flat)),
+            "n_completed": float(n_completed),
+            "n_errored": float(n_errored),
             "k": float(self._k),
         }
         for qtype, scores in per_type_scores.items():
             if scores:
                 metrics[f"accuracy_{qtype}"] = sum(scores) / len(scores)
                 metrics[f"n_{qtype}"] = float(len(scores))
-        cis: dict[str, tuple[float, float]] = {k: (v, v) for k, v in metrics.items()}
+        # Real bootstrap CIs on the bounded-mean metrics. Pre-audit these
+        # were zero-width (v, v) placeholders, which made every claim
+        # in SCOREBOARD impossible to compare against published numbers.
+        # Bootstrap reseed is deterministic for reproducibility.
+        ci_seed = self._seed if self._seed is not None else 1337
+        cis: dict[str, tuple[float, float]] = {}
+        cis["accuracy"] = _bootstrap_ci(flat, seed=ci_seed)
+        cis["accuracy_correct"] = _bootstrap_ci(completed_scores, seed=ci_seed)
+        for qtype, scores in per_type_scores.items():
+            if scores:
+                cis[f"accuracy_{qtype}"] = _bootstrap_ci(scores, seed=ci_seed)
+        # Constants ship with zero-width CIs by construction (count
+        # metrics, k) -- there's no resampling distribution for them.
+        for name in ("n_questions", "n_completed", "n_errored", "k"):
+            cis[name] = (metrics[name], metrics[name])
+        for qtype in per_type_scores:
+            key = f"n_{qtype}"
+            if key in metrics:
+                cis[key] = (metrics[key], metrics[key])
+        # Record judge + answer prompt versions on every per_question
+        # entry so the manifest preserves which prompt template scored
+        # each row. Pre-audit the PROMPT_VERSIONS constants existed but
+        # never landed in the manifest; reruns with a bumped judge
+        # template would silently mix accuracy points across templates.
+        # Stamping per-row keeps the historical contract clean even if
+        # a future suite uses different prompts per question type.
+        for entry in per_question:
+            entry["answer_prompt_version"] = PROMPT_VERSIONS["answer"]
+            entry["judge_prompt_version"] = PROMPT_VERSIONS["judge"]
         return SuiteResult(
             name=self.name,
             aggregate_metrics=metrics,
             confidence_intervals=cis,
             per_question=per_question,
             latency_ms={
+                "ingest": ingest_ms_all,
                 "retrieve": retrieve_ms,
                 "answer": answer_ms,
                 "judge": judge_ms,
@@ -644,6 +805,7 @@ class LongMemEvalSuite:
         retrieve_ms: list[float],
         answer_ms: list[float],
         judge_ms: list[float],
+        ingest_ms_all: list[float],
         log_interval: int,
     ) -> None:
         """Run the ingest + retrieve + answer + judge pipeline for one
@@ -666,6 +828,7 @@ class LongMemEvalSuite:
         response = ""
         score = 0.0
         error_msg: str | None = None
+        auto_temporal_fallback = False
         try:
             memory = Memory(
                 storage=storage,
@@ -678,6 +841,7 @@ class LongMemEvalSuite:
             t_ingest = time.perf_counter()
             turns = _ingest_haystack(memory, q)
             ingest_ms = (time.perf_counter() - t_ingest) * 1000.0
+            ingest_ms_all.append(ingest_ms)
 
             if self._consolidate:
                 t_consolidate = time.perf_counter()
@@ -717,6 +881,12 @@ class LongMemEvalSuite:
                 and not results
                 and retrieve_kwargs.get("lexical_filter")
             ):
+                # Record the fallback so per-question analysis can tell
+                # which questions the temporal filter emptied -- pre-audit
+                # this was silent and the manifest only captured the
+                # second result set, hiding the cost of an over-tight
+                # filter.
+                auto_temporal_fallback = True
                 retrieve_kwargs.pop("lexical_filter", None)
                 results = memory.retrieve(q.question, **retrieve_kwargs)
             retrieve_ms.append((time.perf_counter() - t0) * 1000.0)
@@ -768,6 +938,8 @@ class LongMemEvalSuite:
                 answer_ms.append(0.0)
             if len(judge_ms) <= q_idx:
                 judge_ms.append(0.0)
+            if len(ingest_ms_all) <= q_idx:
+                ingest_ms_all.append(0.0)
 
         per_type_scores.setdefault(q.qtype, []).append(score)
         entry: dict[str, Any] = {
@@ -780,6 +952,7 @@ class LongMemEvalSuite:
             "k": self._k,
             "turns_ingested": turns,
             "consolidate_ms": consolidate_ms,
+            "auto_temporal_fallback": auto_temporal_fallback,
         }
         if error_msg is not None:
             entry["error"] = error_msg
