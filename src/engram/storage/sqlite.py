@@ -1596,6 +1596,7 @@ class SqliteStorage:
         sql = (
             "SELECT e.id AS id, e.content AS content, e.metadata AS metadata, "
             "       e.source AS source, e.created_at AS created_at, "
+            "       e.tenant_id AS tenant_id, "
             "       emb.vector AS vector, emb.dim AS dim "
             "FROM events e "
             "JOIN embeddings emb ON emb.item_id = e.id AND emb.item_kind = 'event' "
@@ -1615,12 +1616,16 @@ class SqliteStorage:
                 if not rows:
                     return
                 for row in rows:
+                    # Propagate tenant_id so consolidation produces tenant-
+                    # scoped MemoryItems instead of silently dropping the
+                    # tag and landing every consolidated row as global.
                     event = Event(
                         id=UUID(bytes=row["id"]),
                         content=row["content"],
                         metadata=loads_metadata(row["metadata"]),
                         source=row["source"],
                         created_at=parse_iso(row["created_at"]),
+                        tenant_id=row["tenant_id"],
                     )
                     dim = int(row["dim"])
                     vec = list(unpack_vector(row["vector"], dim))
