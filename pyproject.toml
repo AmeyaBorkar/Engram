@@ -56,8 +56,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-openai = ["openai>=1.40"]
-anthropic = ["anthropic>=0.40"]
+openai = ["openai>=1.40,<3"]
+# anthropic SDK is still pre-1.0 and ships breaking changes between
+# 0.x minors.  Cap at <1 so a fresh install doesn't pick up an
+# incompatible major; bump deliberately when adopting a new minor.
+anthropic = ["anthropic>=0.40,<1"]
 postgres = ["psycopg[binary]>=3.1"]
 duckdb = ["duckdb>=0.10"]
 sqlite-vec = ["sqlite-vec>=0.1.0"]
