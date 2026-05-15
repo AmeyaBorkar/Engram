@@ -492,6 +492,11 @@ class HierarchicalRetriever:
                     if p.mmr_pool_size > 0
                     else p.k * max(p.candidate_multiplier, 1)
                 )
+                # Guarantee MMR returns at least k items so the final
+                # `unique[:p.k]` slice can fulfil the contract.  Otherwise
+                # a caller setting `mmr_pool_size=3` with `k=10` would get
+                # 3 results back — H-50.
+                pool_size = max(pool_size, p.k)
                 unique = mmr_select(
                     unique,
                     rerank_scores_sorted,
