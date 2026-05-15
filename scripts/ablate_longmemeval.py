@@ -55,29 +55,15 @@ _SRC = _REPO_ROOT / "src"
 if _SRC.exists() and str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
+from scripts._common import (  # noqa: E402
+    build_chat as _common_build_chat,
+    build_embedder as _common_build_embedder,
+    build_reranker as _common_build_reranker,
+    load_env_file,
+    split_config,
+)
 
-def _load_env(path: Path = Path(".env")) -> None:
-    """Best-effort `.env` loader. Existing env vars take precedence."""
-    if not path.exists():
-        return
-    try:
-        from dotenv import load_dotenv
-
-        load_dotenv(path, override=False)
-    except ImportError:
-        with path.open("r", encoding="utf-8") as f:
-            for raw in f:
-                line = raw.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                key, _, value = line.partition("=")
-                key = key.strip()
-                value = value.strip().strip('"').strip("'")
-                if key and key not in os.environ:
-                    os.environ[key] = value
-
-
-_load_env()
+load_env_file()
 
 from engram import Memory, SqliteStorage  # noqa: E402
 from engram.providers._message import Message  # noqa: E402
@@ -147,34 +133,9 @@ class _RunResult:
     latency_ms: float
 
 
-def _build_chat(chat_name: str, chat_model: str | None) -> ChatProvider:
-    """Construct a chat provider via the bench's standard catalog."""
-    from engram.bench._real_provider import build_chat
-
-    return build_chat(chat_name, chat_model)
-
-
-def _build_embedder(model: str, device: str | None, dtype: str) -> Any:
-    """Construct a LocalEmbedder once and share across the whole run."""
-    from engram.providers.local import LocalEmbedder
-
-    dtype_map: dict[str, str] = {"auto": "auto", "fp16": "float16", "fp32": "float32"}
-    return LocalEmbedder(
-        model=model,
-        device=device,
-        dtype=dtype_map.get(dtype, "auto"),  # type: ignore[arg-type]
-    )
-
-
-def _build_reranker(model: str, device: str | None, dtype: str) -> Any:
-    from engram.retrieve._bge_reranker import BGEReranker
-
-    dtype_map: dict[str, str] = {"auto": "auto", "fp16": "float16", "fp32": "float32"}
-    return BGEReranker(
-        model=model,
-        device=device,
-        dtype=dtype_map.get(dtype, "auto"),  # type: ignore[arg-type]
-    )
+_build_chat = _common_build_chat
+_build_embedder = _common_build_embedder
+_build_reranker = _common_build_reranker
 
 
 def _retrieved_session_ids(
@@ -224,8 +185,8 @@ def _run_one(
     retrieval_only: bool,
 ) -> _RunResult:
     """Run one (question, config) pair against an already-ingested storage."""
-    auto_temporal = bool(config.get("_auto_temporal", False))
-    param_overrides = {kk: vv for kk, vv in config.items() if not kk.startswith("_")}
+    param_overrides, bench_flags = split_config(config)
+    auto_temporal = bench_flags.get("_auto_temporal", False)
     base_params = RetrieveParams(k=k, **param_overrides)
     memory = Memory(
         storage=storage,
@@ -428,8 +389,22 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("benchmarks/runs/ablation.json"),
-        help="JSON manifest output path.",
+        default=None,
+        help=(
+            "JSON manifest output path. Defaults to a timestamped "
+            "path under benchmarks/runs/ablation_YYYYMMDDTHHMMSS.json "
+            "so back-to-back invocations don't clobber each other's "
+            "evidence. Pre-audit the fixed default `ablation.json` "
+            "silently overwrote the previous run's results."
+        ),
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help=(
+            "Overwrite --output if it already exists. Without --force "
+            "an existing path is a hard error."
+        ),
     )
     parser.add_argument(
         "--log-level",
@@ -527,7 +502,17 @@ def main(argv: list[str] | None = None) -> int:
         finally:
             storage.close()
 
-    # Persist + print summary.
+    # Persist + print summary. Default --output is timestamped so two
+    # back-to-back invocations don't silently overwrite each other.
+    if args.output is None:
+        ts = time.strftime("%Y%m%dT%H%M%S")
+        args.output = Path(f"benchmarks/runs/ablation_{ts}.json")
+    elif args.output.exists() and not args.force:
+        print(
+            f"--output already exists: {args.output}. Pass --force to overwrite.",
+            file=sys.stderr,
+        )
+        return 2
     args.output.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "config_args": vars(args) | {"output": str(args.output)},

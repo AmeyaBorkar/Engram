@@ -35,6 +35,10 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
+# Bootstrap sys.path BEFORE importing `scripts._common`, since direct
+# invocation (`python scripts/sweep.py`) only adds `scripts/` to
+# sys.path. Once the repo root is on the path, the rest of the
+# script-level imports come from `_common`.
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
@@ -42,27 +46,13 @@ _SRC = _REPO_ROOT / "src"
 if _SRC.exists() and str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
+from scripts._common import (  # noqa: E402
+    build_embedder as _common_build_embedder,
+    build_reranker as _common_build_reranker,
+    load_env_file,
+)
 
-def _load_env(path: Path = Path(".env")) -> None:
-    if not path.exists():
-        return
-    try:
-        from dotenv import load_dotenv
-        load_dotenv(path, override=False)
-    except ImportError:
-        with path.open("r", encoding="utf-8") as f:
-            for raw in f:
-                line = raw.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                key, _, value = line.partition("=")
-                key = key.strip()
-                value = value.strip().strip('"').strip("'")
-                if key and key not in os.environ:
-                    os.environ[key] = value
-
-
-_load_env()
+load_env_file()
 
 from engram import Memory, SqliteStorage  # noqa: E402
 from engram.providers._fake import FakeChat  # noqa: E402
@@ -106,28 +96,8 @@ SWEEPS: dict[str, list[Any]] = {
 }
 
 
-def _build_embedder(model: str, device: str | None, dtype: str) -> Any:
-    from engram.providers.local import LocalEmbedder
-
-    dtype_map: dict[str, str] = {"auto": "auto", "fp16": "float16", "fp32": "float32"}
-    return LocalEmbedder(
-        model=model,
-        device=device,
-        dtype=dtype_map.get(dtype, "auto"),  # type: ignore[arg-type]
-    )
-
-
-def _build_reranker(model: str | None, device: str | None, dtype: str) -> Any:
-    if model is None or model.lower() == "none":
-        return None
-    from engram.retrieve._bge_reranker import BGEReranker
-
-    dtype_map: dict[str, str] = {"auto": "auto", "fp16": "float16", "fp32": "float32"}
-    return BGEReranker(
-        model=model,
-        device=device,
-        dtype=dtype_map.get(dtype, "auto"),  # type: ignore[arg-type]
-    )
+_build_embedder = _common_build_embedder
+_build_reranker = _common_build_reranker
 
 
 def _retrieved_session_ids(memory: Memory, results: Sequence[Any]) -> set[str]:
@@ -416,6 +386,18 @@ def main(argv: list[str] | None = None) -> int:
         help="Comma-separated value override (otherwise uses the standard grid).",
     )
     parser.add_argument(
+        "--values-type",
+        default=None,
+        choices=("int", "float", "bool", "str"),
+        help=(
+            "Explicit type for --values; defaults to the type of the first "
+            "entry in the standard grid for the chosen knob. Use this when "
+            "the grid is type-mixed (e.g. `--values 0,0.5,1` and you want "
+            "all floats) -- pre-audit auto-coercion picked the type of "
+            "values[0] which is undefined for mixed grids."
+        ),
+    )
+    parser.add_argument(
         "--baseline-value",
         default=None,
         help="Value to use as baseline for lift comparisons. Default: first in grid.",
@@ -451,15 +433,34 @@ def main(argv: list[str] | None = None) -> int:
     # correctly; CLI overrides come in as strings.
     if args.values is not None:
         raw_values = [s.strip() for s in args.values.split(",") if s.strip()]
-        # Coerce to int/float based on the knob's standard grid.
-        standard = SWEEPS[args.knob]
-        sample = standard[0]
-        if isinstance(sample, int):
-            values: list[Any] = [int(v) for v in raw_values]
-        elif isinstance(sample, float):
+        # Explicit type wins over auto-detection. Pre-audit, the type
+        # was inferred from values[0] of the STANDARD grid, which gave
+        # the wrong answer when the user override was type-mixed
+        # (e.g. `--values 0,0.5,1` against a knob whose standard grid
+        # started with int 0 -- the "0.5" raised ValueError on int(),
+        # crashing the whole sweep with no actionable hint).
+        if args.values_type == "int":
+            values: list[Any] = [int(float(v)) for v in raw_values]
+        elif args.values_type == "float":
             values = [float(v) for v in raw_values]
-        else:
+        elif args.values_type == "bool":
+            values = [v.lower() in {"1", "true", "yes", "on"} for v in raw_values]
+        elif args.values_type == "str":
             values = list(raw_values)
+        else:
+            # Fallback: auto-detect from the standard grid type, but
+            # accept floats even when the grid was ints (so the
+            # type-mixed case at least doesn't crash). The user can
+            # always pin via --values-type.
+            standard = SWEEPS[args.knob]
+            sample = standard[0]
+            if isinstance(sample, int):
+                # Accept any-shape numeric and round to int.
+                values = [int(float(v)) for v in raw_values]
+            elif isinstance(sample, float):
+                values = [float(v) for v in raw_values]
+            else:
+                values = list(raw_values)
     else:
         values = list(SWEEPS[args.knob])
 

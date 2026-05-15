@@ -50,6 +50,7 @@ from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Any
 
+# Bootstrap sys.path BEFORE importing `scripts._common` (see sweep.py).
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
@@ -57,28 +58,14 @@ _SRC = _REPO_ROOT / "src"
 if _SRC.exists() and str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
+from scripts._common import (  # noqa: E402
+    build_embedder as _common_build_embedder,
+    build_reranker as _common_build_reranker,
+    load_env_file,
+    split_config,
+)
 
-def _load_env(path: Path = Path(".env")) -> None:
-    if not path.exists():
-        return
-    try:
-        from dotenv import load_dotenv
-
-        load_dotenv(path, override=False)
-    except ImportError:
-        with path.open("r", encoding="utf-8") as f:
-            for raw in f:
-                line = raw.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                key, _, value = line.partition("=")
-                key = key.strip()
-                value = value.strip().strip('"').strip("'")
-                if key and key not in os.environ:
-                    os.environ[key] = value
-
-
-_load_env()
+load_env_file()
 
 from engram import Memory, SqliteStorage  # noqa: E402
 from engram.providers._fake import FakeChat  # noqa: E402
@@ -150,28 +137,8 @@ class _RunRow:
     metrics: _Metrics
 
 
-def _build_embedder(model: str, device: str | None, dtype: str) -> Any:
-    from engram.providers.local import LocalEmbedder
-
-    dtype_map: dict[str, str] = {"auto": "auto", "fp16": "float16", "fp32": "float32"}
-    return LocalEmbedder(
-        model=model,
-        device=device,
-        dtype=dtype_map.get(dtype, "auto"),  # type: ignore[arg-type]
-    )
-
-
-def _build_reranker(model: str | None, device: str | None, dtype: str) -> Any:
-    if model is None or model.lower() == "none":
-        return None
-    from engram.retrieve._bge_reranker import BGEReranker
-
-    dtype_map: dict[str, str] = {"auto": "auto", "fp16": "float16", "fp32": "float32"}
-    return BGEReranker(
-        model=model,
-        device=device,
-        dtype=dtype_map.get(dtype, "auto"),  # type: ignore[arg-type]
-    )
+_build_embedder = _common_build_embedder
+_build_reranker = _common_build_reranker
 
 
 def _result_to_event_session_pair(
@@ -284,8 +251,8 @@ def _evaluate_one(
     eval_k: int,
     k_cutoffs: Sequence[int],
 ) -> _RunRow:
-    auto_temporal = bool(config.get("_auto_temporal", False))
-    param_overrides = {kk: vv for kk, vv in config.items() if not kk.startswith("_")}
+    param_overrides, bench_flags = split_config(config)
+    auto_temporal = bench_flags.get("_auto_temporal", False)
     base_params = RetrieveParams(k=eval_k, **param_overrides)
     memory = Memory(
         storage=storage,

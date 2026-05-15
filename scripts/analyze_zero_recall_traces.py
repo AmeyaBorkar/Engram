@@ -49,9 +49,30 @@ def _parse_trace(text: str) -> dict:
     in_dense_section = False
     dense_rows_seen = 0
     top10_session_count: Counter[str] = Counter()
+    # Prefer the structured TRACE_META tag emitted by retrieval_trace.py.
+    # The regex-based header parsing below is kept for back-compat with
+    # traces produced before the structured tag was added (M-170).
+    for line in lines:
+        if line.startswith("TRACE_META "):
+            try:
+                import json as _json
+
+                meta = _json.loads(line[len("TRACE_META "):])
+                if isinstance(meta, dict):
+                    out["qid"] = meta.get("qid")
+                    out["qtype"] = meta.get("qtype")
+                    out["question"] = meta.get("question")
+                    out["gold"] = meta.get("gold")
+                    raw_sessions = meta.get("answer_session_ids") or []
+                    if isinstance(raw_sessions, list):
+                        out["answer_sessions"] = [str(s) for s in raw_sessions]
+                    break
+            except (ValueError, TypeError):
+                # Fall through to regex parsing if the JSON is malformed.
+                pass
     for line in lines:
         m = _HEADER_RE.match(line)
-        if m:
+        if m and out["qid"] is None:
             out["qid"] = m.group(1)
             out["qtype"] = m.group(2)
             continue

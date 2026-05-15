@@ -52,27 +52,14 @@ _SRC = _REPO_ROOT / "src"
 if _SRC.exists() and str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
+from scripts._common import (  # noqa: E402
+    build_embedder as _common_build_embedder,
+    build_reranker as _common_build_reranker,
+    load_env_file,
+    split_config,
+)
 
-def _load_env(path: Path = Path(".env")) -> None:
-    if not path.exists():
-        return
-    try:
-        from dotenv import load_dotenv
-        load_dotenv(path, override=False)
-    except ImportError:
-        with path.open("r", encoding="utf-8") as f:
-            for raw in f:
-                line = raw.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                key, _, value = line.partition("=")
-                key = key.strip()
-                value = value.strip().strip('"').strip("'")
-                if key and key not in os.environ:
-                    os.environ[key] = value
-
-
-_load_env()
+load_env_file()
 
 from engram import Memory, SqliteStorage  # noqa: E402
 from engram.providers._fake import FakeChat  # noqa: E402
@@ -91,28 +78,8 @@ from scripts.ablate_longmemeval import CONFIGS  # noqa: E402
 _LOG = logging.getLogger("engram.inspect")
 
 
-def _build_embedder(model: str, device: str | None, dtype: str) -> Any:
-    from engram.providers.local import LocalEmbedder
-
-    dtype_map: dict[str, str] = {"auto": "auto", "fp16": "float16", "fp32": "float32"}
-    return LocalEmbedder(
-        model=model,
-        device=device,
-        dtype=dtype_map.get(dtype, "auto"),  # type: ignore[arg-type]
-    )
-
-
-def _build_reranker(model: str | None, device: str | None, dtype: str) -> Any:
-    if model is None or model.lower() == "none":
-        return None
-    from engram.retrieve._bge_reranker import BGEReranker
-
-    dtype_map: dict[str, str] = {"auto": "auto", "fp16": "float16", "fp32": "float32"}
-    return BGEReranker(
-        model=model,
-        device=device,
-        dtype=dtype_map.get(dtype, "auto"),  # type: ignore[arg-type]
-    )
+_build_embedder = _common_build_embedder
+_build_reranker = _common_build_reranker
 
 
 def _preview(content: str, width: int) -> str:
@@ -175,7 +142,17 @@ def _dump_answer_sessions(q: _Question, width: int) -> list[str]:
 
 
 def _result_to_event_meta(memory: Memory, result: Any) -> dict[str, Any]:
-    """Pull session_id + has_answer + content + level for one retrieved item."""
+    """Pull session_id + has_answer + content + level for one retrieved item.
+
+    For memory-item (abstraction) results: walk ALL supporting events,
+    NOT just the first one with a session_id. Pre-audit, the loop
+    returned on the first supporting event with a string session_id,
+    so an abstraction spanning multiple answer sessions only "counted"
+    for the first session, and `has_answer=True` on a later support
+    was invisible. Now we collect every session and pick the strongest
+    has_answer reading (True > False > None) across all supports --
+    matching what session-level recall already does.
+    """
     try:
         event = memory.storage.get_event(result.item_id)
     except (KeyError, RuntimeError):
@@ -186,24 +163,41 @@ def _result_to_event_meta(memory: Memory, result: Any) -> dict[str, Any]:
             "session_id": event.metadata.get("session_id"),
             "has_answer": event.metadata.get("has_answer"),
             "content": event.content,
+            "session_ids": [event.metadata.get("session_id")]
+            if isinstance(event.metadata.get("session_id"), str)
+            else [],
         }
-    # Memory item: walk provenance.
+    # Memory item: walk ALL supporting events and union sessions.
     try:
         supports = memory.storage.get_supporting_events(result.item_id)
     except (KeyError, RuntimeError):
         supports = []
+    session_ids: list[str] = []
+    has_answer_strongest: bool | None = None
     for ev in supports:
         sid = ev.metadata.get("session_id")
-        if isinstance(sid, str):
-            return {
-                "kind": "memory_item",
-                "session_id": sid,
-                "has_answer": ev.metadata.get("has_answer"),
-                "content": result.content,
-            }
+        if isinstance(sid, str) and sid not in session_ids:
+            session_ids.append(sid)
+        ha = ev.metadata.get("has_answer")
+        # Strongest reading: True dominates over False/None; False over None.
+        if ha is True:
+            has_answer_strongest = True
+        elif ha is False and has_answer_strongest is None:
+            has_answer_strongest = False
+    if session_ids:
+        return {
+            "kind": "memory_item",
+            # Single-value `session_id` retains the pre-audit field for
+            # back-compat; per-session readers should use `session_ids`.
+            "session_id": session_ids[0],
+            "session_ids": session_ids,
+            "has_answer": has_answer_strongest,
+            "content": result.content,
+        }
     return {
         "kind": "unknown",
         "session_id": None,
+        "session_ids": [],
         "has_answer": None,
         "content": result.content,
     }
@@ -224,12 +218,19 @@ def _inspect_question(
     """Run retrieve, compute both recall flavors, and (unless stats_only)
     print the per-question dump.
     """
-    # All has_answer=True event ids in this haystack
+    # Count has_answer=True turns *after* applying the same filter that
+    # `_ingest_haystack` applies (drops empty-content turns). Pre-audit
+    # the count came from the raw dataset, so any answer turn with
+    # empty content (rare but possible) inflated the denominator and
+    # made event_recall artificially low.
     gold_event_count = 0
     for idx, sid in enumerate(q.haystack_session_ids):
         if sid not in answer_session_ids:
             continue
         for t in q.haystack_sessions[idx]:
+            if not t.get("content"):
+                # Ingest skips empty-content turns; don't count them as gold.
+                continue
             if t.get("has_answer") is True:
                 gold_event_count += 1
 
@@ -247,12 +248,23 @@ def _inspect_question(
             "rank": len(annotated) + 1,
             "score": float(r.score),
             "session_id": meta["session_id"],
+            "session_ids": list(meta.get("session_ids", [])),
             "has_answer": meta["has_answer"],
             "content": meta["content"],
         })
 
-    # Metrics
-    retrieved_sessions = {a["session_id"] for a in annotated if a["session_id"] is not None}
+    # Metrics. Union ALL session ids each result is attached to (events
+    # have one; abstractions may have many via provenance). Pre-audit
+    # `retrieved_sessions` only included the first matching session of
+    # each abstraction, undercounting session-level recall.
+    retrieved_sessions: set[str] = set()
+    for a in annotated:
+        for sid in a.get("session_ids", []):
+            if isinstance(sid, str):
+                retrieved_sessions.add(sid)
+        single = a.get("session_id")
+        if isinstance(single, str):
+            retrieved_sessions.add(single)
     session_hit = bool(retrieved_sessions & answer_session_ids)
     session_recall = (
         len(retrieved_sessions & answer_session_ids) / len(answer_session_ids)
@@ -373,7 +385,7 @@ def main(argv: list[str] | None = None) -> int:
     chat = FakeChat()
 
     config = CONFIGS[args.config]
-    param_overrides = {kk: vv for kk, vv in config.items() if not kk.startswith("_")}
+    param_overrides, _bench_flags = split_config(config)
     base_params = RetrieveParams(k=args.k, **param_overrides)
 
     rows: list[dict[str, Any]] = []

@@ -48,28 +48,14 @@ _SRC = _REPO_ROOT / "src"
 if _SRC.exists() and str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
+from scripts._common import (  # noqa: E402
+    build_embedder as _common_build_embedder,
+    build_reranker as _common_build_reranker,
+    load_env_file,
+    split_config,
+)
 
-def _load_env(path: Path = Path(".env")) -> None:
-    if not path.exists():
-        return
-    try:
-        from dotenv import load_dotenv
-
-        load_dotenv(path, override=False)
-    except ImportError:
-        with path.open("r", encoding="utf-8") as f:
-            for raw in f:
-                line = raw.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                key, _, value = line.partition("=")
-                key = key.strip()
-                value = value.strip().strip('"').strip("'")
-                if key and key not in os.environ:
-                    os.environ[key] = value
-
-
-_load_env()
+load_env_file()
 
 from engram import Memory, SqliteStorage  # noqa: E402
 from engram.providers._fake import FakeChat  # noqa: E402
@@ -89,28 +75,8 @@ from scripts.ablate_longmemeval import CONFIGS  # noqa: E402
 _LOG = logging.getLogger("engram.trace")
 
 
-def _build_embedder(model: str, device: str | None, dtype: str) -> Any:
-    from engram.providers.local import LocalEmbedder
-
-    dtype_map: dict[str, str] = {"auto": "auto", "fp16": "float16", "fp32": "float32"}
-    return LocalEmbedder(
-        model=model,
-        device=device,
-        dtype=dtype_map.get(dtype, "auto"),  # type: ignore[arg-type]
-    )
-
-
-def _build_reranker(model: str | None, device: str | None, dtype: str) -> Any:
-    if model is None or model.lower() == "none":
-        return None
-    from engram.retrieve._bge_reranker import BGEReranker
-
-    dtype_map: dict[str, str] = {"auto": "auto", "fp16": "float16", "fp32": "float32"}
-    return BGEReranker(
-        model=model,
-        device=device,
-        dtype=dtype_map.get(dtype, "auto"),  # type: ignore[arg-type]
-    )
+_build_embedder = _common_build_embedder
+_build_reranker = _common_build_reranker
 
 
 def _normalize(vec: Sequence[float]) -> list[float]:
@@ -226,8 +192,8 @@ def _trace_config(
     answer_sessions: set[str],
 ) -> list[str]:
     """Run the full retrieve pipeline with one config and dump top-k."""
-    auto_temporal = bool(config.get("_auto_temporal", False))
-    param_overrides = {kk: vv for kk, vv in config.items() if not kk.startswith("_")}
+    param_overrides, bench_flags = split_config(config)
+    auto_temporal = bench_flags.get("_auto_temporal", False)
     base_params = RetrieveParams(k=k, **param_overrides)
     memory = Memory(
         storage=storage,
@@ -316,7 +282,27 @@ def _trace_question(
     """Trace one full question through every stage and config."""
     answer_sessions = set(q.answer_session_ids)
     n_haystack_events = sum(len(s) for s in q.haystack_sessions)
+    # The TRACE_META JSON block at the top is a stable structured tag
+    # for `scripts/analyze_zero_recall_traces.py` and any future trace
+    # consumer. Pre-audit the analyser was regex-parsing the
+    # human-readable header lines; any rephrasing here would silently
+    # break it. Now the parser can read this JSON line and ignore the
+    # rest. The human-readable header is preserved below for direct
+    # eyeballing.
+    import json as _json
+
+    trace_meta = {
+        "qid": q.qid,
+        "qtype": q.qtype,
+        "question_date": q.question_date,
+        "question": q.question,
+        "gold": q.gold,
+        "answer_session_ids": sorted(answer_sessions),
+        "n_haystack_sessions": len(q.haystack_sessions),
+        "n_haystack_events": n_haystack_events,
+    }
     header = [
+        f"TRACE_META {_json.dumps(trace_meta, ensure_ascii=False)}",
         "=" * 80,
         f"qid={q.qid}  [{q.qtype}]",
         f"question_date={q.question_date}",

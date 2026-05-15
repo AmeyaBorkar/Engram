@@ -31,6 +31,24 @@ SPLIT_FILES: dict[str, str] = {
     "m": "longmemeval_m_cleaned.json",
     "oracle": "longmemeval_oracle.json",
 }
+# Per-split expected SHA256. Pre-audit there was no checksum
+# verification, so a MITM, an HF redirect, or a silent content
+# revision would land arbitrary JSON into `benchmarks/datasets/`
+# without any signal. The script now verifies the local digest after
+# download and refuses to publish a mismatched file.
+#
+# Empty string means "no pinned digest yet"; the script will print
+# the observed digest and accept the file (skipping verification for
+# splits where pinning hasn't been done). Replace the empty string
+# with the canonical digest once the file is known-good. To re-pin
+# after an upstream dataset bump, run with `--accept-new-checksum`
+# (alias: `--force` already exists) to download AND print the new
+# digest without verifying.
+SPLIT_SHA256: dict[str, str] = {
+    "s": "",
+    "m": "",
+    "oracle": "",
+}
 DEST_DIR = Path("benchmarks/datasets/longmemeval")
 
 
@@ -42,7 +60,15 @@ def _sha256(path: Path) -> str:
     return h.hexdigest()
 
 
-def _download(url: str, dest: Path) -> None:
+def _download(
+    url: str, dest: Path, expected_sha256: str = "", *, accept_new: bool = False
+) -> str:
+    """Download `url` to `dest` atomically. Verify SHA256 if pinned.
+
+    Returns the observed sha256 hex digest. Raises RuntimeError on
+    mismatch (unless `accept_new=True`, which prints the digest and
+    accepts the file -- intended for pinning a fresh upstream bump).
+    """
     dest.parent.mkdir(parents=True, exist_ok=True)
     tmp = dest.with_suffix(dest.suffix + ".part")
     print(f"  fetching {url}", file=sys.stderr)
@@ -56,7 +82,25 @@ def _download(url: str, dest: Path) -> None:
             total += len(chunk)
             print(f"\r    {total / (1 << 20):.1f} MiB", end="", file=sys.stderr)
         print("", file=sys.stderr)
+    observed = _sha256(tmp)
+    if expected_sha256 and not accept_new:
+        if observed != expected_sha256:
+            tmp.unlink(missing_ok=True)
+            raise RuntimeError(
+                f"sha256 mismatch for {url}\n"
+                f"  expected: {expected_sha256}\n"
+                f"  observed: {observed}\n"
+                f"  Refusing to publish {dest}. If the upstream file legitimately "
+                f"changed, re-run with `--accept-new-checksum` to download and "
+                f"print the new digest; then update SPLIT_SHA256 in this script."
+            )
+    elif not expected_sha256:
+        print(
+            f"  (no pinned sha256 for this split; observed {observed[:16]}...)",
+            file=sys.stderr,
+        )
     tmp.replace(dest)
+    return observed
 
 
 def main() -> int:
@@ -72,25 +116,55 @@ def main() -> int:
         action="store_true",
         help="Re-download even if the destination file exists.",
     )
+    parser.add_argument(
+        "--accept-new-checksum",
+        action="store_true",
+        help=(
+            "Skip SHA256 verification and print the observed digest. "
+            "Intended for the workflow `<upstream bumped the dataset> ->"
+            " download with this flag -> paste the new digest into "
+            "SPLIT_SHA256 -> commit`. Do NOT use to silence unexpected "
+            "mismatches in production runs."
+        ),
+    )
     args = parser.parse_args()
 
     filename = SPLIT_FILES[args.split]
     url = f"{HF_BASE}/{filename}"
     dest = DEST_DIR / filename
+    expected = SPLIT_SHA256.get(args.split, "")
 
     if dest.exists() and not args.force:
-        print(
-            f"already present: {dest} (sha256={_sha256(dest)[:16]}...)",
-            file=sys.stderr,
-        )
+        local = _sha256(dest)
+        if expected and local != expected:
+            print(
+                f"WARN: existing {dest} sha256={local[:16]}... does NOT match "
+                f"the pinned digest {expected[:16]}.... Re-run with --force "
+                f"to redownload.",
+                file=sys.stderr,
+            )
+        else:
+            print(
+                f"already present: {dest} (sha256={local[:16]}...)",
+                file=sys.stderr,
+            )
         return 0
 
-    _download(url, dest)
-    digest = _sha256(dest)
+    digest = _download(
+        url,
+        dest,
+        expected_sha256=expected,
+        accept_new=args.accept_new_checksum,
+    )
     size_mib = dest.stat().st_size / (1 << 20)
     print(f"saved to {dest}", file=sys.stderr)
     print(f"  size:   {size_mib:.1f} MiB", file=sys.stderr)
     print(f"  sha256: {digest}", file=sys.stderr)
+    if not expected:
+        print(
+            f"  Pin this digest in SPLIT_SHA256[{args.split!r}] for future runs.",
+            file=sys.stderr,
+        )
     return 0
 
 

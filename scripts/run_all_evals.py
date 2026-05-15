@@ -65,28 +65,13 @@ _SRC = _REPO_ROOT / "src"
 if _SRC.exists() and str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
+from scripts._common import (  # noqa: E402
+    build_embedder as _common_build_embedder,
+    build_reranker as _common_build_reranker,
+    load_env_file,
+)
 
-def _load_env(path: Path = Path(".env")) -> None:
-    if not path.exists():
-        return
-    try:
-        from dotenv import load_dotenv
-
-        load_dotenv(path, override=False)
-    except ImportError:
-        with path.open("r", encoding="utf-8") as f:
-            for raw in f:
-                line = raw.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                key, _, value = line.partition("=")
-                key = key.strip()
-                value = value.strip().strip('"').strip("'")
-                if key and key not in os.environ:
-                    os.environ[key] = value
-
-
-_load_env()
+load_env_file()
 
 from engram import Memory, SqliteStorage  # noqa: E402
 from engram.providers._fake import FakeChat  # noqa: E402
@@ -410,28 +395,8 @@ def phase1_component_tests(out_dir: Path) -> dict[str, Any]:
 # ============================================================================
 
 
-def _build_embedder(model: str, device: str | None, dtype: str) -> Any:
-    from engram.providers.local import LocalEmbedder
-
-    dtype_map: dict[str, str] = {"auto": "auto", "fp16": "float16", "fp32": "float32"}
-    return LocalEmbedder(
-        model=model,
-        device=device,
-        dtype=dtype_map.get(dtype, "auto"),  # type: ignore[arg-type]
-    )
-
-
-def _build_reranker(model: str | None, device: str | None, dtype: str) -> Any:
-    if model is None or model.lower() == "none":
-        return None
-    from engram.retrieve._bge_reranker import BGEReranker
-
-    dtype_map: dict[str, str] = {"auto": "auto", "fp16": "float16", "fp32": "float32"}
-    return BGEReranker(
-        model=model,
-        device=device,
-        dtype=dtype_map.get(dtype, "auto"),  # type: ignore[arg-type]
-    )
+_build_embedder = _common_build_embedder
+_build_reranker = _common_build_reranker
 
 
 # ============================================================================
@@ -1034,7 +999,27 @@ def main(argv: list[str] | None = None) -> int:
         "resume": args.resume,
         "started_at": time.strftime("%Y-%m-%d %H:%M:%S %Z"),
     }
-    (out_dir / "config.json").write_text(json.dumps(config_args, indent=2), encoding="utf-8")
+    # Append-only config history: every invocation (resumed or not)
+    # adds a versioned entry rather than overwriting `config.json`.
+    # Pre-audit a resumed run rewrote `config.json` with the resume
+    # invocation's args (which may differ from the original -- e.g.
+    # `--limit` was set differently); the original invocation's args
+    # were lost. Now `config.json` is a list of entries.
+    config_path = out_dir / "config.json"
+    history: list[dict[str, Any]] = []
+    if config_path.exists():
+        try:
+            existing = json.loads(config_path.read_text(encoding="utf-8"))
+            if isinstance(existing, list):
+                history = existing
+            elif isinstance(existing, dict):
+                # Pre-audit format: a single dict. Promote it into the
+                # history list so old files still readable.
+                history = [existing]
+        except (json.JSONDecodeError, OSError):
+            history = []
+    history.append(config_args)
+    config_path.write_text(json.dumps(history, indent=2), encoding="utf-8")
 
     t_start = time.perf_counter()
 
