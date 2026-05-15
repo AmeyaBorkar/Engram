@@ -633,9 +633,17 @@ class SqliteStorage:
     def update_memory_item_weight(self, item_id: UUID, weight: float) -> None:
         if not 0.0 <= weight <= 1.0:
             raise ValueError(f"weight {weight} not in [0, 1]")
+        # Bump `last_decayed_at` alongside `weight` so the next decay
+        # tick computes `dt` from this manual adjustment rather than
+        # from the previous tick's timestamp.  Without this, an admin
+        # call that bumped weight to 1.0 would be immediately decayed
+        # by the accumulated `dt` between the prior tick and now,
+        # quietly clawing back the boost.
+        now = iso(datetime.now(tz=timezone.utc))
         cursor = self._connect().execute(
-            "UPDATE memory_items SET weight = ?, updated_at = ? WHERE id = ?",
-            (weight, iso(datetime.now(tz=timezone.utc)), item_id.bytes),
+            "UPDATE memory_items SET weight = ?, updated_at = ?, "
+            "last_decayed_at = ? WHERE id = ?",
+            (weight, now, now, item_id.bytes),
         )
         if cursor.rowcount == 0:
             raise KeyError(f"memory_item {item_id} not found")
