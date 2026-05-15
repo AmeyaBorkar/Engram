@@ -4,8 +4,8 @@ Each submodule is independently importable -- importing
 `engram.integrations` itself does NOT pull in framework dependencies.
 Users opt into the heavy deps via the matching extras:
 
-  * `engram-memory[langgraph]` for LangGraph nodes / state helpers
-  * `engram-memory[llamaindex]` for the LlamaIndex BaseMemory adapter
+  * `engrampy[langgraph]` for LangGraph nodes / state helpers
+  * `engrampy[llamaindex]` for the LlamaIndex BaseMemory adapter
   * No extras needed for the framework-agnostic `EngramAgent`.
 
 Direct OpenAI / Anthropic agent loops use the agent wrapper plus the
