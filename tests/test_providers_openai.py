@@ -149,3 +149,31 @@ def test_openai_chat_manifest_hash_changes_with_kwargs() -> None:
         client=MagicMock(), async_client=AsyncMock(), completion_kwargs={"temperature": 1}
     )
     assert c1.manifest_hash() != c2.manifest_hash()
+
+
+def test_openai_chat_redacts_api_key_from_error_message() -> None:
+    """An exception raised by the SDK with a key in its message must be redacted."""
+    client = MagicMock()
+    leaked = "sk-abcdefghijklmnopqrstuvwxyz12345678"
+    client.chat.completions.create.side_effect = RuntimeError(
+        f"Bad request — sent token={leaked}"
+    )
+    c = OpenAIChat(client=client, async_client=AsyncMock())
+    with pytest.raises(RuntimeError) as excinfo:
+        c.chat([Message(role="user", content="hi")])
+    assert leaked not in str(excinfo.value)
+    assert "[REDACTED]" in str(excinfo.value)
+    # Original error chained as __cause__ so debugging context survives.
+    assert excinfo.value.__cause__ is not None
+
+
+def test_openai_embedder_redacts_api_key_from_error_message() -> None:
+    client = MagicMock()
+    leaked = "sk-ant-api01-secretkey1234567890abcdef"
+    client.embeddings.create.side_effect = RuntimeError(
+        f"auth failed token={leaked}"
+    )
+    e = OpenAIEmbedder(client=client, async_client=AsyncMock())
+    with pytest.raises(RuntimeError) as excinfo:
+        e.embed(["x"])
+    assert leaked not in str(excinfo.value)

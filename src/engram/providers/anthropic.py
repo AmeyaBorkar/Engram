@@ -22,6 +22,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 from engram.providers._message import Message
+from engram.providers._redactor import Redactor
 
 try:
     import anthropic as _anthropic_module
@@ -35,6 +36,22 @@ if TYPE_CHECKING:
 
 
 _DEFAULT_MAX_TOKENS = 1024
+_REDACTOR: Redactor = Redactor.default()
+
+
+def _redact_error(exc: BaseException) -> BaseException:
+    """Mirror of openai._redact_error — scrub API keys / PII from SDK errors.
+
+    Callers should `raise _redact_error(exc) from exc` so __cause__ is set.
+    """
+    try:
+        redacted = _REDACTOR.redact(str(exc))
+    except Exception:  # pragma: no cover - defensive
+        return exc
+    try:
+        return type(exc)(redacted)
+    except Exception:  # pragma: no cover - exotic exception ctor
+        return exc
 # Anthropic SDK's default request timeout is 600s — far longer than
 # anything an interactive workload should tolerate. A stuck endpoint
 # should bubble up promptly instead of hanging the caller for ten minutes.
@@ -89,12 +106,18 @@ class AnthropicChat:
 
     def chat(self, messages: Sequence[Message]) -> str:
         kwargs = self._build_kwargs(messages)
-        resp = self._client.messages.create(**kwargs)
+        try:
+            resp = self._client.messages.create(**kwargs)
+        except Exception as exc:
+            raise _redact_error(exc) from exc
         return _join_text_blocks(resp.content, self.model)
 
     async def achat(self, messages: Sequence[Message]) -> str:
         kwargs = self._build_kwargs(messages)
-        resp = await self._aclient.messages.create(**kwargs)
+        try:
+            resp = await self._aclient.messages.create(**kwargs)
+        except Exception as exc:
+            raise _redact_error(exc) from exc
         return _join_text_blocks(resp.content, self.model)
 
     def manifest_hash(self) -> str:

@@ -24,6 +24,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 from engram.providers._message import Message
+from engram.providers._redactor import Redactor
 
 try:
     import openai as _openai_module
@@ -42,6 +43,36 @@ if TYPE_CHECKING:
 _DEFAULT_TIMEOUT_SECONDS: float = 60.0
 _DEFAULT_CONNECT_TIMEOUT_SECONDS: float = 10.0
 _DEFAULT_MAX_TOKENS: int = 1024
+
+
+# Shared redactor instance — the default pattern set is sufficient for
+# the credential / PII shapes that show up in OpenAI / Anthropic /
+# compatible-endpoint errors.  Stateless and cheap; one instance covers
+# every adapter.
+_REDACTOR: Redactor = Redactor.default()
+
+
+def _redact_error(exc: BaseException) -> BaseException:
+    """Return a new exception of the same type with str(exc) redacted.
+
+    Provider SDKs can include the request body, response body, or even
+    request headers in the exception text — and the request body
+    sometimes contains the failed API key, OAuth bearer, or PII from
+    the user's prompt.  Without redaction, any logger that catches
+    these exceptions and writes str(exc) leaks the secret.
+
+    Callers should `raise _redact_error(exc) from exc` so the original
+    exception remains accessible via __cause__ for a developer running
+    a debugger in a controlled environment.
+    """
+    try:
+        redacted = _REDACTOR.redact(str(exc))
+    except Exception:  # pragma: no cover - defensive
+        return exc
+    try:
+        return type(exc)(redacted)
+    except Exception:  # pragma: no cover - exotic exception ctor
+        return exc
 
 
 def _build_sdk_kwargs(
@@ -128,14 +159,20 @@ class OpenAIEmbedder:
         kwargs: dict[str, Any] = {"model": self.model, "input": list(texts)}
         if self._send_dimensions and self.dim != _native_dim(self.model):
             kwargs["dimensions"] = self.dim
-        resp = self._client.embeddings.create(**kwargs)
+        try:
+            resp = self._client.embeddings.create(**kwargs)
+        except Exception as exc:
+            raise _redact_error(exc) from exc
         return [list(item.embedding) for item in resp.data]
 
     async def aembed(self, texts: Sequence[str]) -> list[list[float]]:
         kwargs: dict[str, Any] = {"model": self.model, "input": list(texts)}
         if self._send_dimensions and self.dim != _native_dim(self.model):
             kwargs["dimensions"] = self.dim
-        resp = await self._aclient.embeddings.create(**kwargs)
+        try:
+            resp = await self._aclient.embeddings.create(**kwargs)
+        except Exception as exc:
+            raise _redact_error(exc) from exc
         return [list(item.embedding) for item in resp.data]
 
     def manifest_hash(self) -> str:
@@ -182,19 +219,25 @@ class OpenAIChat:
         )
 
     def chat(self, messages: Sequence[Message]) -> str:
-        resp = self._client.chat.completions.create(
-            model=self.model,
-            messages=_to_openai_messages(messages),
-            **self._kwargs,
-        )
+        try:
+            resp = self._client.chat.completions.create(
+                model=self.model,
+                messages=_to_openai_messages(messages),
+                **self._kwargs,
+            )
+        except Exception as exc:
+            raise _redact_error(exc) from exc
         return _extract_openai_content(resp, self.model)
 
     async def achat(self, messages: Sequence[Message]) -> str:
-        resp = await self._aclient.chat.completions.create(
-            model=self.model,
-            messages=_to_openai_messages(messages),
-            **self._kwargs,
-        )
+        try:
+            resp = await self._aclient.chat.completions.create(
+                model=self.model,
+                messages=_to_openai_messages(messages),
+                **self._kwargs,
+            )
+        except Exception as exc:
+            raise _redact_error(exc) from exc
         return _extract_openai_content(resp, self.model)
 
     def manifest_hash(self) -> str:
