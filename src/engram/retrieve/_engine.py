@@ -243,23 +243,27 @@ class HierarchicalRetriever:
 
           * Dense: always present, contributes at weight 1.0.
           * BM25: when `p.bm25_weight > 0`, runs against the storage's
-            BM25 index over event content. Contributes scaled by
-            `bm25_weight` (rounded to nearest int, minimum 1 if > 0).
+            BM25 index over event content. Contributes with weight
+            `p.bm25_weight` (fractional values supported — they scale
+            the RRF contribution linearly via `reciprocal_rank_fusion`'s
+            per-ranking `weights` arg).
           * Recent-window: when `p.recent_window_k > 0`, pulls the
             top-N most-recent events by `created_at` desc and ranks
-            them in that order (most recent = rank 1). Contributes
-            once.
+            them in that order (most recent = rank 1). Contributes at
+            weight 1.0.
 
         Storage backends without the optional methods are no-op
         fall-throughs for the stream that requires them; non-SQLite
         backends keep working.
         """
         rankings: list[list[tuple[tuple[ItemKind, UUID], float]]] = []
+        weights: list[float] = []
         # Dense ranking is always present.
         dense_ranking: list[tuple[tuple[ItemKind, UUID], float]] = [
             ((c.item_kind, c.item_id), c.score) for c in dense
         ]
         rankings.append(dense_ranking)
+        weights.append(1.0)
         dense_by_key = {(c.item_kind, c.item_id): c for c in dense}
 
         # BM25 stream.
@@ -283,12 +287,13 @@ class HierarchicalRetriever:
                         ((ItemKind.EVENT, eid), score) for eid, _, score in bm25_hits
                     ]
                     bm25_by_id = {eid: (content, score) for eid, content, score in bm25_hits}
-                    # Weight via repeated inclusion: weight=1 includes
-                    # once, weight=2 twice, fractional values round to
-                    # nearest int with a minimum of 1.
-                    n_bm25 = max(round(p.bm25_weight), 1)
-                    for _ in range(n_bm25):
-                        rankings.append(bm25_ranking)
+                    # Pass weight to RRF directly — fractional weights now
+                    # scale the contribution linearly instead of being
+                    # silently rounded to 1 by the previous list-replication
+                    # approach (which made every value in (0, 1.5] behave
+                    # identically).
+                    rankings.append(bm25_ranking)
+                    weights.append(float(p.bm25_weight))
 
         # Recent-window stream.
         recent_by_id: dict[UUID, str] = {}
@@ -309,12 +314,13 @@ class HierarchicalRetriever:
                     ]
                     recent_by_id = {eid: content for eid, content in recent_hits}
                     rankings.append(recent_ranking)
+                    weights.append(1.0)
 
         if len(rankings) == 1:
             # Nothing to fuse with; return the dense ranking unchanged.
             return dense
 
-        fused = reciprocal_rank_fusion(rankings, k=p.rrf_k)
+        fused = reciprocal_rank_fusion(rankings, k=p.rrf_k, weights=weights)
         # Materialize back into `_Candidate` records, pulling content
         # from whichever stream owns the id.
         out: list[_Candidate] = []
