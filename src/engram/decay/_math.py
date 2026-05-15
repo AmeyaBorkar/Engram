@@ -130,5 +130,10 @@ def apply(
 
 
 def is_cold(weight: float, params: DecayParams) -> bool:
-    """Return True if `weight` is at or below the prune threshold."""
+    """Return True if `weight` is strictly below the prune threshold.
+
+    An item whose weight equals `threshold` is treated as hot — the
+    boundary is exclusive on purpose so that `threshold=0` means
+    "nothing is ever cold" (the natural zero-flag semantics).
+    """
     return weight < params.threshold
