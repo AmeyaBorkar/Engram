@@ -37,6 +37,7 @@ from engram.consolidation._abstraction import AbstractionParseError
 from engram.providers._message import Message
 from engram.providers._protocols import ChatProvider
 from engram.schemas import Verdict
+from engram._security.prompt_injection import looks_like_injection
 
 JUDGE_PROMPT_NAME = "judge"
 JUDGE_PROMPT_VERSION = "v1"
@@ -150,7 +151,17 @@ def judge(
     On any parse failure, returns `Verdict.UNRELATED` (the safe default:
     we'd rather miss a real conflict than spuriously flag one). The
     Stage 8 resolver re-scans periodically anyway.
+
+    The judge inputs are user-content; if either statement looks like
+    a prompt-injection attempt we short-circuit to UNRELATED so the
+    chat provider never sees the adversarial text.  Even though the
+    judge's structured output limits the blast radius, sending an
+    obviously-malicious payload through the LLM (a) bills tokens, and
+    (b) gives the model a chance to leak the system prompt back
+    through .reasoning fields if the schema is ever widened.
     """
+    if looks_like_injection(a) or looks_like_injection(b):
+        return Verdict.UNRELATED
     prompt = render_judge_prompt(a=a, b=b)
     messages: list[Message] = [Message(role="user", content=prompt)]
     last_response = ""
