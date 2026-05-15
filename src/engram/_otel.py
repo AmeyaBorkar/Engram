@@ -56,9 +56,12 @@ except ImportError:  # pragma: no cover - exercised only without otel installed
 def get_tracer() -> Tracer:
     """Return a tracer for the engram instrumentation.
 
-    When OTel isn't installed, returns the API's documented no-op
-    tracer (the api module always provides this; importing succeeds
-    even without a configured provider).
+    Raises RuntimeError if opentelemetry-api is not installed.  Callers
+    that want graceful no-op behavior when OTel is absent should gate
+    on `is_otel_available()` first or use the `span()` context manager,
+    which already short-circuits.  (The previous docstring promised a
+    no-op tracer here but the implementation always raised — this
+    aligns the contract with the behavior.)
     """
     if _trace_mod is None:  # pragma: no cover - otel absent at import time
         raise RuntimeError(
