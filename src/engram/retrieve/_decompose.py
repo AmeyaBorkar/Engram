@@ -40,6 +40,14 @@ def render_decompose_prompt(query: str) -> str:
     return template.replace("{query}", _inline(query))
 
 
+# The decomposition prompt instructs the LLM to emit between 2 and 5
+# sub-questions.  An unbounded list lets a misbehaving model fan a
+# single retrieve into N parallel leaf retrieves — each one a full
+# embed + ANN + rerank pass.  Cap at 5 (prompt's documented max) to
+# match the prompt's contract and bound the fan-out cost.
+_MAX_DECOMPOSE_SUBQUERIES: int = 5
+
+
 def decompose_query(query: str, chat: ChatProvider) -> list[str]:
     """Return a list of sub-queries via chat. Fails open: chat error
     or unparseable response returns `[query]` so the caller can still
@@ -47,7 +55,9 @@ def decompose_query(query: str, chat: ChatProvider) -> list[str]:
 
     The returned list always starts with the original query so the
     decomposed retrieve never gives up signal from the literal user
-    phrasing.
+    phrasing.  Sub-queries are capped at 5 (the prompt's documented
+    upper bound) so a misbehaving model can't drive an unbounded
+    parallel fan-out.
     """
     prompt = render_decompose_prompt(query)
     try:
@@ -56,6 +66,7 @@ def decompose_query(query: str, chat: ChatProvider) -> list[str]:
         return [query]
     lines = [_strip_marker(line.strip()) for line in response.splitlines()]
     cleaned = [line for line in lines if line and line != query]
+    cleaned = cleaned[:_MAX_DECOMPOSE_SUBQUERIES]
     return [query, *cleaned]
 
 
