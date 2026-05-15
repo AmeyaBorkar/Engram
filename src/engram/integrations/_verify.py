@@ -51,8 +51,16 @@ def render_verify_prompt(*, question: str, context: str, answer: str) -> str:
     )
 
 
+# Broadened from the original `</?(question|context|answer)>` to:
+#   * tolerate attributes:  `<context attr="x">`
+#   * tolerate self-closing: `<context/>`
+#   * tolerate whitespace:   `< context >`
+# Anything that looks tag-shaped and addresses our known fence names —
+# in any of these forms — gets neutralized.  The narrow original regex
+# left obvious bypasses on the table.
 _TAG_RE = re.compile(
-    r"</?(?:question|context|answer)>", re.IGNORECASE
+    r"<\s*/?\s*(?:question|context|answer)\b[^>]*/?\s*>",
+    re.IGNORECASE,
 )
 
 
