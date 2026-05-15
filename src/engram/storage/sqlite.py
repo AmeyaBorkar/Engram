@@ -323,6 +323,12 @@ class SqliteStorage:
         self._bm25_events_dirty: bool = True
         self._bm25_k1: float = 1.5
         self._bm25_b: float = 0.75
+        # Track which corpus the cached index covers.  If a caller flips
+        # `include_cold`, the previous index is wrong for them — see
+        # H-30: the first call with include_cold=False used to poison the
+        # cache so a follow-up include_cold=True silently dropped cold
+        # rows from the search.
+        self._bm25_include_cold: bool = False
 
     # --- lifecycle ----------------------------------------------------------
 
@@ -1262,6 +1268,7 @@ class SqliteStorage:
             or self._bm25_events_dirty
             or self._bm25_k1 != k1
             or self._bm25_b != b
+            or self._bm25_include_cold != include_cold
         )
         if rebuild:
             self._rebuild_bm25_events(k1=k1, b=b, include_cold=include_cold)
@@ -1320,6 +1327,7 @@ class SqliteStorage:
         self._bm25_events = index
         self._bm25_k1 = k1
         self._bm25_b = b
+        self._bm25_include_cold = include_cold
         self._bm25_events_dirty = False
 
     def get_embeddings_batch(
