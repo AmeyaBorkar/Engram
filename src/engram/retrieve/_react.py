@@ -92,7 +92,17 @@ def react_judge(
     messages: list[Message] = [Message(role="user", content=prompt)]
     last_response = ""
     for _ in range(max_retries + 1):
-        last_response = chat.chat(messages)
+        try:
+            last_response = chat.chat(messages)
+        except Exception:
+            # Sibling helpers (decompose, hyde, multi_query, temporal) all
+            # treat a chat-provider failure as best-effort: log/swallow and
+            # return a sensible fallback.  react_judge previously let the
+            # exception escape, killing the iterative retrieve loop — and
+            # the surrounding Memory.retrieve_iterative call — on the
+            # first transient network blip.  Match the sibling pattern
+            # and gracefully exit the loop instead.
+            return ReactVerdict(sufficient=True, refined_query="")
         try:
             return parse_react_response(last_response)
         except AbstractionParseError:
