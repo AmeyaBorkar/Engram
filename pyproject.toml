@@ -46,8 +46,13 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "pydantic>=2.7",
-    "numpy>=1.26",
+    # Pydantic v3 is on the roadmap and will break v2 APIs (model_validator,
+    # ConfigDict). NumPy 2.x already shipped breaking changes vs 1.x. Cap at
+    # next-major so a fresh install years from now doesn't pull an incompatible
+    # major and break import. Bump the upper bound deliberately when we adopt
+    # the new major.
+    "pydantic>=2.7,<3",
+    "numpy>=1.26,<3",
 ]
 
 [project.optional-dependencies]
