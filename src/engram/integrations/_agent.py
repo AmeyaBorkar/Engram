@@ -251,6 +251,9 @@ class EngramAgent:
         self._memory.record_procedure(situation, action, outcome=outcome)
 
 
+_COT_MARKER_RE = __import__("re").compile(r"(?m)^Answer:\s*")
+
+
 def _strip_cot(reply: str) -> str:
     """Return the answer text from a CoT reply.
 
@@ -260,7 +263,22 @@ def _strip_cot(reply: str) -> str:
     doesn't poison the verifier, the majority-vote bucket, or
     auto-observed events. If the marker isn't present (model didn't
     follow the directive), the raw reply is returned verbatim.
+
+    The marker is matched at the start of a line — previously this
+    used `reply.rfind('Answer:')`, which also matched an "Answer:" that
+    appeared inside a code block, a quoted FAQ excerpt, or any other
+    inline mention.  Requiring a line-start anchor matches the
+    documented prompt contract more closely; if no line-start match is
+    found we fall back to the loose `rfind` so a model that emitted
+    "...therefore Answer: …" still has its answer recovered.
     """
+    # Search forward for the LAST "^Answer:" line-start; tail of file
+    # is the documented place the model writes it.
+    matches = list(_COT_MARKER_RE.finditer(reply))
+    if matches:
+        last = matches[-1]
+        return reply[last.end():].strip()
+    # Fall back to legacy behavior for models that put the marker mid-line.
     marker = "Answer:"
     idx = reply.rfind(marker)
     if idx == -1:
