@@ -104,3 +104,37 @@ def test_anthropic_pattern_wins_over_generic_sk() -> None:
     r = Redactor.default()
     redacted = r.redact("sk-ant-api01-abcdefghijklmnop12345")
     assert redacted == "[REDACTED]"
+
+
+def test_redacts_huggingface_token() -> None:
+    r = Redactor.default()
+    redacted = r.redact("HF_TOKEN=hf_abcdefghijklmnopqrstuvwxyz")
+    assert "hf_abc" not in redacted
+
+
+def test_redacts_github_pat() -> None:
+    r = Redactor.default()
+    redacted = r.redact("GH_TOKEN=ghp_abcdefghijklmnopqrstuvwxyz1234567890")
+    assert "ghp_abc" not in redacted
+
+
+def test_redacts_slack_bot_token() -> None:
+    r = Redactor.default()
+    redacted = r.redact("xoxb-1234567890-deadbeef0001")
+    assert "xoxb-" not in redacted
+
+
+def test_redacts_jwt() -> None:
+    r = Redactor.default()
+    jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0In0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+    redacted = r.redact(f"Authorization is {jwt} done")
+    assert "eyJ" not in redacted
+
+
+def test_bearer_redaction_does_not_truncate_at_padding() -> None:
+    """A base64url token containing `=` or `+` should be redacted whole, not cut."""
+    r = Redactor.default()
+    redacted = r.redact("Bearer abc/def+ghi=jkl")
+    # Whole token gone, not just the prefix.
+    assert "abc/def+ghi" not in redacted
+    assert "=jkl" not in redacted

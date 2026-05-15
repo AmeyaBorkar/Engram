@@ -19,10 +19,25 @@ from typing import Any
 
 # fmt: off
 _DEFAULT_PATTERNS: tuple[re.Pattern[str], ...] = (
-    re.compile(r"sk-ant-[A-Za-z0-9_\-]{20,}"),                  # Anthropic API key
+    # Order matters: more-specific provider keys win over the generic `sk-`
+    # bucket, so we list them first.
+    re.compile(r"sk-ant-[A-Za-z0-9_\-]{20,}"),                   # Anthropic API key
+    re.compile(r"sk-proj-[A-Za-z0-9_\-]{20,}"),                  # OpenAI project key
+    re.compile(r"sk-svcacct-[A-Za-z0-9_\-]{20,}"),               # OpenAI service-account key
     re.compile(r"sk-[A-Za-z0-9_\-]{20,}"),                       # OpenAI / generic sk- key
     re.compile(r"AKIA[0-9A-Z]{16}"),                             # AWS access key id
-    re.compile(r"(?i)bearer\s+[A-Za-z0-9._\-]+"),                # Bearer tokens
+    re.compile(r"\b[A-Za-z0-9/+]{40}\b"),                        # AWS secret access key (40 b64 chars)
+    re.compile(r"hf_[A-Za-z0-9]{20,}"),                          # HuggingFace token
+    re.compile(r"gh[pousr]_[A-Za-z0-9]{36,}"),                   # GitHub PAT / OAuth / refresh
+    re.compile(r"xox[abprso]-[A-Za-z0-9\-]{10,}"),               # Slack tokens
+    re.compile(r"co_[A-Za-z0-9]{20,}"),                          # Cohere
+    # JWT shape: three dot-separated base64url chunks.  Greedy enough to
+    # catch the body, narrow enough not to swallow plain prose.
+    re.compile(r"\beyJ[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\b"),
+    # Bearer / Authorization tokens.  Char class includes b64-url padding
+    # (`=`, `+`, `/`) so the regex doesn't truncate at the first padding
+    # char and leak the tail of the token.
+    re.compile(r"(?i)bearer\s+[A-Za-z0-9._\-+/=]+"),
     re.compile(r"[\w.+\-]+@[\w\-]+\.[\w.\-]+"),                  # email
     re.compile(r"\b\d{3}-\d{2}-\d{4}\b"),                        # US SSN
     re.compile(r"\b(?:\d[ \-]?){13,19}\b"),                      # credit-card-shaped
