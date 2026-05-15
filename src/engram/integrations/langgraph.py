@@ -86,11 +86,35 @@ class EngramObserveNode:
     def __call__(self, state: Mapping[str, Any]) -> dict[str, Any]:
         user = state.get(self.user_key)
         reply = state.get(self.reply_key)
-        if user:
-            self.memory.observe(str(user))
-        if reply:
-            self.memory.observe(str(reply))
+        for slot in (user, reply):
+            text = _coerce_observable(slot)
+            if text is not None:
+                self.memory.observe(text)
         return {}
+
+
+def _coerce_observable(value: Any) -> str | None:
+    """Pull the user-visible text from a LangGraph state slot.
+
+    `state.get(key)` returns `Any` and tests in the wild stash:
+      * plain strings (the common case),
+      * objects with a `.content` attribute (e.g. LangChain Message),
+      * arbitrary objects.
+
+    Previously we did `str(user)` unconditionally, which turned a
+    forgotten `Message(role='user', content='hi')` into a garbage
+    observation of its repr.  Now: if the slot already has a non-empty
+    `.content` use that; if it's a non-empty string take it directly;
+    otherwise skip.  No silent stringification of object reprs.
+    """
+    if value is None:
+        return None
+    content = getattr(value, "content", None)
+    if isinstance(content, str) and content:
+        return content
+    if isinstance(value, str) and value:
+        return value
+    return None
 
 
 __all__ = [
