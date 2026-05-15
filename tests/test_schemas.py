@@ -80,10 +80,15 @@ def test_provenance_link_weight_bounds() -> None:
 
 
 def test_cluster_cohesion_bounds() -> None:
+    # Range is [-1, 1] to match mean pairwise cosine math; values
+    # outside that band are still rejected.
     with pytest.raises(ValidationError):
-        Cluster(cohesion=-0.1)
+        Cluster(cohesion=-1.1)
     with pytest.raises(ValidationError):
         Cluster(cohesion=1.5)
+    Cluster(cohesion=-0.5)  # anti-correlated cluster is valid in storage
+    Cluster(cohesion=1.0)
+    Cluster(cohesion=-1.0)
 
 
 def test_retrieval_result_basic() -> None:

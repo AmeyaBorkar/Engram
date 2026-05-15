@@ -152,12 +152,23 @@ class Event(BaseModel):
 
 
 class Cluster(BaseModel):
-    """A grouping of related items, produced by consolidation."""
+    """A grouping of related items, produced by consolidation.
+
+    `cohesion` is the mean pairwise cosine of cluster members; for
+    unit-norm vectors that math range is [-1, 1].  The previous
+    schema clamped to [0, 1] which silently rounded any anti-correlated
+    cluster to cohesion=0, making it indistinguishable from "weakly
+    cohesive".  Allow the full mathematical range so callers can tell
+    "well-correlated" (0.8) from "anti-correlated" (-0.8) — the
+    consolidation engine still drops anti-correlated clusters at the
+    threshold check, but a row recovered from storage now carries the
+    true value.
+    """
 
     model_config = ConfigDict(frozen=False)
 
     id: UUID = Field(default_factory=new_id)
-    cohesion: float = Field(ge=0.0, le=1.0)
+    cohesion: float = Field(ge=-1.0, le=1.0)
     created_at: datetime = Field(default_factory=_utcnow)
 
 
