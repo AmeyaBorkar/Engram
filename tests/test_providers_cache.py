@@ -104,3 +104,37 @@ def test_content_hash_returns_hex() -> None:
     h = content_hash("x")
     assert len(h) == 64
     assert all(ch in "0123456789abcdef" for ch in h)
+
+
+def test_cache_is_thread_safe_under_contention() -> None:
+    """Soak the cache from many threads; the LRU's OrderedDict would
+    raise / corrupt state without the lock. We just need no exceptions
+    and a final size that respects max_size."""
+    import threading
+
+    c: Cache[int] = Cache(max_size=64)
+    errors: list[BaseException] = []
+    n_threads = 16
+    ops_per_thread = 500
+    barrier = threading.Barrier(n_threads)
+
+    def worker(seed: int) -> None:
+        barrier.wait()
+        try:
+            for i in range(ops_per_thread):
+                key = f"k-{(seed * 31 + i) % 128}"
+                if i % 2 == 0:
+                    c.set(key, i)
+                else:
+                    c.get(key)
+        except BaseException as exc:  # pragma: no cover - failure-path assertion
+            errors.append(exc)
+
+    threads = [threading.Thread(target=worker, args=(i,)) for i in range(n_threads)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert errors == []
+    assert len(c) <= c.max_size
