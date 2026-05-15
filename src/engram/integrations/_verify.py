@@ -123,7 +123,12 @@ def verify_answer(
                     ),
                 ),
             ]
-    return VerifyVerdict(supported=True, reason="")
+    # Tag the fallback so a caller / operator can tell a real
+    # "supported=True with no reason" verdict from a parse-failure
+    # fallback.  Same supported=True policy as before (don't drive
+    # infinite retry loops on a misbehaving verifier) but the reason
+    # field now distinguishes the cases.
+    return VerifyVerdict(supported=True, reason="verifier_unparsable")
 
 
 _FENCE_RE = re.compile(r"^```(?:json|JSON)?\s*\n?(.*?)\n?```\s*$", re.DOTALL)
