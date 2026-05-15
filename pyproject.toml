@@ -197,6 +197,7 @@ select = [
     "ARG",  # unused arguments
     "PT",   # pytest style
     "TID",  # tidy imports
+    "ASYNC", # async correctness (catches sync-in-async, missing awaits, etc.)
 ]
 
 [tool.ruff.lint.per-file-ignores]
