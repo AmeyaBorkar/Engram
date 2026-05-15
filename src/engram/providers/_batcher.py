@@ -22,13 +22,17 @@ R = TypeVar("R")
 
 
 class _Pending(Generic[T, R]):
-    __slots__ = ("error", "event", "item", "result")
+    __slots__ = ("completed", "error", "event", "item", "result")
 
     def __init__(self, item: T) -> None:
         self.item: T = item
         self.event: threading.Event = threading.Event()
+        # `result` is the actual return value once `completed=True`.  We keep
+        # them separate so that a legitimate result of `None` / `""` / `0`
+        # is distinguishable from "the worker never ran a batch for me."
         self.result: R | None = None
         self.error: BaseException | None = None
+        self.completed: bool = False
 
 
 class Batcher(Generic[T, R]):
@@ -72,15 +76,30 @@ class Batcher(Generic[T, R]):
         pending.event.wait()
         if pending.error is not None:
             raise pending.error
-        if pending.result is None:
-            raise RuntimeError("batch completed without result or error")
-        return pending.result
+        if not pending.completed:  # pragma: no cover - defensive
+            raise RuntimeError("batch event set without completing")
+        # `result` may legitimately be a falsy value (None, 0, "", []); the
+        # `completed` flag is the source of truth, not the value itself.
+        return pending.result  # type: ignore[return-value]
 
     def stop(self, timeout: float = 2.0) -> None:
-        """Stop the worker thread. Pending submits will raise."""
+        """Stop the worker thread. Pending submits will raise; in-flight
+        submits wake up with `RuntimeError("Batcher stopped")` rather than
+        blocking on a worker that will never serve them.
+        """
         with self._cond:
             self._stop.set()
+            # Drain any submits whose batch never ran.  Without this they
+            # would block on `pending.event.wait()` forever after the worker
+            # exits.
+            drained = self._queue
+            self._queue = []
             self._cond.notify_all()
+        for pending in drained:
+            if not pending.completed:
+                pending.error = RuntimeError("Batcher stopped")
+                pending.completed = True
+                pending.event.set()
         if self._worker is not None and self._worker.is_alive():
             self._worker.join(timeout=timeout)
 
@@ -121,21 +140,28 @@ class Batcher(Generic[T, R]):
         items = [p.item for p in batch]
         try:
             results = self._fn(items)
-        except BaseException as exc:
+        except Exception as exc:
+            # Catch Exception, not BaseException — KeyboardInterrupt and
+            # SystemExit should propagate up so a Ctrl+C actually shuts the
+            # worker down instead of being silently redistributed to every
+            # pending caller as a thread-local copy.
             for pending in batch:
                 pending.error = exc
+                pending.completed = True
                 pending.event.set()
             return
 
         if len(results) != len(batch):
-            err: BaseException = RuntimeError(
+            err: Exception = RuntimeError(
                 f"batched fn returned {len(results)} results for batch of {len(batch)}"
             )
             for pending in batch:
                 pending.error = err
+                pending.completed = True
                 pending.event.set()
             return
 
         for pending, r in zip(batch, results, strict=True):
             pending.result = r
+            pending.completed = True
             pending.event.set()
