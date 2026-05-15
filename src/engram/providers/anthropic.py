@@ -69,12 +69,12 @@ class AnthropicChat:
     def chat(self, messages: Sequence[Message]) -> str:
         kwargs = self._build_kwargs(messages)
         resp = self._client.messages.create(**kwargs)
-        return _join_text_blocks(resp.content)
+        return _join_text_blocks(resp.content, self.model)
 
     async def achat(self, messages: Sequence[Message]) -> str:
         kwargs = self._build_kwargs(messages)
         resp = await self._aclient.messages.create(**kwargs)
-        return _join_text_blocks(resp.content)
+        return _join_text_blocks(resp.content, self.model)
 
     def manifest_hash(self) -> str:
         kwargs_blob = json.dumps(self._kwargs, sort_keys=True, default=str)
@@ -95,12 +95,23 @@ class AnthropicChat:
         return kwargs
 
 
-def _join_text_blocks(content: Any) -> str:
+def _join_text_blocks(content: Any, model: str) -> str:
     """Collapse Anthropic's typed content blocks into plain text.
 
     Tool-use and other non-text blocks are dropped at this layer; later
     stages that need them will use a different surface.
+
+    Raises RuntimeError if `content` is empty (the upstream model returned
+    a degenerate payload — content-filter block, server error, or an
+    Anthropic-compatible endpoint quirk) so the caller doesn't get a
+    silently empty string and treat it as a successful empty response.
     """
+    if not content:
+        raise RuntimeError(
+            f"Anthropic chat returned empty content for model {model!r}; "
+            "the response may have been content-filter blocked or the "
+            "endpoint is misbehaving."
+        )
     parts: list[str] = []
     for block in content:
         if getattr(block, "type", None) == "text":

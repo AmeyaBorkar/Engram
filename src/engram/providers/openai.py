@@ -149,8 +149,7 @@ class OpenAIChat:
             messages=_to_openai_messages(messages),
             **self._kwargs,
         )
-        content = resp.choices[0].message.content
-        return content if content is not None else ""
+        return _extract_openai_content(resp, self.model)
 
     async def achat(self, messages: Sequence[Message]) -> str:
         resp = await self._aclient.chat.completions.create(
@@ -158,8 +157,7 @@ class OpenAIChat:
             messages=_to_openai_messages(messages),
             **self._kwargs,
         )
-        content = resp.choices[0].message.content
-        return content if content is not None else ""
+        return _extract_openai_content(resp, self.model)
 
     def manifest_hash(self) -> str:
         kwargs_blob = json.dumps(self._kwargs, sort_keys=True, default=str)
@@ -209,3 +207,22 @@ def _to_openai_messages(messages: Sequence[Message]) -> Any:
     # Returned as `Any` so the OpenAI SDK's strict `ChatCompletionMessageParam`
     # union (which can't be expressed cleanly from outside the SDK) is satisfied.
     return [{"role": m.role, "content": m.content} for m in messages]
+
+
+def _extract_openai_content(resp: Any, model: str) -> str:
+    """Pull `.choices[0].message.content` from an OpenAI chat response.
+
+    Raises RuntimeError if the response has zero choices (content-filter
+    block, server quirks, custom OpenAI-compatible endpoint returning a
+    degenerate payload).  Without this guard the caller sees an IndexError
+    deep in the adapter and has no idea which provider failed.
+    """
+    choices = getattr(resp, "choices", None) or []
+    if not choices:
+        raise RuntimeError(
+            f"OpenAI chat returned zero choices for model {model!r}; the "
+            "response may have been content-filter blocked or the endpoint "
+            "is misbehaving."
+        )
+    content = choices[0].message.content
+    return content if content is not None else ""
