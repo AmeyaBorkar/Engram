@@ -279,6 +279,11 @@ _INDEX_REBUILD_SQL: dict[str, str] = {
         "WHERE emb.item_kind = 'event' AND emb.model = ?"
     ),
     "memory_item": (
+        # NOTE: the shared in-memory shard intentionally includes
+        # invalidated rows so that `search_memory_item_embeddings_as_of`
+        # can find them when looking at historical timestamps.  The
+        # non-as_of variant filters invalidated rows at the SQL step (see
+        # search_memory_item_embeddings).
         "SELECT emb.item_id AS item_id, "
         "       emb.vector  AS vector, "
         "       (mi.cold_at IS NOT NULL) AS cold, "
@@ -1177,10 +1182,16 @@ class SqliteStorage:
             return []
         ids = [u for u, _, _ in hits]
         placeholders = ",".join("?" for _ in ids)
+        # Filter invalidated rows here.  The in-memory vector shard keeps
+        # them (so search_memory_item_embeddings_as_of can look them up
+        # historically) and the non-as_of caller drops them at content-
+        # fetch time.  Without this, the non-as_of search variant would
+        # surface items that have already been retired by reconciliation.
         rows = (
             self._connect()
             .execute(
-                f"SELECT id, content FROM memory_items WHERE id IN ({placeholders})",  # noqa: S608
+                f"SELECT id, content FROM memory_items "  # noqa: S608
+                f"WHERE invalidated_at IS NULL AND id IN ({placeholders})",
                 [u.bytes for u in ids],
             )
             .fetchall()
