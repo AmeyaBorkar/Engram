@@ -866,7 +866,7 @@ class Memory:
         seen_ids: set[UUID] = set()
         accumulated: list[RetrievalResult] = []
         current_query = query
-        for _step in range(max_steps):
+        for step in range(max_steps):
             step_results = self.retrieve(
                 current_query,
                 k=leaf_k,
@@ -883,6 +883,11 @@ class Memory:
                 if r.item_id not in seen_ids:
                     seen_ids.add(r.item_id)
                     accumulated.append(r)
+            # On the final iteration the verdict is moot — the loop
+            # exits no matter what the judge says — so skip the LLM
+            # call.  Saves one chat round trip per retrieve_iterative.
+            if step == max_steps - 1:
+                break
             verdict = react_judge(query, accumulated, self._chat)
             if verdict.sufficient:
                 break

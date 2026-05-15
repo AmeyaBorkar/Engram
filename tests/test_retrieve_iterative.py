@@ -205,7 +205,10 @@ class TestRetrieveIterativeBasics:
         chat.chat = chat_fn  # type: ignore[method-assign,assignment]
         memory._chat = chat
         memory.retrieve_iterative("query", k=5, max_steps=4)
-        assert call_count == 4
+        # The judge is skipped on the final iteration (its verdict can't
+        # change the outcome — the loop exits anyway), so max_steps=4
+        # produces max_steps-1 chat calls.
+        assert call_count == 3
 
     def test_stops_on_no_change_refinement(
         self, storage: SqliteStorage
