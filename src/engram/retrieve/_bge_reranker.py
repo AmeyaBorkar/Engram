@@ -131,7 +131,11 @@ class BGEReranker:
         if self._model is not None:
             return
         with self._load_lock:
-            if self._model is not None:
+            # Re-check inside the lock: another thread may have raced ahead
+            # and already loaded between the outer check and the acquire.
+            # Look up via getattr to dodge mypy's unsound narrowing -- the
+            # attribute is mutated by concurrent callers.
+            if getattr(self, "_model", None) is not None:
                 return
             try:
                 from sentence_transformers import CrossEncoder

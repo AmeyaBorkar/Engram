@@ -188,6 +188,12 @@ def _catalog_dim(model: str) -> int | None:
     return int(dim) if isinstance(dim, int) else None
 
 
+def _query_native_dim(st: Any) -> int:
+    """Best-effort native-dim probe on a loaded SentenceTransformer."""
+    assert st is not None
+    return int(st.get_sentence_embedding_dimension() or 0)
+
+
 class LocalEmbedder:
     """Sentence-transformers wrapped to satisfy `EmbeddingProvider`.
 
@@ -248,16 +254,22 @@ class LocalEmbedder:
         #   (1) caller passed it: trust them.
         #   (2) catalog knows: use that.
         #   (3) eager-load to discover (rare; unknown model with no dim hint).
-        native_dim = _catalog_dim(model)
-        if dim is None and native_dim is None:
-            # Forced eager load: there is no way to know the dim without
-            # actually loading the model.
-            self._ensure_loaded()
-            native_dim = int(self._st.get_sentence_embedding_dimension() or 0)
-        elif dim is not None:
+        native_dim: int
+        if dim is not None:
             native_dim = dim
-        # At this point native_dim is set.
-        assert native_dim is not None and native_dim > 0
+        else:
+            catalog_dim = _catalog_dim(model)
+            if catalog_dim is not None:
+                native_dim = catalog_dim
+            else:
+                # Forced eager load: there is no way to know the dim without
+                # actually loading the model. After _ensure_loaded() the
+                # sentence-transformer instance is non-None; mypy treats
+                # self._st as Any so we read it back through a typed
+                # accessor to keep the dim derivation legible.
+                self._ensure_loaded()
+                native_dim = _query_native_dim(self._st)
+        assert native_dim > 0
         self._native_dim = native_dim
 
         # Matryoshka truncation: pin target_dim, validate bounds.
@@ -296,7 +308,12 @@ class LocalEmbedder:
         if self._st is not None:
             return
         with self._load_lock:
-            if self._st is not None:
+            # Re-check inside the lock: another thread may have raced ahead
+            # and already loaded between the outer check and the acquire.
+            # Look up the attribute via getattr to keep mypy from narrowing
+            # away this branch (the attribute is mutated by concurrent
+            # callers and the outer check's narrowing is unsound here).
+            if getattr(self, "_st", None) is not None:
                 return
             try:
                 from sentence_transformers import (
