@@ -1137,6 +1137,13 @@ class Memory:
         count: int = 1,
         now: datetime | None = None,
     ) -> DecayState:
+        """Async version of `reinforce`.
+
+        Runs the sync engine call on the default thread pool via
+        `asyncio.to_thread` — gives the caller an awaitable without
+        introducing a separate async-native code path.  Will move to
+        a native async pipeline when v0.4 lands the Postgres backend.
+        """
         return await asyncio.to_thread(
             lambda: self.reinforce(item_id, kind, count=count, now=now)
         )
@@ -1149,6 +1156,8 @@ class Memory:
         count: int = 1,
         now: datetime | None = None,
     ) -> DecayState:
+        """Async version of `corroborate`.  See `areinforce` for the
+        thread-pool note."""
         return await asyncio.to_thread(
             lambda: self.corroborate(item_id, kind, count=count, now=now)
         )
@@ -1161,6 +1170,8 @@ class Memory:
         count: int = 1,
         now: datetime | None = None,
     ) -> DecayState:
+        """Async version of `contradict`.  See `areinforce` for the
+        thread-pool note."""
         return await asyncio.to_thread(
             lambda: self.contradict(item_id, kind, count=count, now=now)
         )
