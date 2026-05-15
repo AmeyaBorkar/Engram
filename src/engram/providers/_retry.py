@@ -35,7 +35,12 @@ class Retry:
     base_delay: float = 0.5
     max_delay: float = 30.0
     jitter: bool = True
-    exceptions: tuple[type[BaseException], ...] = (Exception,)
+    # Default to the narrow set of transient errors so a misuse of `Retry()`
+    # without an explicit `exceptions=` does NOT silently retry on permanent
+    # failures (auth, ValueError, AttributeError, etc.).  Provider adapters
+    # should pass their concrete transient classes (e.g. RateLimitError,
+    # APIConnectionError, InternalServerError, APITimeoutError).
+    exceptions: tuple[type[BaseException], ...] = (ConnectionError, TimeoutError)
 
     sleep: Callable[[float], None] = field(default=time.sleep)
     asleep: Callable[[float], Awaitable[None]] = field(default=asyncio.sleep)
