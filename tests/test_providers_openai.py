@@ -149,3 +149,135 @@ def test_openai_chat_manifest_hash_changes_with_kwargs() -> None:
         client=MagicMock(), async_client=AsyncMock(), completion_kwargs={"temperature": 1}
     )
     assert c1.manifest_hash() != c2.manifest_hash()
+
+
+# --- chunking (M-93) -------------------------------------------------------
+
+
+def test_openai_embedder_chunks_large_input_list() -> None:
+    """Inputs larger than `chunk_size` are split into multiple SDK calls."""
+    client = MagicMock()
+    # Each chunked call returns N vectors; we want call count to match
+    # the number of chunks, and the final output to preserve order.
+    chunk_count = {"n": 0}
+
+    def fake_create(**kw: object) -> object:
+        chunk_count["n"] += 1
+        n = len(kw["input"])  # type: ignore[arg-type]
+        return _make_embed_response([[float(chunk_count["n"])] * 2 for _ in range(n)])
+
+    client.embeddings.create.side_effect = fake_create
+    e = OpenAIEmbedder(
+        client=client, async_client=AsyncMock(), chunk_size=4
+    )
+    out = e.embed([f"t{i}" for i in range(10)])
+    assert len(out) == 10
+    # 10 / 4 -> 3 chunks (4, 4, 2)
+    assert chunk_count["n"] == 3
+
+
+def test_openai_embedder_chunk_size_must_be_positive() -> None:
+    with pytest.raises(ValueError, match="chunk_size"):
+        OpenAIEmbedder(chunk_size=0, client=MagicMock(), async_client=AsyncMock())
+
+
+def test_openai_embedder_empty_input_makes_no_calls() -> None:
+    client = MagicMock()
+    e = OpenAIEmbedder(client=client, async_client=AsyncMock())
+    out = e.embed([])
+    assert out == []
+    client.embeddings.create.assert_not_called()
+
+
+def test_openai_embedder_async_chunks() -> None:
+    aclient = AsyncMock()
+    chunk_count = {"n": 0}
+
+    async def fake_create(**kw: object) -> object:
+        chunk_count["n"] += 1
+        n = len(kw["input"])  # type: ignore[arg-type]
+        return _make_embed_response([[float(chunk_count["n"])] for _ in range(n)])
+
+    aclient.embeddings.create.side_effect = fake_create
+    e = OpenAIEmbedder(client=MagicMock(), async_client=aclient, chunk_size=3)
+    out = asyncio.run(e.aembed([f"t{i}" for i in range(7)]))
+    assert len(out) == 7
+    assert chunk_count["n"] == 3  # 3, 3, 1
+
+
+# --- per-call kwargs (M-173) -----------------------------------------------
+
+
+def test_openai_chat_per_call_kwargs_override_constructor() -> None:
+    client = MagicMock()
+    client.chat.completions.create.return_value = _make_chat_response("ok")
+    c = OpenAIChat(
+        client=client,
+        async_client=AsyncMock(),
+        completion_kwargs={"temperature": 0.0, "max_tokens": 100},
+    )
+    c.chat([Message(role="user", content="x")], extra={"temperature": 0.7})
+    kw = client.chat.completions.create.call_args.kwargs
+    assert kw["temperature"] == 0.7  # overridden
+    assert kw["max_tokens"] == 100  # passed through
+
+
+def test_openai_chat_per_call_kwargs_async() -> None:
+    aclient = AsyncMock()
+    aclient.chat.completions.create.return_value = _make_chat_response("ok")
+    c = OpenAIChat(client=MagicMock(), async_client=aclient)
+    asyncio.run(
+        c.achat([Message(role="user", content="x")], extra={"temperature": 0.5})
+    )
+    kw = aclient.chat.completions.create.call_args.kwargs
+    assert kw["temperature"] == 0.5
+
+
+def test_openai_chat_per_call_kwargs_does_not_mutate_constructor_state() -> None:
+    client = MagicMock()
+    client.chat.completions.create.return_value = _make_chat_response("ok")
+    c = OpenAIChat(
+        client=client,
+        async_client=AsyncMock(),
+        completion_kwargs={"temperature": 0.0},
+    )
+    c.chat([Message(role="user", content="x")], extra={"temperature": 1.0})
+    c.chat([Message(role="user", content="x")])
+    last_kw = client.chat.completions.create.call_args.kwargs
+    # Second call must have reverted to the constructor default.
+    assert last_kw["temperature"] == 0.0
+
+
+# --- close / context manager (M-94) ---------------------------------------
+
+
+def test_openai_embedder_close_idempotent() -> None:
+    client = MagicMock()
+    e = OpenAIEmbedder(client=client, async_client=AsyncMock())
+    e.close()
+    e.close()  # idempotent; should not raise
+
+
+def test_openai_chat_close_idempotent() -> None:
+    client = MagicMock()
+    c = OpenAIChat(client=client, async_client=AsyncMock())
+    c.close()
+    c.close()
+
+
+def test_openai_embedder_context_manager_closes() -> None:
+    client = MagicMock()
+    aclient = AsyncMock()
+    with OpenAIEmbedder(client=client, async_client=aclient) as e:
+        assert isinstance(e, OpenAIEmbedder)
+    # client.close was invoked on context exit; SDK's `close` exists as
+    # a real method on the MagicMock so it should have been called.
+    assert client.close.called
+
+
+def test_openai_chat_context_manager_closes() -> None:
+    client = MagicMock()
+    aclient = AsyncMock()
+    with OpenAIChat(client=client, async_client=aclient) as c:
+        assert isinstance(c, OpenAIChat)
+    assert client.close.called
