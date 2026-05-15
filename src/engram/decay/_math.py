@@ -29,6 +29,7 @@ the formula on a non-clamped value.
 
 from __future__ import annotations
 
+import functools
 import math
 from dataclasses import dataclass
 
@@ -69,8 +70,19 @@ class DecayParams:
 
     @property
     def alpha(self) -> float:
-        """Per-second decay base such that `alpha ** half_life_seconds == 0.5`."""
-        return float(0.5 ** (1.0 / self.half_life_seconds))
+        """Per-second decay base such that `alpha ** half_life_seconds == 0.5`.
+
+        Backed by a module-level `lru_cache` on `half_life_seconds` so a
+        million-item tick doesn't call `pow()` a million times for the
+        same constant.  Frozen+slots dataclass blocks per-instance
+        caching; the function-level cache works around that.
+        """
+        return _compute_alpha(self.half_life_seconds)
+
+
+@functools.lru_cache(maxsize=128)
+def _compute_alpha(half_life_seconds: float) -> float:
+    return float(0.5 ** (1.0 / half_life_seconds))
 
 
 def clamp01(x: float) -> float:
