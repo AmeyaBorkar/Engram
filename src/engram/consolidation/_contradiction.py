@@ -232,7 +232,17 @@ def _strip_code_fence(text: str) -> str:
 
 
 def _inline(content: str) -> str:
-    return content.replace("\\", "\\\\").replace("\n", "\\n").replace("\t", "\\t")
+    # See consolidation/_abstraction._inline for the rationale: CR and
+    # U+2028 / U+2029 are paragraph-break-equivalents for some LLMs.
+    return (
+        content.replace("\\", "\\\\")
+        .replace("\r\n", "\\n")
+        .replace("\n", "\\n")
+        .replace("\r", "\\n")
+        .replace(" ", "\\n")
+        .replace(" ", "\\n")
+        .replace("\t", "\\t")
+    )
 
 
 # Re-export for the engine.

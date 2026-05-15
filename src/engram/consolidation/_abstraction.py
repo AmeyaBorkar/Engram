@@ -251,5 +251,20 @@ def _strip_code_fence(text: str) -> str:
 
 
 def _inline(content: str) -> str:
-    """Collapse newlines and tabs so each observation is one prompt line."""
-    return content.replace("\\", "\\\\").replace("\n", "\\n").replace("\t", "\\t")
+    """Collapse line-breaking characters so each observation is one prompt line.
+
+    The previous implementation only escaped LF and tab; it missed CR
+    (CRLF on Windows-typed input survived as a raw \\r), and the Unicode
+    line/paragraph separators U+2028 / U+2029 which some models interpret
+    as paragraph breaks.  Backslash is escaped first so the subsequent
+    escape sequences survive intact.
+    """
+    return (
+        content.replace("\\", "\\\\")
+        .replace("\r\n", "\\n")
+        .replace("\n", "\\n")
+        .replace("\r", "\\n")
+        .replace(" ", "\\n")
+        .replace(" ", "\\n")
+        .replace("\t", "\\t")
+    )

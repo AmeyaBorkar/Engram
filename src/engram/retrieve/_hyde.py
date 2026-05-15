@@ -65,7 +65,16 @@ def hyde_transform(query: str, chat: ChatProvider) -> str:
 
 
 def _inline(content: str) -> str:
-    return content.replace("\\", "\\\\").replace("\n", "\\n").replace("\t", "\\t")
+    # See consolidation/_abstraction._inline.
+    return (
+        content.replace("\\", "\\\\")
+        .replace("\r\n", "\\n")
+        .replace("\n", "\\n")
+        .replace("\r", "\\n")
+        .replace(" ", "\\n")
+        .replace(" ", "\\n")
+        .replace("\t", "\\t")
+    )
 
 
 __all__ = [

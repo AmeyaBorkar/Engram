@@ -114,7 +114,16 @@ def reciprocal_rank_fusion(
 
 
 def _inline(content: str) -> str:
-    return content.replace("\\", "\\\\").replace("\n", "\\n").replace("\t", "\\t")
+    # See consolidation/_abstraction._inline.
+    return (
+        content.replace("\\", "\\\\")
+        .replace("\r\n", "\\n")
+        .replace("\n", "\\n")
+        .replace("\r", "\\n")
+        .replace(" ", "\\n")
+        .replace(" ", "\\n")
+        .replace("\t", "\\t")
+    )
 
 
 def _strip_leading_marker(line: str) -> str:
