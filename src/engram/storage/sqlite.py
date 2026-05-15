@@ -838,6 +838,26 @@ class SqliteStorage:
     # --- conflicts (Stage 8) -----------------------------------------------
 
     def record_conflict(self, conflict: Conflict) -> None:
+        # Re-validate the cross-column invariants that the Pydantic model
+        # enforces on construction.  Storage callers can build a Conflict
+        # via `model_validate({...})` from external JSON which would
+        # produce a row that an OPEN status with resolution/winner set —
+        # the schema CHECK constraints don't span columns so a malformed
+        # caller bypasses Pydantic's _check_status_invariants.
+        is_open = conflict.status == ConflictStatus.OPEN
+        has_resolution = (
+            conflict.resolution is not None
+            or conflict.resolved_winner_id is not None
+            or conflict.resolved_at is not None
+        )
+        if is_open and has_resolution:
+            raise ValueError(
+                "open conflict must not carry resolution / resolved_winner_id / resolved_at"
+            )
+        if not is_open and not has_resolution:
+            raise ValueError(
+                f"{conflict.status.value} conflict must carry resolution + resolved_at"
+            )
         self._connect().execute(
             "INSERT INTO conflicts "
             "(id, source_item_id, target_item_id, similarity, verdict, "
