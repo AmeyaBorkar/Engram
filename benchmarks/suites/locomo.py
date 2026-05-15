@@ -121,11 +121,71 @@ def _checksum(split: str) -> str:
     return f"locomo/{split}/{h.hexdigest()}"
 
 
-def _exact_match(answer: str, hits_text: list[str]) -> float:
-    answer_l = answer.strip().lower()
-    if not answer_l:
+_TOKEN_RE = __import__("re").compile(r"\w+")
+# Subset of NLTK's English stopwords — small enough to be obvious, large
+# enough to make token-F1 behave like the official LoCoMo scorer on
+# common cases.  Kept inline so the suite has no NLTK runtime dep.
+_LOCOMO_STOPWORDS: frozenset[str] = frozenset(
+    {
+        "a", "an", "the", "and", "or", "but", "if", "of", "in", "on", "to",
+        "for", "with", "is", "are", "was", "were", "be", "been", "being",
+        "do", "does", "did", "have", "has", "had", "this", "that", "these",
+        "those", "it", "its", "as", "at", "by", "from", "into", "i", "you",
+        "we", "they", "he", "she",
+    }
+)
+
+
+def _tokenize_for_f1(text: str) -> list[str]:
+    return [
+        tok
+        for tok in (m.group(0).lower() for m in _TOKEN_RE.finditer(text))
+        if tok and tok not in _LOCOMO_STOPWORDS
+    ]
+
+
+def _token_f1(gold: str, candidate: str) -> float:
+    """Token-level F1 (stopwords removed), matching LoCoMo's standard QA scorer.
+
+    Multi-token answers get partial credit when retrieved passages cover
+    some of the gold tokens.  Returns 0 if either side is empty after
+    tokenization.
+    """
+    gold_tokens = _tokenize_for_f1(gold)
+    cand_tokens = _tokenize_for_f1(candidate)
+    if not gold_tokens or not cand_tokens:
         return 0.0
-    return 1.0 if any(answer_l in t.lower() for t in hits_text) else 0.0
+    # Multiset-style intersection so a repeated gold token has to be
+    # matched by the same number of repeated candidate tokens.
+    gold_counts: dict[str, int] = {}
+    for t in gold_tokens:
+        gold_counts[t] = gold_counts.get(t, 0) + 1
+    overlap = 0
+    for t in cand_tokens:
+        if gold_counts.get(t, 0) > 0:
+            overlap += 1
+            gold_counts[t] -= 1
+    if overlap == 0:
+        return 0.0
+    precision = overlap / len(cand_tokens)
+    recall = overlap / len(gold_tokens)
+    return 2 * precision * recall / (precision + recall)
+
+
+def _exact_match(answer: str, hits_text: list[str]) -> float:
+    """Best per-hit token-F1 score for `answer` across `hits_text`.
+
+    Renamed from substring-containment to the standard LoCoMo
+    token-F1 metric.  The previous implementation returned 1.0 if the
+    gold answer string appeared anywhere inside any retrieved text —
+    so 'no' matched any text mentioning 'no', 'Lisbon' matched any
+    text mentioning Lisbon, and 'yes' was trivially high-coverage.
+    That made LoCoMo numbers incomparable to published scores.
+    """
+    answer_l = answer.strip()
+    if not answer_l or not hits_text:
+        return 0.0
+    return max(_token_f1(answer_l, t) for t in hits_text)
 
 
 class LoCoMoSuite:
