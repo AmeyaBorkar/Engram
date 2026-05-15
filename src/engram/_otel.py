@@ -21,6 +21,7 @@ surface, which is stable and lightweight. The SDK is for callers.
 
 from __future__ import annotations
 
+import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any
@@ -119,6 +120,12 @@ class _Metrics:
 
     def __init__(self) -> None:
         self._initialized = False
+        # Two threads hitting their first retrieve_call concurrently could
+        # both pass the `if self._initialized` check and create duplicate
+        # counters from the same meter.  The lock makes _init() effectively
+        # double-checked-locking — fast path is a lock-free flag read, slow
+        # path serializes the create_counter / create_histogram calls.
+        self._init_lock = threading.Lock()
         self._retrieve_count: Counter | None = None
         self._retrieve_latency_ms: Histogram | None = None
         self._observe_count: Counter | None = None
@@ -128,6 +135,12 @@ class _Metrics:
     def _init(self) -> None:
         if self._initialized or not _OTEL_AVAILABLE:
             return
+        with self._init_lock:
+            if self._initialized:
+                return
+            self._init_locked()
+
+    def _init_locked(self) -> None:
         meter = get_meter()
         self._retrieve_count = meter.create_counter(
             "engram.retrieve.calls",
