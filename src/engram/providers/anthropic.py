@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Any
 
 from engram.providers._message import Message
 from engram.providers._redactor import Redactor
+from engram.providers._retry import Retry
 
 try:
     import anthropic as _anthropic_module
@@ -37,6 +38,31 @@ if TYPE_CHECKING:
 
 _DEFAULT_MAX_TOKENS = 1024
 _REDACTOR: Redactor = Redactor.default()
+
+
+def _transient_exceptions() -> tuple[type[BaseException], ...]:
+    """Narrow set of Anthropic exception classes worth retrying."""
+    classes: list[type[BaseException]] = []
+    for attr in (
+        "RateLimitError",
+        "APIConnectionError",
+        "InternalServerError",
+        "APITimeoutError",
+    ):
+        cls = getattr(_anthropic_module, attr, None)
+        if isinstance(cls, type) and issubclass(cls, BaseException):
+            classes.append(cls)
+    if not classes:
+        return (ConnectionError, TimeoutError)
+    return tuple(classes)
+
+
+_DEFAULT_RETRY: Retry = Retry(
+    max_attempts=3,
+    base_delay=0.5,
+    max_delay=5.0,
+    exceptions=_transient_exceptions(),
+)
 
 
 def _redact_error(exc: BaseException) -> BaseException:
@@ -107,7 +133,7 @@ class AnthropicChat:
     def chat(self, messages: Sequence[Message]) -> str:
         kwargs = self._build_kwargs(messages)
         try:
-            resp = self._client.messages.create(**kwargs)
+            resp = _DEFAULT_RETRY.call(self._client.messages.create, **kwargs)
         except Exception as exc:
             raise _redact_error(exc) from exc
         return _join_text_blocks(resp.content, self.model)
@@ -115,7 +141,7 @@ class AnthropicChat:
     async def achat(self, messages: Sequence[Message]) -> str:
         kwargs = self._build_kwargs(messages)
         try:
-            resp = await self._aclient.messages.create(**kwargs)
+            resp = await _DEFAULT_RETRY.acall(self._aclient.messages.create, **kwargs)
         except Exception as exc:
             raise _redact_error(exc) from exc
         return _join_text_blocks(resp.content, self.model)

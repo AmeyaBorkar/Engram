@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING, Any
 
 from engram.providers._message import Message
 from engram.providers._redactor import Redactor
+from engram.providers._retry import Retry
 
 try:
     import openai as _openai_module
@@ -50,6 +51,40 @@ _DEFAULT_MAX_TOKENS: int = 1024
 # compatible-endpoint errors.  Stateless and cheap; one instance covers
 # every adapter.
 _REDACTOR: Redactor = Redactor.default()
+
+
+def _transient_exceptions() -> tuple[type[BaseException], ...]:
+    """Concrete OpenAI exception classes worth retrying.
+
+    Returns the narrowest set we can reach: rate-limit, connection
+    error, internal server error, and timeout.  Falls back to a
+    network-class tuple if the SDK is too old to expose the names so
+    Retry still defaults to something reasonable.
+    """
+    classes: list[type[BaseException]] = []
+    for attr in (
+        "RateLimitError",
+        "APIConnectionError",
+        "InternalServerError",
+        "APITimeoutError",
+    ):
+        cls = getattr(_openai_module, attr, None)
+        if isinstance(cls, type) and issubclass(cls, BaseException):
+            classes.append(cls)
+    if not classes:
+        # Last-resort defaults.  ConnectionError / TimeoutError cover
+        # the common transient cases when the SDK doesn't expose its
+        # own typed exceptions.
+        return (ConnectionError, TimeoutError)
+    return tuple(classes)
+
+
+_DEFAULT_RETRY: Retry = Retry(
+    max_attempts=3,
+    base_delay=0.5,
+    max_delay=5.0,
+    exceptions=_transient_exceptions(),
+)
 
 
 def _redact_error(exc: BaseException) -> BaseException:
@@ -160,7 +195,7 @@ class OpenAIEmbedder:
         if self._send_dimensions and self.dim != _native_dim(self.model):
             kwargs["dimensions"] = self.dim
         try:
-            resp = self._client.embeddings.create(**kwargs)
+            resp = _DEFAULT_RETRY.call(self._client.embeddings.create, **kwargs)
         except Exception as exc:
             raise _redact_error(exc) from exc
         return [list(item.embedding) for item in resp.data]
@@ -170,7 +205,7 @@ class OpenAIEmbedder:
         if self._send_dimensions and self.dim != _native_dim(self.model):
             kwargs["dimensions"] = self.dim
         try:
-            resp = await self._aclient.embeddings.create(**kwargs)
+            resp = await _DEFAULT_RETRY.acall(self._aclient.embeddings.create, **kwargs)
         except Exception as exc:
             raise _redact_error(exc) from exc
         return [list(item.embedding) for item in resp.data]
@@ -220,7 +255,8 @@ class OpenAIChat:
 
     def chat(self, messages: Sequence[Message]) -> str:
         try:
-            resp = self._client.chat.completions.create(
+            resp = _DEFAULT_RETRY.call(
+                self._client.chat.completions.create,
                 model=self.model,
                 messages=_to_openai_messages(messages),
                 **self._kwargs,
@@ -231,7 +267,8 @@ class OpenAIChat:
 
     async def achat(self, messages: Sequence[Message]) -> str:
         try:
-            resp = await self._aclient.chat.completions.create(
+            resp = await _DEFAULT_RETRY.acall(
+                self._aclient.chat.completions.create,
                 model=self.model,
                 messages=_to_openai_messages(messages),
                 **self._kwargs,
