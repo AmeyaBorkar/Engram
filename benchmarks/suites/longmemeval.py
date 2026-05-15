@@ -525,6 +525,11 @@ class LongMemEvalSuite:
         retrieve_ms: list[float] = []
         answer_ms: list[float] = []
         judge_ms: list[float] = []
+        # Ingest is often the most expensive phase by wall clock (embed +
+        # insert a 500-turn haystack per question).  Track it alongside
+        # the others so the manifest's latency_ms summary doesn't hide
+        # the dominant cost.
+        ingest_ms_list: list[float] = []
         per_type_scores: dict[str, list[float]] = {}
         # Log every question for small smoke runs; every 10 for full runs
         # so 500-question manifests don't bury the user in INFO lines.
@@ -584,6 +589,7 @@ class LongMemEvalSuite:
                     retrieve_ms=retrieve_ms,
                     answer_ms=answer_ms,
                     judge_ms=judge_ms,
+                    ingest_ms_list=ingest_ms_list,
                     log_interval=log_interval,
                 )
             finally:
@@ -610,6 +616,7 @@ class LongMemEvalSuite:
                 "retrieve": retrieve_ms,
                 "answer": answer_ms,
                 "judge": judge_ms,
+                "ingest": ingest_ms_list,
             },
         )
 
@@ -629,6 +636,7 @@ class LongMemEvalSuite:
         retrieve_ms: list[float],
         answer_ms: list[float],
         judge_ms: list[float],
+        ingest_ms_list: list[float],
         log_interval: int,
     ) -> None:
         """Run the ingest + retrieve + answer + judge pipeline for one
@@ -663,6 +671,7 @@ class LongMemEvalSuite:
             t_ingest = time.perf_counter()
             turns = _ingest_haystack(memory, q)
             ingest_ms = (time.perf_counter() - t_ingest) * 1000.0
+            ingest_ms_list.append(ingest_ms)
 
             if self._consolidate:
                 t_consolidate = time.perf_counter()
