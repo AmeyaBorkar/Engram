@@ -204,6 +204,19 @@ def _openrouter_embedder(
             "and add it to your .env."
         )
     chosen_model = model or "qwen/qwen3-embedding-8b"
+    # OpenRouter model ids always carry a vendor prefix ("qwen/...",
+    # "openai/...", "google/..."). Guard the catalog lookup so a user
+    # who typed `--embedder openrouter --embed-model text-embedding-3-small`
+    # (an OpenAI-direct name, no vendor prefix) gets an actionable hint
+    # instead of a confusing dim error.
+    if "/" not in chosen_model:
+        raise RuntimeError(
+            f"openrouter embedder {chosen_model!r} looks like an OpenAI-direct "
+            f"model name (no vendor prefix). OpenRouter model ids always carry "
+            f"a vendor prefix, e.g. `qwen/qwen3-embedding-8b` or "
+            f"`openai/text-embedding-3-large`. Either fix the --embed-model "
+            f"or switch to `--embedder openai`."
+        )
     # Auto-fill dim from the catalog so callers don't have to know it.
     if dim is None:
         from engram.providers.openai import _OPENAI_NATIVE_EMBED_DIMS
@@ -212,7 +225,8 @@ def _openrouter_embedder(
         if catalog_dim < 0:
             raise RuntimeError(
                 f"openrouter embedder {chosen_model!r} has an unknown native dim; "
-                f"pass --embed-dim N to set it explicitly."
+                f"pass --embed-dim N to set it explicitly. Known OpenRouter "
+                f"embedders: {sorted(m for m in _OPENAI_NATIVE_EMBED_DIMS if '/' in m)}."
             )
         dim = catalog_dim
     return OpenAIEmbedder(
@@ -232,8 +246,21 @@ def _openai_embedder(model: str | None, dim: int | None) -> EmbeddingProvider:
         raise RuntimeError(
             "OPENAI_API_KEY is not set; the OpenAI embedder is required for real-provider runs."
         )
+    chosen_model = model or "text-embedding-3-small"
+    # Friendlier-than-the-SDK error for a common mistake: passing an
+    # OpenRouter-style vendor-prefixed name (`openai/text-embedding-...`,
+    # `qwen/qwen3-...`) to `--embedder openai`. The OpenAI SDK would
+    # otherwise return a 404 with a body the bench doesn't surface
+    # well. Catch it here.
+    if "/" in chosen_model:
+        raise RuntimeError(
+            f"openai embedder model {chosen_model!r} looks like an OpenRouter "
+            f"vendor-prefixed name. The OpenAI direct API uses plain model "
+            f"ids (e.g. `text-embedding-3-small`). Either drop the vendor "
+            f"prefix or switch to `--embedder openrouter`."
+        )
     return OpenAIEmbedder(
-        model=model or "text-embedding-3-small",
+        model=chosen_model,
         dim=dim if dim is not None else 1536,
         api_key=api_key,
     )
@@ -312,6 +339,14 @@ def build_chat(name: str, model: str | None = None) -> ChatProvider:
     return chat
 
 
+# Chat providers that ship NO embedding model; the user MUST pair them
+# with a real embedder rather than fall through to FakeEmbedder (which
+# would silently produce meaningless retrievals on real benchmarks).
+_CHAT_WITHOUT_EMBEDDER: frozenset[str] = frozenset(
+    {"anthropic", "moonshot", "opencode-zen", "opencode-go"}
+)
+
+
 def build_provider(
     *,
     embedder_name: str = "fake",
@@ -329,6 +364,13 @@ def build_provider(
     and `chat_name=openai|anthropic|moonshot|opencode-zen|opencode-go|openrouter`
     for real runs; missing API keys surface as actionable RuntimeError
     messages. `embed_device` + `embed_dtype` only apply to local.
+
+    When `chat_name` is a vendor without an embedding model (Anthropic,
+    Moonshot, OpenCode-{Zen,Go}) and `embedder_name == "fake"`, this
+    raises. Pre-audit the silent fake-embedder fallback produced
+    meaningless retrieval (every event got the same FakeEmbedder hash)
+    while the chat side made real LLM calls -- bench numbers were
+    indistinguishable from random.
     """
     if embedder_name not in _EMBEDDER_BUILDERS:
         raise ValueError(
@@ -337,9 +379,24 @@ def build_provider(
     if chat_name not in _CHAT_BUILDERS:
         raise ValueError(f"unknown chat {chat_name!r}; choose from {sorted(_CHAT_BUILDERS)}")
 
+    if chat_name in _CHAT_WITHOUT_EMBEDDER and embedder_name == "fake":
+        raise RuntimeError(
+            f"--chat {chat_name} has no embedding model. Pair it with a real "
+            f"embedder, e.g. `--embedder openai` (or `--embedder local` for "
+            f"sentence-transformers, or `--embedder openrouter`). Pre-audit "
+            f"this silently fell back to FakeEmbedder, producing meaningless "
+            f"retrievals while the chat side made real API calls."
+        )
+
     embedder = _EMBEDDER_BUILDERS[embedder_name](
         embed_model, embed_dim, embed_device, embed_dtype
     )
     chat = _CHAT_BUILDERS[chat_name](chat_model)
-    name = f"{embedder_name}+{chat_name}"
+    # The Provider's `name` snapshots BOTH the friendly tag and the
+    # concrete model ids, so two runs that share `embedder_name + chat_name`
+    # but use different specific models stay distinguishable in
+    # SCOREBOARD without anyone having to read `provider_hash`.
+    embedder_model = getattr(embedder, "model", embedder_name)
+    chat_model_id = getattr(chat, "model", chat_name)
+    name = f"{embedder_name}+{chat_name} ({embedder_model}|{chat_model_id})"
     return _MixedProvider(name=name, embedder=embedder, chat=chat)
