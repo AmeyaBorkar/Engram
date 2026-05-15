@@ -844,6 +844,15 @@ class Memory:
         forwarded to each per-step `retrieve` so the iterative loop
         composes with the rest of the retrieve surface.
         """
+        # Validate BEFORE the chat=None early return so the error
+        # semantics don't depend on whether a chat provider happens to
+        # be configured.  Previously `retrieve_iterative(q, k=0)` with
+        # chat=None silently returned [] while the same call with a
+        # chat provider raised ValueError.
+        if k < 1:
+            raise ValueError(f"k must be >= 1, got {k}")
+        if max_steps < 1:
+            raise ValueError(f"max_steps must be >= 1, got {max_steps}")
         if self._chat is None:
             return self.retrieve(
                 query,
@@ -857,10 +866,6 @@ class Memory:
                 surface_conflicts=surface_conflicts,
                 reranker=reranker,
             )
-        if k < 1:
-            raise ValueError(f"k must be >= 1, got {k}")
-        if max_steps < 1:
-            raise ValueError(f"max_steps must be >= 1, got {max_steps}")
 
         leaf_k = per_step_k if per_step_k is not None else k
         seen_ids: set[UUID] = set()
