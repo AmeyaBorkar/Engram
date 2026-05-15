@@ -21,9 +21,12 @@ from engram.providers import FakeEmbedder
 
 
 def _percentile(samples: list[float], pct: float) -> float:
+    # Match the rounding used by test_retrieve_perf / test_stage8_perf so
+    # all perf tests agree on what P99 means at small sample sizes.
     samples_sorted = sorted(samples)
-    idx = int(len(samples_sorted) * pct / 100)
-    idx = min(max(idx, 0), len(samples_sorted) - 1)
+    if not samples_sorted:
+        return 0.0
+    idx = round((pct / 100.0) * (len(samples_sorted) - 1))
     return samples_sorted[idx]
 
 

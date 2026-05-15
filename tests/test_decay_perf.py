@@ -22,9 +22,14 @@ from engram.schemas import ItemKind
 
 
 def _percentile(samples: list[float], pct: float) -> float:
+    # `round((p/100)*(n-1))` matches test_retrieve_perf / test_stage8_perf.
+    # The previous `int(n*p/100)` rounded toward zero so e.g. P99 of a
+    # 100-sample list returned the index-99 element (P100, the maximum),
+    # silently inflating measured tail latency by one position.
     samples_sorted = sorted(samples)
-    idx = int(len(samples_sorted) * pct / 100)
-    idx = min(max(idx, 0), len(samples_sorted) - 1)
+    if not samples_sorted:
+        return 0.0
+    idx = round((pct / 100.0) * (len(samples_sorted) - 1))
     return samples_sorted[idx]
 
 
