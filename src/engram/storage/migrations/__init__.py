@@ -19,7 +19,13 @@ _MIGRATION_RE = re.compile(r"^(\d{4})_[a-z0-9_]+\.sql$")
 
 
 def list_migrations() -> list[tuple[int, str]]:
-    """Return `[(version, filename), ...]` sorted by version."""
+    """Return `[(version, filename), ...]` sorted by version.
+
+    Raises if two migration files share the same numeric prefix
+    (e.g. \`0005_a.sql\` + \`0005_b.sql\`) — the runner would treat one
+    as the canonical 'v5' and silently skip the other, which has
+    silently lost real DDL in tooling-mistake scenarios.
+    """
     pkg = resources.files(__name__)
     migrations: list[tuple[int, str]] = []
     for entry in pkg.iterdir():
@@ -30,6 +36,14 @@ def list_migrations() -> list[tuple[int, str]]:
             continue
         migrations.append((int(match.group(1)), entry.name))
     migrations.sort(key=lambda item: item[0])
+    seen: dict[int, str] = {}
+    for version, filename in migrations:
+        if version in seen:
+            raise RuntimeError(
+                f"duplicate migration version {version}: "
+                f"{seen[version]!r} and {filename!r}"
+            )
+        seen[version] = filename
     return migrations
 
 
@@ -45,7 +59,21 @@ def applied_versions(conn: sqlite3.Connection) -> set[int]:
         ")"
     )
     rows = conn.execute("SELECT version FROM schema_migrations").fetchall()
-    return {row[0] for row in rows}
+    versions = {int(row[0]) for row in rows}
+    # Sanity-check: applied versions must be a contiguous prefix [1..N].
+    # A gap (1, 3 without 2) signals manual db surgery or a partial-
+    # restore — applying 2 now risks DDL conflicts against the schema
+    # that 3 already produced.  Raise loudly so an operator
+    # investigates.
+    if versions:
+        ordered = sorted(versions)
+        expected = list(range(ordered[0], ordered[0] + len(ordered)))
+        if ordered != expected:
+            missing = [v for v in expected if v not in versions]
+            raise RuntimeError(
+                f"schema_migrations has gaps: applied {ordered}, missing {missing}"
+            )
+    return versions
 
 
 def apply_migrations(conn: sqlite3.Connection) -> list[int]:
