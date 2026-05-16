@@ -57,15 +57,3 @@ class DecayMetrics:
     contradiction_total: int
     last_tick: TickResult | None
     per_kind: dict[ItemKind, KindCounters]
-
-    @classmethod
-    def empty(cls) -> DecayMetrics:
-        return cls(
-            hot_items=0,
-            cold_items=0,
-            reinforcement_total=0,
-            corroboration_total=0,
-            contradiction_total=0,
-            last_tick=None,
-            per_kind={},
-        )
