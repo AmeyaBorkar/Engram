@@ -37,7 +37,7 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 from engram.providers._protocols import ChatProvider, EmbeddingProvider
-from engram.reconcile._merge import merge as run_merge
+from engram.reconcile._merge import MERGE_PROMPT_VERSION, merge as run_merge
 from engram.schemas import (
     Conflict,
     ConflictStatus,
@@ -178,7 +178,7 @@ class Reconciler:
                 "reconcile": {
                     "merged_from": [str(source.id), str(target.id)],
                     "merged_at": when.isoformat(),
-                    "merge_prompt_version": "v1",
+                    "merge_prompt_version": MERGE_PROMPT_VERSION,
                 }
             },
         )
