@@ -148,7 +148,6 @@ def _strip_leading_marker(line: str) -> str:
 
 
 __all__ = [
-    "MULTI_QUERY_PROMPT_VERSION",
     "expand_queries",
     "load_multi_query_prompt",
     "reciprocal_rank_fusion",

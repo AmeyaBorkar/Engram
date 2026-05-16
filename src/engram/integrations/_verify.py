@@ -154,7 +154,6 @@ def _inline(content: str) -> str:
 
 
 __all__ = [
-    "VERIFY_PROMPT_VERSION",
     "VerifyVerdict",
     "parse_verify_response",
     "render_verify_prompt",

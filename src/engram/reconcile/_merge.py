@@ -136,7 +136,6 @@ def _inline(content: str) -> str:
 
 
 __all__ = [
-    "MERGE_PROMPT_VERSION",
     "MergeResponse",
     "load_merge_prompt",
     "merge",

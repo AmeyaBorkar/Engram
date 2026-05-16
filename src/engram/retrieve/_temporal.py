@@ -213,7 +213,6 @@ def _inline(content: str) -> str:
 
 
 __all__ = [
-    "TEMPORAL_PROMPT_VERSION",
     "TemporalAnchor",
     "compute_temporal_anchor",
     "is_temporal_query",

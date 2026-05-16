@@ -142,7 +142,6 @@ def _inline(content: str) -> str:
 
 
 __all__ = [
-    "REACT_PROMPT_VERSION",
     "ReactVerdict",
     "parse_react_response",
     "react_judge",

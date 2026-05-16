@@ -78,7 +78,6 @@ def _inline(content: str) -> str:
 
 
 __all__ = [
-    "HYDE_PROMPT_VERSION",
     "hyde_transform",
     "load_hyde_prompt",
     "render_hyde_prompt",

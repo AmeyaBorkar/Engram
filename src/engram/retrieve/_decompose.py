@@ -98,7 +98,6 @@ def _inline(content: str) -> str:
 
 
 __all__ = [
-    "DECOMPOSE_PROMPT_VERSION",
     "decompose_query",
     "load_decompose_prompt",
     "render_decompose_prompt",
