@@ -490,7 +490,16 @@ class Memory:
         return await self._engine.tick_async(now=now)
 
     def is_cold(self, item_id: UUID, kind: ItemKind = ItemKind.EVENT) -> bool:
-        """True if the item is below the decay threshold (cold)."""
+        """True if the item is below the decay threshold (cold).
+
+        Returns False when the item has no decay state yet (a freshly
+        inserted row whose first tick hasn't run).  The default
+        `kind=ItemKind.EVENT` matches the most common caller — set it
+        explicitly to ``MEMORY_ITEM`` or ``PROCEDURE`` when querying
+        the other tiers, since the storage layer keys decay state by
+        (id, kind) and a kind mismatch returns 'not found' (=> False)
+        rather than the actual state.
+        """
         state = self._storage.get_decay_state(item_id, kind)
         if state is None:
             return False
