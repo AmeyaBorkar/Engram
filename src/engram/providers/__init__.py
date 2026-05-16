@@ -15,6 +15,12 @@ the public surface as it lands.
 
 from engram.providers._batcher import Batcher
 from engram.providers._cache import Cache, content_hash
+from engram.providers._disk_cache import (
+    CachedChat,
+    CachedEmbedder,
+    DiskCache,
+    with_disk_cache,
+)
 from engram.providers._fake import FakeChat, FakeEmbedder
 from engram.providers._message import Message, Role
 from engram.providers._protocols import ChatProvider, EmbeddingProvider
@@ -24,7 +30,10 @@ from engram.providers._retry import Retry
 __all__ = [
     "Batcher",
     "Cache",
+    "CachedChat",
+    "CachedEmbedder",
     "ChatProvider",
+    "DiskCache",
     "EmbeddingProvider",
     "FakeChat",
     "FakeEmbedder",
@@ -33,4 +42,5 @@ __all__ = [
     "Retry",
     "Role",
     "content_hash",
+    "with_disk_cache",
 ]
