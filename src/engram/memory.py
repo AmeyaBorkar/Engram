@@ -822,7 +822,7 @@ class Memory:
             ]
             return [f.result() for f in futures]
 
-    # --- E.9: iterative ReAct retrieval ------------------------------------
+    # --- iterative ReAct retrieval -----------------------------------------
 
     def retrieve_iterative(
         self,
@@ -1316,7 +1316,7 @@ class Memory:
             )
         )
 
-    # --- E.7: aggregate user-state -----------------------------------------
+    # --- aggregate user-state ----------------------------------------------
     #
     # A single structured "what we know about this user" memory item.
     # Exactly one per tenant. Updated incrementally; surfaced
@@ -1457,7 +1457,7 @@ class Memory:
             )
         conn().execute("DELETE FROM memory_items WHERE id = ?", (item_id.bytes,))
 
-    # --- E.8: topic layer --------------------------------------------------
+    # --- topic layer -------------------------------------------------------
 
     def record_topic(
         self,
@@ -1514,7 +1514,7 @@ class Memory:
             )
         return item
 
-    # --- E.6: preference layer ---------------------------------------------
+    # --- preference layer --------------------------------------------------
 
     def record_preference(
         self,
