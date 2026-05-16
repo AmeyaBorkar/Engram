@@ -36,23 +36,31 @@ from engram.providers._fake import FakeEmbedder
 
 
 @pytest.fixture
-def span_exporter() -> InMemorySpanExporter:
+def span_exporter(monkeypatch: pytest.MonkeyPatch) -> InMemorySpanExporter:
     """Install a fresh TracerProvider with an in-memory exporter.
 
-    Each test gets isolated spans; teardown resets the global provider
-    by replacing it with a fresh one for the next test (the OTel
-    sdk's `set_tracer_provider` is a one-time call by design, but the
-    NoOpTracerProvider sentinel allows replacement in tests).
+    The OTel SDK's `set_tracer_provider` is a one-time call by design.
+    For tests we explicitly poke the internal slots; monkeypatch's
+    auto-teardown restores them after the test so the patched state
+    doesn't leak into any later test that imports otel_trace.
     """
     exporter = InMemorySpanExporter()
     provider = TracerProvider(
         resource=Resource.create({"service.name": "engram-test"})
     )
     provider.add_span_processor(SimpleSpanProcessor(exporter))
-    # Force-override the global provider (OTel allows this once normally;
-    # we explicitly poke the internal slot for repeat-set in tests).
-    otel_trace._TRACER_PROVIDER = provider  # type: ignore[attr-defined,unused-ignore]
-    otel_trace._TRACER_PROVIDER_SET_ONCE._done = False  # type: ignore[attr-defined,unused-ignore]
+    # `monkeypatch.setattr` records the original value and restores it
+    # at fixture teardown — so the test patch doesn't bleed into
+    # subsequent tests that import otel_trace.
+    monkeypatch.setattr(
+        otel_trace, "_TRACER_PROVIDER", provider, raising=False
+    )
+    monkeypatch.setattr(
+        otel_trace._TRACER_PROVIDER_SET_ONCE,
+        "_done",
+        False,
+        raising=False,
+    )
     otel_trace.set_tracer_provider(provider)
     return exporter
 
