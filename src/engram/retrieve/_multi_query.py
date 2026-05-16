@@ -131,9 +131,13 @@ def _strip_leading_marker(line: str) -> str:
     stripped = line.lstrip()
     if not stripped:
         return ""
-    # Numbered: "1." / "1)" / "1: "
+    # Numbered: "1." / "1)" / "1: ".  We previously also matched a bare
+    # space ("1 something") which corrupted real-content queries like
+    # '5 wonderful things' into 'wonderful things'.  Require an
+    # explicit punctuation separator so a leading digit that's part of
+    # the query survives.
     if stripped[0].isdigit():
-        for sep in (". ", ") ", ": ", " "):
+        for sep in (". ", ") ", ": "):
             idx = stripped.find(sep)
             if 0 < idx <= 3 and stripped[:idx].isdigit():
                 return stripped[idx + len(sep) :].strip()
