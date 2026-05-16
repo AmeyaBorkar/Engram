@@ -1,5 +1,6 @@
 """Engram: hierarchical memory with consolidation and principled decay for LLM systems."""
 
+from engram._preference import is_preference
 from engram.decay import DecayParams
 from engram.ids import new_id
 from engram.memory import Memory
@@ -59,6 +60,7 @@ __all__ = [
     "Storage",
     "StorageStats",
     "Verdict",
+    "is_preference",
     "new_id",
     "stats",
 ]
