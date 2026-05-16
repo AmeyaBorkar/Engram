@@ -119,8 +119,13 @@ class Memory:
         # Use the stronger model for abstraction extraction +
         # contradiction MERGE when provided. Abstraction quality is
         # irreversible -- bad abstractions can't be recovered later.
-        # The cheap retrieval / answering path can run on the
-        # smaller `chat`.
+        # The cheap retrieval / answering path can run on the smaller
+        # `chat`.
+        #
+        # NOTE: passing `consolidate_chat=None` does NOT disable
+        # abstraction synthesis — it falls back to the regular `chat`.
+        # If the goal is to forbid consolidation entirely, construct
+        # the Memory with `chat=None` and the consolidator stays None.
         self._consolidate_chat = consolidate_chat if consolidate_chat is not None else chat
         self._tenant_id = tenant_id
         self._clock: Callable[[], datetime] = clock or _utcnow
