@@ -1411,13 +1411,36 @@ class Memory:
         """Return the per-tenant Level.GLOBAL user-state item, or None.
 
         Filters by tenant_id when this Memory was constructed with one.
+
+        The user-state is a per-tenant singleton by design.  If two
+        rows in the GLOBAL level both carry the user_state flag for
+        the same tenant (corrupt state — direct SQL surgery, partial
+        restore, an older version that didn't enforce uniqueness),
+        raise so the caller doesn't silently consume one and miss
+        the other.
         """
+        matches: list[MemoryItem] = []
         for item in self._storage.iter_memory_items(level=Level.GLOBAL):
-            if self._tenant_id is not None and item.tenant_id != self._tenant_id:
+            # Strict equality on tenant_id: an untenanted Memory
+            # (tenant_id=None) sees only untenanted items; a tagged
+            # Memory sees only its own tenant.  The previous filter
+            # `self._tenant_id is not None and item.tenant_id !=
+            # self._tenant_id` let untenanted Memory see EVERY
+            # user-state across tenants, which then tripped the
+            # new singleton check below.
+            if item.tenant_id != self._tenant_id:
                 continue
             if item.metadata.get(self._USER_STATE_FLAG):
-                return item
-        return None
+                matches.append(item)
+        if not matches:
+            return None
+        if len(matches) > 1:
+            raise RuntimeError(
+                f"user-state singleton invariant violated: found {len(matches)} "
+                f"GLOBAL items flagged engram_user_state for tenant "
+                f"{self._tenant_id!r}; expected at most one"
+            )
+        return matches[0]
 
     def _delete_memory_item(self, item_id: UUID) -> None:
         """Hard-delete a memory item + its embedding.
