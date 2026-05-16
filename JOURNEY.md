@@ -24,12 +24,15 @@ Session began with v0.1.0 on disk (Stage 6 complete), `engram-memory` as the pla
 14. [The has_answer discovery: event-level ground truth](#14-the-has_answer-discovery-event-level-ground-truth)
 15. [Full event-level recall sweep](#15-full-event-level-recall-sweep)
 16. [Zero-recall failure-mode classification](#16-zero-recall-failure-mode-classification)
-17. [Current state](#17-current-state)
-18. [Next steps](#18-next-steps)
-19. [Appendix A — Commit log](#appendix-a--commit-log)
-20. [Appendix B — Scripts shipped](#appendix-b--scripts-shipped)
-21. [Appendix C — Source changes](#appendix-c--source-changes)
-22. [Appendix D — Headline numbers](#appendix-d--headline-numbers)
+17. [Full-23 trace classification — within-session vs true distractor](#17-full-23-trace-classification--within-session-vs-true-distractor)
+18. [Security audit (between sessions)](#18-security-audit-between-sessions)
+19. [k=20 and rerank-off experiments — the breakthrough](#19-k20-and-rerank-off-experiments--the-breakthrough)
+20. [Current state](#20-current-state)
+21. [Next steps](#21-next-steps)
+22. [Appendix A — Commit log](#appendix-a--commit-log)
+23. [Appendix B — Scripts shipped](#appendix-b--scripts-shipped)
+24. [Appendix C — Source changes](#appendix-c--source-changes)
+25. [Appendix D — Headline numbers](#appendix-d--headline-numbers)
 
 ---
 
@@ -653,7 +656,173 @@ Realistic estimate: **k=20 would recover 8-10 of 13 zero-recall failures**, lift
 
 ---
 
-## 17. Current state
+## 17. Full-23 trace classification — within-session vs true distractor
+
+After the JOURNEY's first cut (which covered 13 of 23 traces), the remaining traces completed and the analyzer was re-run on the full set. The picture is cleaner.
+
+### Failure class distribution (full n=23)
+
+| Class | Count | % |
+|---|---:|---:|
+| `competing_session` | 14 | 61% |
+| `rerank_pushed_gold_out` | 6 | 26% |
+| `session_miss` | 2 | 9% |
+| `gold_at_deep_dense_rank` | 1 | 4% |
+
+`competing_session` (some session captures ≥5 of top-10 slots) is the dominant class. But the analyzer's bucket name conflates two very different mechanisms — checking the dominator's session-suffix against each question's `answer_session_ids` reveals which.
+
+### Reclassified by what's actually competing (n=23)
+
+| True mechanism | Count | % | What's happening |
+|---|---:|---:|---|
+| **within-session ranking failure** | **12** | **52%** | The "dominator" session IS the answer session. We retrieved 5-9 turns from it, but none are the `has_answer=True` turn — the gold turn ranks below k=10 within the same session. |
+| **true distractor session** | 11 | 48% | An off-topic session captures top-10. Gold session may be in dense top-50 (and rerank pushed it out, or gold sits at deep rank) but a different session wins the rerank. |
+
+### Mechanism × qtype (full 23)
+
+| | multi | sss-asst | sss-pref | sss-user | temporal | total |
+|---|---:|---:|---:|---:|---:|---:|
+| within-session | 3 | 1 | 2 | 0 | 6 | **12** |
+| true distractor | 1 | 0 | 2 | 1 | 4 | 8 |
+| session miss | 0 | 0 | 1 | 0 | 1 | 2 |
+| gold deep | 0 | 0 | 0 | 0 | 1 | 1 |
+| **total** | **4** | **1** | **5** | **1** | **12** | **23** |
+
+### What the 23 reveal that the 13 didn't
+
+| Observation | Why it matters |
+|---|---|
+| `rerank_pushed_gold_out` is 26% of zero-recall (6 of 23) | The cross-encoder is meaningfully misordering on a quarter of these failures — worth ablating |
+| Temporal-reasoning is the dominant failing qtype (12 of 23 = 52%) | Within-session/true-distractor split is 6/5 here — temporal pain is structural, not one-sided |
+| 3 of 6 `rerank_pushed_gold_out` cases are within-session | Even when gold is at dense rank 1 in the right session, rerank can drop it — the cross-encoder isn't blanket-biased toward gold sessions |
+
+### Updated k=20 recovery prediction (made before running the experiment)
+
+| Failure mechanism | Count | Recover at k=20? |
+|---|---:|:---:|
+| within-session | 12 | mostly yes — gold turn likely at rank 11-25 dense; bigger pool catches it |
+| true distractor + rerank pushed gold out | 3 | likely yes — gold WAS dense top-10; bigger pool puts it back |
+| true distractor — competing dominates | 5 | maybe partial |
+| gold at deep dense rank (1, gold @ rank 24) | 1 | yes (just inside k=20 boundary) |
+| session miss | 2 | no |
+
+Predicted realistic recovery: 13-17 of 23 zero-recall failures. Predicted lift: 0.841 → 0.86-0.87 event-level recall.
+
+---
+
+## 18. Security audit (between sessions)
+
+User did a security audit and fix pass between iterations of this journey. Five commits visible in `git log`, all keyed to M-numbered issues:
+
+| SHA | Subject |
+|---|---|
+| `5bd4b3f` | agent: verify retry symmetry — no double-reinforce, vote on retry (M-47, M-187) |
+| `7214504` | memory: protect _USER_STATE_FLAG from caller metadata overlay (M-181, M-188) |
+| `7a518e5` | verify: document the locally-scoped last_response in verify loop (M-196) |
+| `61ce3d1` | docs(security): rewrite SECURITY.md as full threat model |
+| `ad894b3` | memory: serial-fallback _parallel_leaf_retrieves on :memory: (M-25) |
+
+Adjacent quality-of-life changes during the same window (visible in working-tree diffs):
+
+| Change | File |
+|---|---|
+| Dependency upper bounds added (`pydantic<3`, `numpy<3`, `openai<3`, `anthropic<1`) so a future install can't pull a breaking major | `pyproject.toml` |
+| Removed `[postgres]`, `[duckdb]`, `[sqlite-vec]` extras (no in-tree consumer) | `pyproject.toml` |
+| `__version__` now read from `importlib.metadata` (`engrampy`) instead of hardcoded | `src/engram/__init__.py` |
+
+None of these changed retrieval behaviour, so prior evaluation results remain valid.
+
+---
+
+## 19. k=20 and rerank-off experiments — the breakthrough
+
+User ran two retrieval-only experiments in parallel directions to disentangle the levers, each ~3 hours on all 500 questions:
+
+- **k=20**: same config as baseline, top-k raised from 10 to 20. Tests the within-session hypothesis.
+- **no rerank, k=10**: `--reranker none` to test whether the reranker is net positive (we knew it pushed gold out in 6 of 23 zero-recall failures; question was whether it salvages more cases than it breaks).
+
+### Headline (n=500, baseline config + the tested change, no LLM)
+
+| Run | Sess R@10 | Evt R@10 (all 500) | Evt R@k (evaluable 479) | Full recall (382 was baseline) | Zero recall |
+|---|---:|---:|---:|---:|---:|
+| baseline k=10 | 0.966 | 0.841 | 0.878 | 382 (76.4%) | 23 |
+| **k=20** | **0.986** | **0.898** | **0.937** | **423 (84.6%)** | **11** |
+| no rerank, k=10 | 0.939 | 0.796 | 0.831 | 353 (70.6%) | 35 |
+
+**k=20 lifts event-level recall by +5.7 absolute points (0.841 → 0.898)**. Within 6 points of the theoretical ceiling on evaluable questions (0.937 vs 1.000).
+
+**No-rerank loses 4.5 points and introduces 22 new zero-recall regressions**. The reranker is decisively net-positive.
+
+### Per-qtype impact (event-level recall)
+
+| qtype | n | baseline | k=20 | norerank | k=20 Δ | norerank Δ |
+|---|---:|---:|---:|---:|---:|---:|
+| sss-user | 70 | 0.900 | 0.900 | 0.886 | +0.000 | −0.014 |
+| sss-assistant | 56 | 0.982 | 0.982 | 0.929 | +0.000 | −0.054 |
+| **sss-preference** | 30 | 0.733 | **0.878** | 0.778 | **+0.144** | +0.044 |
+| **multi-session** | 133 | 0.757 | **0.852** | 0.721 | **+0.095** | −0.036 |
+| knowledge-update | 78 | 0.904 | 0.923 | 0.823 | +0.019 | −0.081 |
+| **temporal-reasoning** | 133 | 0.821 | **0.896** | 0.755 | **+0.074** | −0.067 |
+| **overall** | 500 | 0.841 | **0.898** | 0.796 | **+0.057** | −0.045 |
+
+Hardest qtypes (preference, multi-session, temporal) benefit the most from k=20 — exactly what the within-session hypothesis predicted.
+
+### Recovery of the 23 baseline zero-recall failures
+
+| Config | Full recovery | Partial recovery | Still zero | NEW zero-recall introduced |
+|---|---:|---:|---:|---:|
+| k=20 | 5 | 7 | 11 | **0** |
+| no rerank | 4 | 6 | 13 | **22** |
+
+k=20 recovers 12 of 23 with zero collateral damage. No-rerank recovers 10 but breaks 22 others — net loss.
+
+### Distribution shift (event-level recall buckets across 500 questions)
+
+| Bucket | baseline | k=20 | norerank |
+|---|---:|---:|---:|
+| evt R = 0 | 44 | **32** | 56 |
+| evt R in (0, 0.25] | 5 | 2 | 5 |
+| evt R in (0.25, 0.5] | 45 | **20** | 71 |
+| evt R in (0.5, 0.75] | 23 | 19 | 14 |
+| evt R in (0.75, 1.0) | 1 | 4 | 1 |
+| evt R = 1.0 | 382 | **423** | 353 |
+
+k=20 moves the distribution sharply right: **−25 in the (0.25, 0.5] bucket, +41 to full recall**.
+
+### Verdict per protocol gates
+
+| Gate | k=20 | no-rerank |
+|---|:---:|:---:|
+| Paired Δ recall CI excludes zero | ✓ +0.057 (positive side) | ✗ −0.045 (negative side) |
+| McNemar on zero-recall recovery | ✓ 12 recoveries, 0 regressions | ✗ 10 recoveries, 22 regressions |
+| No per-qtype regression > 0.02 | ✓ no qtype regresses | ✗ 5 qtypes regress |
+
+**k=20 passes all three gates. Ship it. No-rerank fails all three. Keep the reranker.**
+
+### What's still zero at k=20 (the hard wall, 11 questions)
+
+- 2 session-miss cases (gold not in dense top-50 at all)
+- ~5-7 true-distractor cases where the off-topic session dominates even k=20
+- Possibly some embedder mismatches
+
+Need: stronger embedder, query rewriting (HyDE / decompose), or consolidation. Pure k-bump won't help.
+
+### Updated launch config
+
+```powershell
+python -m engram.bench run longmemeval `
+  --embedder local --embed-model BAAI/bge-large-en-v1.5 --embed-device cuda --dtype fp32 `
+  --chat opencode-go --chat-model kimi-k2.6 `
+  --reranker bge --k 20 --seed 1337 `
+  --rerank-pool-multiplier 5 `
+  --auto-temporal --surface-conflicts
+```
+
+Single new flag vs the JOURNEY's earlier recommendation: `--k 20` (was `--k 10`).
+
+---
+
+## 20. Current state
 
 ### Codebase
 
@@ -663,22 +832,28 @@ Realistic estimate: **k=20 would recover 8-10 of 13 zero-recall failures**, lift
 - `has_answer` preserved through ingest into `Event.metadata`.
 - 9 evaluation/analysis scripts under `scripts/`.
 - One protocol doc under `docs/EVAL_PROTOCOL.md`.
+- Security audit pass complete (5 M-numbered fix commits).
+- Dependency upper bounds + pruned dead extras (`pyproject.toml`).
+- `__version__` now sourced from `importlib.metadata`.
 
 ### Evaluation evidence
 
 - `benchmarks/runs/eval_all_20260515_024020/` — full orchestrator run (Phase 1-5).
-- `benchmarks/runs/inspect_full_20260515_094836/` — event-level recall over all 500 questions × 6 qtypes.
-- `benchmarks/runs/traces_zero_recall/` — failure traces for the 23 zero-recall questions (13 complete at time of writing).
+- `benchmarks/runs/inspect_full_20260515_094836/` — event-level recall, baseline k=10 over all 500 questions × 6 qtypes.
+- `benchmarks/runs/inspect_k20_20260516_004707/` — event-level recall, k=20 over all 500 questions.
+- `benchmarks/runs/inspect_norerank_20260516_040506/` — event-level recall, rerank disabled over all 500 questions.
+- `benchmarks/runs/traces_zero_recall/` — failure traces for the 23 zero-recall questions (full set + analyzer output).
 - `benchmarks/runs/ablation_*.json` (5 files) — per-qtype ablation from earlier session.
 
-### Known truth
+### Known truth (post-k=20)
 
 1. **Retrieval components are all mathematically correct** (33/33 unit tests).
-2. **Baseline retrieval is at 0.97 session-level / 0.88 event-level recall** — strong but not at ceiling.
-3. **No hybrid feature passes the protocol gate** for shipping. `autotemp` and `recent` are recall-neutral.
-4. **bm25 × mmr is a true catastrophe on multi-session**; recency is broadly negative; recent-window force-feeds noise.
-5. **Multi-session and single-session-preference have ~25% event-level miss rates** hidden by the session-level proxy.
-6. **The dominant failure mechanism is "within-session ranking"** — opening turns introducing a topic get out-competed by continuation turns within the same session.
+2. **Best-config retrieval is at 0.99 session-level / 0.94 event-level recall** (k=20) — within 6 points of ceiling.
+3. **k=20 ships at all three protocol gates** (Δ +0.057 with no per-qtype regression).
+4. **Reranker is decisively net-positive** — disabling it loses 4.5 points and adds 22 new zero-recall failures.
+5. **No hybrid feature** (bm25, mmr, recency, recent-window) passes the gate; `autotemp` and `surface-conflicts` are recall-neutral keepers.
+6. **The remaining 6-point gap on evaluable questions** is mostly true-distractor sessions and 2 session-miss cases — needs consolidation, stronger embedder, or query rewriting (not k-bump).
+7. **The SOTA gap is now decisively in the LLM stage** — retrieval finds the gold turn 93.7% of the time on evaluable questions.
 
 ### Recommended launch config (passes all protocol gates)
 
@@ -686,7 +861,7 @@ Realistic estimate: **k=20 would recover 8-10 of 13 zero-recall failures**, lift
 python -m engram.bench run longmemeval `
   --embedder local --embed-model BAAI/bge-large-en-v1.5 --embed-device cuda --dtype fp32 `
   --chat opencode-go --chat-model kimi-k2.6 `
-  --reranker bge --k 10 --seed 1337 `
+  --reranker bge --k 20 --seed 1337 `
   --rerank-pool-multiplier 5 `
   --auto-temporal --surface-conflicts
 ```
@@ -694,25 +869,26 @@ python -m engram.bench run longmemeval `
 ### Open methodological gaps (not blocking)
 
 - Sweep used `qtype=None` (silently selected sss-user first-30) — should be patched to sweep per-qtype.
-- n=30 is too small for paired CIs to distinguish ≤5% effects.
+- n=30 is too small for paired CIs to distinguish ≤5% effects (the n=500 k=20 experiment doesn't have this problem).
 - No reference-impl comparison (e.g., `rank-bm25` against our `BM25Index`).
 - No slice analysis by question features (year tokens, n-sessions, length, proper-noun density).
 - 21 questions in the dataset have no `has_answer=True` turns; event-recall computation can't evaluate them.
+- k=30 / k=50 untested — diminishing returns expected but unconfirmed.
 
 ---
 
-## 18. Next steps
+## 21. Next steps
 
-In order of expected ROI for SOTA push:
+The k=20 experiment closed off the cheapest retrieval-side lever. Remaining work, in order of expected ROI:
 
 | Priority | Action | Cost | Expected impact |
 |---|---|---|---|
-| 1 | **Re-run `inspect_retrieval.py` with `--k 20`** on all 500 questions | ~3 hr GPU | Confirm or refute the within-session hypothesis; expect event R@k 0.84 → 0.86-0.88 |
-| 2 | Dump the remaining 10 zero-recall traces and re-run the classifier on the full 23 | ~10 min | Confirm the failure-mode breakdown holds at full sample |
-| 3 | If k=20 helps: ship as a new gate-passing config; run the LLM end-to-end with it | ~4 hr LLM | Confirm event-level lift translates to end-to-end accuracy |
-| 4 | Within-session over-sampling (force ≥3 turns per surfaced session into top-10) | ~50 lines | Directly targets the within-session mechanism |
-| 5 | Consolidation (Engram's novelty) — per-question summary memory items | ~1 LLM call per cluster at ingest | Replaces "find right turn" with "find right summary" |
-| 6 | LLM-side levers (CoT, verify pass, self-consistency, stronger answer model) | $$ LLM cost | The remaining ~10-15 point gap after retrieval lift |
+| 1 | **End-to-end LLM run with the new launch config** (k=20 + autotemp + surface-conflicts) | ~4-6 hr LLM | Confirm event-level lift translates to end-to-end accuracy. Predicted: 0.78-0.83 vs prior killed run's mid-0.70s. |
+| 2 | Test k=30 / k=50 to find diminishing returns | ~3 hr each | Maybe another 2-3 points if true-distractor cases relax |
+| 3 | Slice analysis on the 11 remaining zero-recall failures at k=20 | ~30 min | Identify whether consolidation or query rewriting is the right next lever |
+| 4 | Within-session over-sampling (force ≥3 turns per surfaced session) | ~50 lines | Could close the within-session gap further without raising k |
+| 5 | Consolidation (Engram's novelty) — per-question summary memory items | 1 LLM call per cluster at ingest | Replaces "find right turn" with "find right summary"; targets the true-distractor cases |
+| 6 | LLM-side levers (CoT, verify pass, self-consistency, stronger answer model) | $$ LLM cost | The remaining ~15-20 point gap after retrieval lift |
 | 7 | File PEP 541 reclaim for `engram-memory` (active squat by unrelated party) | clerical | Reclaim the canonical PyPI name |
 | 8 | Patch the orchestrator's sweep to set per-knob target qtype | ~10 lines | Sweep would actually test where features matter |
 
@@ -738,6 +914,12 @@ All commits this session, oldest first:
 | `d8373e0` | inspect: --limit defaults to None (all matching) instead of 1 |
 | `41a0eb8` | bench: scripts/batch_trace.py — share embedder across many qid traces |
 | `07a8acd` | bench: trace parser + failure-mode classifier for zero-recall analysis |
+| `7c3da59` | docs: add JOURNEY.md — session record of the engrampy v0.2 push |
+| `5bd4b3f` | agent: verify retry symmetry — no double-reinforce, vote on retry (M-47, M-187) |
+| `7214504` | memory: protect _USER_STATE_FLAG from caller metadata overlay (M-181, M-188) |
+| `7a518e5` | verify: document the locally-scoped last_response in verify loop (M-196) |
+| `61ce3d1` | docs(security): rewrite SECURITY.md as full threat model |
+| `ad894b3` | memory: serial-fallback _parallel_leaf_retrieves on :memory: (M-25) |
 
 Tags pushed: `v0.2.0`, `v0.2.1`.
 
@@ -790,18 +972,29 @@ Tags pushed: `v0.2.0`, `v0.2.1`.
 
 ## Appendix D — Headline numbers
 
-### Retrieval correctness (n=500, baseline, k=10, fp32)
+### Retrieval correctness (n=500, baseline + reranker, fp32)
 
-| Metric | Value |
-|---|---|
-| Session-level recall | 0.966 |
-| Event-level recall (over all 500) | 0.841 |
-| Event-level recall (over 479 evaluable) | **0.878** |
-| Full event-level recall rate | 79.7% |
-| Partial event-level recall rate | 15.4% |
-| Zero event-level recall rate | 4.8% |
-| Per-qtype event-level recall floor | sss-pref 0.733, multi 0.757 |
-| Per-qtype event-level recall ceiling | sss-asst 0.982 |
+| Metric | k=10 (was) | **k=20 (now)** |
+|---|---|---|
+| Session-level recall | 0.966 | **0.986** |
+| Event-level recall (over all 500) | 0.841 | **0.898** |
+| Event-level recall (over 479 evaluable) | 0.878 | **0.937** |
+| Full event-level recall rate | 76.4% | **84.6%** |
+| Partial event-level recall rate | 14.8% | 9.0% |
+| Zero event-level recall rate (when gold exists) | 4.8% | **2.3%** |
+| Per-qtype event-level recall floor | sss-pref 0.733 | **sss-pref 0.878** |
+| Per-qtype event-level recall ceiling | sss-asst 0.982 | sss-asst 0.982 |
+
+### Rerank impact (norerank vs baseline, k=10, n=500)
+
+| Metric | baseline + reranker | norerank | Δ |
+|---|---|---|---|
+| Event-level recall (all 500) | 0.841 | 0.796 | **−0.045** |
+| Full recall count | 382 | 353 | −29 |
+| Zero recall count | 44 | 56 | +12 |
+| Zero-recall regressions added | n/a | 22 | n/a |
+
+Reranker is decisively net positive.
 
 ### Component correctness
 
@@ -828,16 +1021,25 @@ Tags pushed: `v0.2.0`, `v0.2.1`.
 | `bm25+mmr` | FAIL (multi −0.137) |
 | `all_aggressive` | FAIL (multi −0.295, temporal −0.161) |
 
-### Failure mode breakdown (zero-recall questions, n=13 of 23)
+### Failure mode breakdown (zero-recall questions, full n=23)
 
-| Mode (post-reclassification) | Count |
+| Mode (post-reclassification) | Count | % |
+|---|---:|---:|
+| within-session ranking failure | 12 | 52% |
+| true distractor session | 11 | 48% |
+| — of which rerank pushed gold out | 3 | — |
+| — of which gold at deep dense rank | 1 | — |
+| — of which complete session miss | 2 | — |
+
+### k=20 recovery (of the 23 baseline zero-recall failures)
+
+| Outcome | Count |
 |---|---:|
-| within-session ranking failure | 5 |
-| true distractor session | 4 |
-| rerank pushed gold out | 2 |
-| gold at deep dense rank | 1 |
-| session miss | 1 |
+| Full recovery (event recall went to 1.0) | 5 |
+| Partial recovery (event recall went to (0, 1)) | 7 |
+| Still zero at k=20 | 11 |
+| New zero-recall introduced | **0** |
 
 ---
 
-*End of journey. Last updated 2026-05-15, after the zero-recall failure analysis on 13 of 23 traces.*
+*Last updated 2026-05-16, after the k=20 and rerank-off experiments confirmed k=20 as a gate-passing launch addition.*
