@@ -1535,7 +1535,11 @@ class Memory:
         for users who want to auto-detect; this method assumes the
         decision has already been made.
 
-        Returns `(event, preference_item)`.
+        Returns ``(event, preference_item)`` — a tuple, not the single
+        MemoryItem that ``record_topic`` / ``record_procedure`` return.
+        The asymmetric shape is deliberate: the caller often wants both
+        ids to wire downstream provenance (the event id for ``observe``-
+        flow auditing, the item id to retrieve later).
         """
         event = Event(content=content, source=source, tenant_id=self._tenant_id)
         vector = self._embedder.embed([content])[0]
