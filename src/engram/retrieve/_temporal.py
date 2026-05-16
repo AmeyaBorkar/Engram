@@ -178,7 +178,16 @@ def compute_temporal_anchor(
     except ValueError:
         return None
     if parsed.tzinfo is None:
+        # Caller asked for ISO-8601 UTC in the prompt; if the LLM
+        # omitted the zone we treat the value as UTC.
         parsed = parsed.replace(tzinfo=timezone.utc)
+    else:
+        # Normalize any tz-aware datetime to UTC.  An LLM may emit
+        # '+05:30' or 'Z' or '+00:00' — semantically identical but
+        # they compare unequal as datetimes (different tzinfo
+        # objects), which breaks downstream cache keys and equality
+        # tests that work on the anchor.
+        parsed = parsed.astimezone(timezone.utc)
     return parsed
 
 
