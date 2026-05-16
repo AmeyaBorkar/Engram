@@ -889,6 +889,92 @@ What it DOES unwind is **the link from retrieval to end-to-end accuracy**:
 
 Before any SOTA-claiming LLM run lands on `SCOREBOARD.md`, **H-78 (judge) and H-77 (error accounting) MUST be fixed**. H-80 (seeding) and H-76 (manifest config) should land alongside for the same record.
 
+### 20a. Joined retrieval × LLM 2×2 — the SOTA gap is 4:1 toward LLM, not 50/50
+
+A separate post-audit analysis joined `inspect_full_20260515_094836` (event-level recall, k=10) with the 71.4% v0.1.0 release manifest (`0b6dfa53`, same k=10 config). The cross-tab over all 500 questions:
+
+| | n | % | meaning |
+|---|---:|---:|---|
+| retrieve hits ≥1 gold turn AND LLM correct | 343 | 68.6% | working as intended |
+| retrieve hits ≥1 gold turn AND LLM wrong | 113 | **22.6%** | **LLM-stage loss** — retrieval did its job, LLM failed |
+| retrieve miss all gold AND LLM correct | 14 | 2.8% | lucky / world-knowledge |
+| retrieve miss all gold AND LLM wrong | 30 | **6.0%** | **retrieval-stage loss** — gold not in top-10 |
+
+**This invalidates the earlier "split roughly evenly between retrieval and LLM" claim** at the top of this section. The actual ratio is ~3.77:1 in favor of LLM-stage loss. Retrieval is ~4× smaller a lever than the LLM stage at the end-to-end level.
+
+#### The 81-question hard wall — perfect retrieval, LLM still failed
+
+Of the 113 LLM-stage losses, **81 had event_recall = 1.0** — every single `has_answer=True` turn was in the LLM's top-10 context. The LLM still produced a wrong answer.
+
+| Failure shape within the 81 | Count |
+|---|---:|
+| Said "I don't know" with the answer literally in the prompt | 52 (64%) |
+| Confidently produced a wrong number / value | 19 |
+| Partial / off-by-one answer | 10 |
+
+By qtype:
+
+| qtype | hard-wall count | what the question actually wants |
+|---|---:|---|
+| multi-session | 24 | arithmetic over multiple turns ("total weight", "how many hours", "total distance") |
+| temporal-reasoning | 21 | date arithmetic ("how many weeks since", "how long before") |
+| knowledge-update | 19 | pick the latest value when many are present |
+| single-session-preference | 10 | synthesize a preference statement ("user would prefer X") |
+| sss-user / sss-assistant | 7 | refusal under clear evidence |
+
+#### "I don't know" is the single biggest leak
+
+| | count / rate |
+|---|---:|
+| Total "I don't know" responses in the 500-question run | 100 (20%) |
+| Of those, scored wrong (gold existed) | 93 |
+| Refusal rate among LLM-stage losses (temporal-reasoning) | 78.6% |
+| Refusal rate among LLM-stage losses (sss-user) | 75.0% |
+| Refusal rate among LLM-stage losses (multi-session) | 46.7% |
+| Conditional accuracy when retrieval is perfect (event_recall=1.0) | **78.8%** |
+
+Even with the ground truth in context, the answer model refuses 21% of the time.
+
+#### What k=20 actually buys end-to-end (revised)
+
+The §19 "k=20 lifts event-level recall by +5.7" is correct at the retrieval level. The end-to-end translation is **much smaller**, bounded by conditional accuracy on the questions whose retrieval changes:
+
+| | Value |
+|---|---:|
+| Retrieval-stage losses at k=10 | 30 |
+| Of those, recovered at k=20 (event_hit 0 → ≥1) | 5 |
+| Conditional accuracy on questions where retrieval hits | 75.2% |
+| Theoretical end-to-end ceiling from k=20 lift | ~30 × 0.75 ≈ +4.4 pts |
+| Realistic end-to-end lift estimate | **+1-2 pts** |
+
+The earlier "predicted 0.78-0.83 end-to-end" was unfounded extrapolation and is **retracted**. The honest claim is "+1-2 pts at the end-to-end level" — bounded by how often the LLM converts a newly-retrieved gold turn into a correct answer.
+
+#### Three contaminants making the 71.4% benchmark number soft
+
+| Contaminant | Effect on reported 71.4% |
+|---|---|
+| Same-model judge (Kimi K2.6 answers AND judges) | +3-7 pts self-preference inflation (per SCOREBOARD notes) |
+| H-77 swallowed exceptions counted as score=0 | unknown fraction of 143 wrong answers are infra failures, not wrong answers |
+| H-78 judge parser divergence from official LongMemEval | of the 93 wrong-scored "I don't know" responses, some may be false negatives |
+
+Estimated "real" baseline under official scoring + 3rd-party judge: **64-68%** (a band, not a number).
+
+#### Strategic implication — where the SOTA budget should go
+
+The 81 hard-wall failures cluster into mechanisms, none of which retrieval tuning can address:
+
+| Mechanism | Hard-wall count | Engram feature that targets it |
+|---|---:|---|
+| Arithmetic / aggregation | 24 | Consolidation — pre-computed rollups per topic |
+| Temporal arithmetic | 21 | Consolidation — events with explicit date math at ingest |
+| Latest-value resolution | 19 | Contradiction resolver with `valid_until` / PREFER_RECENT |
+| Preference synthesis | 10 | Consolidation — explicit preference extraction |
+| Refusal under evidence | 7 | Prompt engineering on the answer side; not Engram-shaped |
+
+This reframes the project thesis: **the next 10-15 pts live in consolidation, not retrieval tuning**. Specifically the move "find right turn → find right summary" — replacing N raw turns the LLM must aggregate, with 1 pre-aggregated abstraction the LLM only needs to recognize.
+
+This is also the only headline lift that is **attributable to the Engram hierarchy** rather than to "bigger model" or "better retriever." (a) bigger LLM helps any vector DB. (c) tool-use / CoT is generic LLM engineering. (b) consolidation is the only one that says "the hierarchy matters."
+
 ---
 
 ## 21. Current state
@@ -914,15 +1000,17 @@ Before any SOTA-claiming LLM run lands on `SCOREBOARD.md`, **H-78 (judge) and H-
 - `benchmarks/runs/traces_zero_recall/` — failure traces for the 23 zero-recall questions (full set + analyzer output).
 - `benchmarks/runs/ablation_*.json` (5 files) — per-qtype ablation from earlier session.
 
-### Known truth (post-k=20)
+### Known truth (post-audit-reframe)
 
 1. **Retrieval components are all mathematically correct** (33/33 unit tests).
 2. **Best-config retrieval is at 0.99 session-level / 0.94 event-level recall** (k=20) — within 6 points of ceiling.
 3. **k=20 ships at all three protocol gates** (Δ +0.057 with no per-qtype regression).
 4. **Reranker is decisively net-positive** — disabling it loses 4.5 points and adds 22 new zero-recall failures.
 5. **No hybrid feature** (bm25, mmr, recency, recent-window) passes the gate; `autotemp` and `surface-conflicts` are recall-neutral keepers.
-6. **The remaining 6-point gap on evaluable questions** is mostly true-distractor sessions and 2 session-miss cases — needs consolidation, stronger embedder, or query rewriting (not k-bump).
-7. **The SOTA gap is now decisively in the LLM stage** — retrieval finds the gold turn 93.7% of the time on evaluable questions.
+6. **The end-to-end gap is 4:1 in the LLM's favor** — 22.6% LLM-stage loss vs 6.0% retrieval-stage loss on the v0.1.0 release manifest. The k=20 retrieval lift translates to ~+1-2 pts end-to-end, not the +5.7 the retrieval-only number suggests.
+7. **81 of 113 LLM-stage losses are hard-wall** — retrieval was perfect (event_recall=1.0), LLM still failed, 64% by refusing ("I don't know" with answer in prompt).
+8. **The next big lift is consolidation**, not retrieval tuning — it's the only Engram-attributable mechanism that targets the hard-wall failure modes (aggregation, latest-value, preference synthesis).
+9. **The reported 71.4% release number has three contaminants** — same-model judge (+3-7 pts inflation), H-77 errors-as-zero, H-78 judge parser drift. Estimated "real" baseline: 64-68%.
 
 ### Recommended launch config (passes all protocol gates)
 
@@ -948,23 +1036,55 @@ python -m engram.bench run longmemeval `
 
 ## 22. Next steps
 
-The audit re-ordered priorities. Anything that would land on `SCOREBOARD.md` now needs the bench-side correctness fixes first. Within retrieval, k=20 closed the cheapest lever.
+The joined 2×2 analysis in §20a flipped the priority stack. Consolidation moves up; retrieval tuning moves down. Bench-side audit fixes are still pre-requisites for any number that lands on `SCOREBOARD.md`.
 
-| Priority | Action | Cost | Why |
+### Critical path (must land before any SOTA-claiming run)
+
+| # | Action | Cost | Why |
 |---|---|---|---|
-| **1** | **Fix H-78 (judge parser) + H-77 (error accounting)** in `benchmarks/suites/longmemeval.py` | ~30 lines | Pre-requisite for any LongMemEval LLM accuracy number to be honest. Match the official scorer; separate `n_errored` from `n_correct/n_completed`. |
-| **2** | **Fix H-80 (incomplete seeding)** — seed numpy / torch / transformers / sentence-transformers | ~10 lines | Reproducibility; required to call any new run an evidence-of-record. |
-| **3** | Fix H-76 (populate `engram_config` in manifest) | ~15 lines | Manifest becomes self-describing; reproducibility. |
-| 4 | **End-to-end LongMemEval LLM run with new launch config + new judge** | ~4-6 hr LLM | First honest, comparable LongMemEval score. Expected magnitude: high-70s to low-80s; only the post-fix run can be compared to published numbers. |
-| 5 | Test k=30 / k=50 to find diminishing returns | ~3 hr each | Maybe another 2-3 points if true-distractor cases relax |
-| 6 | Slice analysis on the 11 remaining zero-recall failures at k=20 | ~30 min | Identify whether consolidation or query rewriting is the right next lever |
-| 7 | Within-session over-sampling (force ≥3 turns per surfaced session) | ~50 lines | Could close the within-session gap further without raising k |
-| 8 | Consolidation (Engram's novelty) — per-question summary memory items | 1 LLM call per cluster at ingest | Replaces "find right turn" with "find right summary"; targets the true-distractor cases |
-| 9 | LLM-side levers (CoT, verify pass, self-consistency, stronger answer model) | $$ LLM cost | The remaining ~15-20 point gap after retrieval lift |
-| 10 | Fix C-05 (vectorize bench BM25 baseline) before any "engram-vs-baseline" comparison | ~30 lines | Required for any direct comparison claim to be honest |
-| 11 | Fix C-03 + C-04 (LoCoMo exact match + normalization) before running the LoCoMo suite | ~40 lines | Required before any LoCoMo number is comparable to published |
-| 12 | File PEP 541 reclaim for `engram-memory` (active squat by unrelated party) | clerical | Reclaim the canonical PyPI name |
-| 13 | Patch the orchestrator's sweep to set per-knob target qtype | ~10 lines | Sweep would actually test where features matter |
+| 1 | **Fix H-78 (judge parser)** — match official LongMemEval scorer | ~10 lines | Some of the 93 wrong-scored "I don't know" responses may be false negatives |
+| 2 | **Fix H-77 (error accounting)** — split `n_errored` from `n_completed` | ~20 lines | An unknown fraction of 143 "wrong" answers are infra failures (content filter, 429) |
+| 3 | **Fix H-80 (seeding)** — seed numpy/torch/transformers/sentence-transformers | ~10 lines | Required to call any new bench manifest an evidence-of-record |
+| 4 | Fix H-76 (populate `engram_config` in manifest) | ~15 lines | Self-describing manifests; reproducibility |
+| 5 | **Re-judge the 500-question v0.1.0 release run with a 3rd-party LLM** | ~$5-15 LLM | Establish the real baseline under official scoring (estimated 64-68%, not 71.4%) before claiming any lift |
+
+### The decisive experiment for the Engram thesis
+
+| # | Action | Cost | Expected outcome |
+|---|---|---|---|
+| 6 | **Consolidation-on-hard-wall experiment** — run `Memory.aconsolidate()` over the haystacks of the 81 hard-wall failures, then re-retrieve + re-answer. Measure how many flip from wrong to correct. | ~3-5 hr LLM (≈$5-15) | Predicted recovery: 30-50 of 81 → +6 to +10 pts end-to-end. **This is the only experiment that can attribute lift to the Engram hierarchy specifically** rather than to a bigger model or better retriever. |
+| 7 | If (6) recovers ≥20 questions: full 500q run with `--consolidate --k 20 --auto-temporal --surface-conflicts` and the new judge | ~6-8 hr LLM | The headline SOTA bench run |
+
+### Retrieval-side follow-ups (lower priority now)
+
+| # | Action | Cost | Realistic impact |
+|---|---|---|---|
+| 8 | Test k=30 / k=50 retrieval-only | ~3 hr each, no LLM | Maybe +0.5-1 pt end-to-end on top of k=20 |
+| 9 | Within-session over-sampling | ~50 lines | Raises precision; could lift conditional accuracy when retrieval is partial |
+| 10 | Slice analysis on the 11 still-zero-at-k=20 failures | ~30 min | Identifies whether the remaining hard wall is embedder-bounded or query-rewriting-bounded |
+
+### LLM-side follow-ups (for the remaining 15-20 pt headroom)
+
+| # | Action | Cost | When |
+|---|---|---|---|
+| 11 | Verify pass on answers (we already have the plumbing) | 1.5× LLM | After (6) — see if verify catches the 19 confident-wrong answers in the hard wall |
+| 12 | Self-consistency N=3 majority vote on the refusal cluster | 3× LLM | Specifically target the 52 "I don't know with answer in prompt" cases |
+| 13 | Try a stronger answer model (Claude 4.6, GPT-5) on 100 sampled hard-wall failures | ~$5-10 | Establishes whether the refusal mode is Kimi-specific or model-class-general |
+
+### Future suites (blocked on audit fixes)
+
+| # | Action | Why blocked |
+|---|---|---|
+| 14 | Fix C-05 (vectorize bench BM25 baseline) | Required before any "engram-vs-baseline" comparison is honest |
+| 15 | Fix C-03 + C-04 (LoCoMo exact-match + normalization) | Required before any LoCoMo number is comparable to published |
+| 16 | Run LoCoMo suite | After (15) |
+
+### Housekeeping
+
+| # | Action |
+|---|---|
+| 17 | File PEP 541 reclaim for `engram-memory` (active squat by unrelated party) |
+| 18 | Patch the orchestrator's sweep to set per-knob target qtype |
 
 ---
 
@@ -1114,6 +1234,65 @@ Reranker is decisively net positive.
 | Still zero at k=20 | 11 |
 | New zero-recall introduced | **0** |
 
+### End-to-end gap decomposition (n=500, v0.1.0 release manifest, k=10)
+
+| Cell | n | % |
+|---|---:|---:|
+| retrieve ≥1 gold ∧ LLM correct | 343 | 68.6% |
+| retrieve ≥1 gold ∧ LLM wrong (LLM-stage loss) | **113** | **22.6%** |
+| retrieve miss all gold ∧ LLM correct (lucky) | 14 | 2.8% |
+| retrieve miss all gold ∧ LLM wrong (retrieval-stage loss) | **30** | **6.0%** |
+| **Total** | **500** | **100.0%** |
+| End-to-end accuracy | 357 | 71.4% |
+
+LLM-stage loss / retrieval-stage loss ratio = **22.6 / 6.0 ≈ 3.77** — the SOTA gap is ~4:1 toward LLM-stage improvements.
+
+### The 81 hard-wall failures (perfect retrieval, LLM still failed)
+
+| Failure shape | Count |
+|---|---:|
+| "I don't know" with answer in prompt | 52 (64%) |
+| Confidently wrong number / value | 19 |
+| Partial / off-by-one | 10 |
+
+| qtype | hard-wall count | mechanism needed |
+|---|---:|---|
+| multi-session | 24 | arithmetic / rollup |
+| temporal-reasoning | 21 | date arithmetic |
+| knowledge-update | 19 | latest-value resolution |
+| sss-preference | 10 | preference synthesis |
+| sss-user / assistant | 7 | refusal under evidence |
+| **total** | **81** | (mostly consolidation-shaped) |
+
+### Conditional accuracy by retrieval state
+
+| Retrieval state | n | Conditional accuracy |
+|---|---:|---:|
+| Perfect (event_recall = 1.0) | 382 | (382 − 81) / 382 = **78.8%** |
+| Hits at least one gold session | 456 | 343 / 456 = 75.2% |
+| Misses all gold sessions | 44 | 14 / 44 = 31.8% (lucky / world-knowledge) |
+
+### k=20 → end-to-end translation (the honest number)
+
+| | Value |
+|---|---:|
+| Retrieval-stage losses at k=10 | 30 |
+| Of those, recovered at k=20 (event_hit 0 → ≥1) | 5 |
+| Theoretical end-to-end ceiling from k=20 | ~30 × 0.75 = +4.4 pts |
+| Realistic end-to-end lift | **+1-2 pts** |
+
+The earlier "predicted 0.78-0.83 end-to-end at k=20" was retracted.
+
+### Three contaminants on the 71.4% headline
+
+| Contaminant | Impact |
+|---|---|
+| Same-model judge (Kimi answers, Kimi judges) | +3-7 pts inflation |
+| H-77 swallowed exceptions counted as score=0 | unknown count of infra failures mis-labeled as wrong |
+| H-78 judge parser ≠ official LongMemEval | some 93 wrong-scored refusals may be parser-related |
+
+Estimated "real" 71.4% under official scoring with 3rd-party judge: **64-68%**.
+
 ---
 
-*Last updated 2026-05-16, after the codebase-wide audit reclassified the SOTA-validity status of every claim in this session. Retrieval-side findings stand; end-to-end LongMemEval projections need H-77 + H-78 fixes before any score is comparable to published.*
+*Last updated 2026-05-16, after the joined retrieval×LLM 2×2 analysis reframed the SOTA gap as 4:1 toward the LLM stage. Retrieval-side findings stand; the next decisive experiment is consolidation-on-hard-wall, not another retrieval tweak.*
