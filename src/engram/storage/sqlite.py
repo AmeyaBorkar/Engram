@@ -796,51 +796,72 @@ class SqliteStorage:
         if candidate_multiplier < 1:
             raise ValueError(f"candidate_multiplier must be >= 1, got {candidate_multiplier}")
         # Over-fetch from the vector index, then SQL-filter by validity.
+        # If the filter eliminates more candidates than expected (a dataset
+        # heavy with invalidated rows or narrow validity windows), expand
+        # the over-fetch and try again so we still meet `k`.  Capped at
+        # 4 doublings (~16x the original ask) so a corpus that's mostly
+        # historical doesn't spin forever.
         level_values = [level.value for level in levels] if levels else None
         excl_bytes = [iid.bytes for iid in exclude_ids]
-        hits = self._vector_index.search(
-            self._connect(),
-            query_vec,
-            kind=ItemKind.MEMORY_ITEM.value,
-            model=model,
-            rebuild_sql=_INDEX_REBUILD_SQL["memory_item"],
-            levels=level_values,
-            exclude_ids=excl_bytes,
-            include_cold=include_cold,
-            k=k * candidate_multiplier,
-        )
-        if not hits:
-            return []
-        ids = [u for u, _, _ in hits]
-        placeholders = ",".join("?" for _ in ids)
-        if as_of is None:
-            # Default: current-state. Exclude any row that has been
-            # invalidated, regardless of when.
-            sql = (
-                "SELECT id, content FROM memory_items "  # noqa: S608
-                f"WHERE id IN ({placeholders}) "
-                "AND invalidated_at IS NULL"
+        as_of_iso = iso(as_of) if as_of is not None else None
+        attempts = 0
+        max_attempts = 4
+        fetch_multiplier = candidate_multiplier
+        filtered: list[tuple[UUID, str, float]] = []
+        while True:
+            hits = self._vector_index.search(
+                self._connect(),
+                query_vec,
+                kind=ItemKind.MEMORY_ITEM.value,
+                model=model,
+                rebuild_sql=_INDEX_REBUILD_SQL["memory_item"],
+                levels=level_values,
+                exclude_ids=excl_bytes,
+                include_cold=include_cold,
+                k=k * fetch_multiplier,
             )
-            params: list[Any] = [u.bytes for u in ids]
-        else:
-            # As-of mode: surface items whose validity covers `as_of`.
-            as_of_iso = iso(as_of)
-            sql = (
-                "SELECT id, content FROM memory_items "  # noqa: S608
-                f"WHERE id IN ({placeholders}) "
-                "  AND (valid_from IS NULL OR valid_from <= ?) "
-                "  AND (valid_until IS NULL OR valid_until > ?) "
-                "  AND (invalidated_at IS NULL OR invalidated_at > ?)"
-            )
-            params = [*(u.bytes for u in ids), as_of_iso, as_of_iso, as_of_iso]
-        rows = self._connect().execute(sql, params).fetchall()
-        content: dict[bytes, str] = {bytes(r["id"]): r["content"] for r in rows}
-        # Preserve vector-search ordering for items that passed the filter.
-        filtered: list[tuple[UUID, str, float]] = [
-            (u, content[u.bytes], score)
-            for u, _, score in hits
-            if u.bytes in content
-        ]
+            if not hits:
+                return []
+            ids = [u for u, _, _ in hits]
+            placeholders = ",".join("?" for _ in ids)
+            if as_of is None:
+                # Default: current-state. Exclude any row that has been
+                # invalidated, regardless of when.
+                sql = (
+                    "SELECT id, content FROM memory_items "  # noqa: S608
+                    f"WHERE id IN ({placeholders}) "
+                    "AND invalidated_at IS NULL"
+                )
+                params: list[Any] = [u.bytes for u in ids]
+            else:
+                # As-of mode: surface items whose validity covers `as_of`.
+                sql = (
+                    "SELECT id, content FROM memory_items "  # noqa: S608
+                    f"WHERE id IN ({placeholders}) "
+                    "  AND (valid_from IS NULL OR valid_from <= ?) "
+                    "  AND (valid_until IS NULL OR valid_until > ?) "
+                    "  AND (invalidated_at IS NULL OR invalidated_at > ?)"
+                )
+                params = [*(u.bytes for u in ids), as_of_iso, as_of_iso, as_of_iso]
+            rows = self._connect().execute(sql, params).fetchall()
+            content: dict[bytes, str] = {bytes(r["id"]): r["content"] for r in rows}
+            # Preserve vector-search ordering for items that passed the filter.
+            filtered = [
+                (u, content[u.bytes], score)
+                for u, _, score in hits
+                if u.bytes in content
+            ]
+            attempts += 1
+            # Exit when we have k results, when we've already over-fetched
+            # the whole shard (further expansion can't help), or after
+            # the bounded retry budget.
+            if (
+                len(filtered) >= k
+                or len(hits) < k * fetch_multiplier
+                or attempts >= max_attempts
+            ):
+                break
+            fetch_multiplier *= 2
         return filtered[:k]
 
     # --- conflicts (Stage 8) -----------------------------------------------
