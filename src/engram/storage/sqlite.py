@@ -887,6 +887,17 @@ class SqliteStorage:
             raise ValueError(
                 f"{conflict.status.value} conflict must carry resolution + resolved_at"
             )
+        # NOTE: the conflicts table has UNIQUE(source_item_id,
+        # target_item_id) — directional.  The contradiction detector
+        # emitting (A, B) on one pass and (B, A) on another can produce
+        # two distinct rows for the same logical pair.  Callers
+        # interested in dedup-by-pair should canonicalize at the
+        # detection layer (sort the ids lexicographically before
+        # recording) or query both directions when reading.  Cross-
+        # checking at the storage boundary is too invasive given
+        # existing callers; deferred to a future schema migration that
+        # changes the unique constraint to (LEAST(a, b), GREATEST(a, b))
+        # or a content-hash key.
         self._connect().execute(
             "INSERT INTO conflicts "
             "(id, source_item_id, target_item_id, similarity, verdict, "
