@@ -539,11 +539,15 @@ class HierarchicalRetriever:
         `5 + λ·decay`, a recent score of `-2` becomes `-2 + λ·decay`,
         both moving up the same amount.
 
-        Tuning: λ is in the same units as the reranker score. For
-        BGE-reranker-v2-m3, typical positive logits are 2-8 and
-        meaningful gaps are ~0.5-2. A `recency_lambda` of 0.1-0.3
-        nudges close ties; 1.0+ is aggressive and will reshape the
-        ordering substantially.
+        Tuning: λ is in the same units as the reranker score.  Note
+        that this means the SCALE of `recency_lambda` is reranker-
+        specific: BGE-reranker-v2-m3 emits logits in roughly [-8, 8]
+        with meaningful gaps of 0.5-2, so a `recency_lambda` of 0.1-0.3
+        nudges close ties; 1.0+ is aggressive and reshapes the
+        ordering substantially.  When swapping rerankers, recalibrate
+        — a value tuned for BGE will misbehave on a cross-encoder
+        with a different score range (Cohere reranker emits [0, 1]
+        probabilities; a λ of 0.3 there is enormous).
 
         Reference time: `p.as_of` if set, otherwise current UTC. Items
         whose `created_at` lookup fails fall through with no bonus.
