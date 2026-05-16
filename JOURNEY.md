@@ -27,12 +27,13 @@ Session began with v0.1.0 on disk (Stage 6 complete), `engram-memory` as the pla
 17. [Full-23 trace classification — within-session vs true distractor](#17-full-23-trace-classification--within-session-vs-true-distractor)
 18. [Security audit (between sessions)](#18-security-audit-between-sessions)
 19. [k=20 and rerank-off experiments — the breakthrough](#19-k20-and-rerank-off-experiments--the-breakthrough)
-20. [Current state](#20-current-state)
-21. [Next steps](#21-next-steps)
-22. [Appendix A — Commit log](#appendix-a--commit-log)
-23. [Appendix B — Scripts shipped](#appendix-b--scripts-shipped)
-24. [Appendix C — Source changes](#appendix-c--source-changes)
-25. [Appendix D — Headline numbers](#appendix-d--headline-numbers)
+20. [Audit findings and SOTA implications](#20-audit-findings-and-sota-implications)
+21. [Current state](#21-current-state)
+22. [Next steps](#22-next-steps)
+23. [Appendix A — Commit log](#appendix-a--commit-log)
+24. [Appendix B — Scripts shipped](#appendix-b--scripts-shipped)
+25. [Appendix C — Source changes](#appendix-c--source-changes)
+26. [Appendix D — Headline numbers](#appendix-d--headline-numbers)
 
 ---
 
@@ -822,7 +823,75 @@ Single new flag vs the JOURNEY's earlier recommendation: `--k 20` (was `--k 10`)
 
 ---
 
-## 20. Current state
+## 20. Audit findings and SOTA implications
+
+`audit/audit_2026-05-15.md` — 13 specialized agents producing ~1000 raw / ~620 unique findings across the codebase. Severity distribution: 5 CRITICAL, 96 HIGH, 211 MEDIUM, 245 LOW, 63 INFO. Five M-numbered fixes have landed (see Section 18); the rest are still open.
+
+This section catalogues only the audit items that affect what we **claimed** in this session, separating "still valid" from "now invalidated" from "needs a fix before any equivalent claim is honest."
+
+### SOTA-relevant findings, by impact on our work
+
+| Audit ID | Title | Impact on our session findings | Status |
+|---|---|---|---|
+| **C-03** | LoCoMo "exact match" is substring containment | Would invalidate any LoCoMo SOTA claim. We made none this session, but it pre-empts the planned LoCoMo run. | open |
+| **C-04** | LoCoMo embeddings stored un-normalized — cosine wrong | Same as C-03 — invalidates any LoCoMo number until fixed. | open |
+| **C-05** | Bench-baseline BM25 is O(qt × N × scan) pure Python | Any "Engram BM25 beats baseline X" claim is inflated by a slow baseline, not a fast engine. We made no direct head-to-head this session. | open |
+| **H-76** | `engram_config` field is empty by default; ~30 retrieval knobs not captured in manifest | Reproducibility of every bench manifest is degraded — we have to read git log + script source to know what produced a number. Our `inspect_retrieval.py` outputs include CLI args via `config_args` so our event-level findings are self-describing, but bench-suite manifests aren't. | open |
+| **H-77** | LongMemEval per-question Exception swallowed → counted as 0 (mixes infra failure with wrong answer) | Our commit `7bac655` added exception isolation but still scores 0 on error — the audit says we should track `n_errored / n_completed` separately and quote `correct / n_completed`. Killed-LLM runs from earlier in this session aggregated errors-as-zero. The retrieval-only inspect path doesn't make LLM calls and is unaffected. | open |
+| **H-78** | Judge yes/no parser diverges from official LongMemEval scorer (`"yes" in raw and "no" not in raw.split("yes", 1)[0]`) | The end-to-end accuracy projections we cited (the killed LLM runs at mid-70s, the predicted 0.78-0.83 at k=20) all used this non-canonical judge. They're directionally indicative but **not comparable to published LongMemEval scores**. | open |
+| **H-79** | Auto-temporal lexical_filter fallback un-recorded | Our `--auto-temporal` runs don't record which questions actually had the filter fire and which had the fallback. Doesn't invalidate the aggregate numbers — just hurts post-hoc forensics. | open |
+| **H-80** | Seed only seeds Python `random`; numpy / torch / transformers not seeded | Reranker outputs (torch) and numpy operations are not deterministic between runs even with `--seed`. Absolute event-level recall numbers may shift ~0.5-1% across re-runs. Paired-diff comparisons (k=10 vs k=20, baseline vs no-rerank) ARE robust because both arms see the same noise. | open |
+| **H-83** | `ablate_longmemeval.py` default output clobbers previous runs | We routed around this by passing explicit `--output` paths every time. Not a current-evidence issue. | open |
+| M-25 | `_parallel_leaf_retrieves` race on `:memory:` storage | **Fixed** in `ad894b3`. The fix forces serial fallback on `:memory:`. Our inspect_retrieval runs use `:memory:` and may have had marginal non-determinism pre-fix; post-fix runs are stable. | fixed |
+| M-152 | LongMemEval qtype rubric fallback to multi-session | Affects judge rubric selection, only matters for LLM-scored runs. | open |
+| M-153 | LongMemEval `confidence_intervals` are zero-width `(v, v)` | We computed our own CIs via `scripts/_stats.py`, so our protocol-gate verdicts are not affected. The suite's manifest field is just unused. | open |
+| M-154 | Judge prompt version not in manifest | Reproducibility, not invalidation. | open |
+| M-156 | `ingest_ms` not in `latency_ms` manifest | Forensic only. | open |
+| M-170 | `analyze_zero_recall_traces.py` regex parser is brittle to trace format | If the trace format changes, the parser silently misclassifies. We froze the format mid-session; current findings stand. | open |
+
+### What's still valid
+
+| Claim from this session | Why it survives the audit |
+|---|---|
+| Phase 1: 33/33 component unit tests pass | Synthetic data, no provider, no bench suite. Unaffected. |
+| Per-qtype ablation matrix (Section 9-10) | Retrieval-only path; doesn't use the suite-side judge or LLM. |
+| `bm25 × mmr` catastrophic on multi-session (−0.137 to −0.442) | Effect size dominates any seeding noise; paired comparison robust. |
+| 23 zero-recall failures + mechanism classification | Based on `inspect_retrieval` + traces, not the bench judge. |
+| **k=20 lifts event-level recall by +5.7 absolute** | n=500 paired diff; H-80 noise insufficient to flip the sign. |
+| **No-rerank loses 4.5 points; reranker net-positive** | Same. The 22 new zero-recall regressions are a large signal vs the noise floor. |
+| Failure-mode classifier outputs (within-session vs distractor) | Mechanistic findings from the traces, not aggregate scores. |
+| Recommended retrieval-side launch config (`--k 20 --auto-temporal --surface-conflicts`) | All retrieval-only validation. |
+
+### What is now suspect or needs a fix before claiming
+
+| Claim | What's wrong | What to do |
+|---|---|---|
+| **End-to-end LongMemEval accuracy** (killed-LLM-run mid-70s, predicted 0.78-0.83 at k=20) | H-78 judge parser ≠ official; H-77 mixes infra failures into wrong-answer count | Fix H-78 and H-77; re-run end-to-end; only THEN cite a number as comparable to published LongMemEval |
+| **Any LoCoMo number we might run next** | C-03 (substring not exact match) + C-04 (un-normalized embeddings) | Fix both before invoking the LoCoMo suite |
+| **Any "engram BM25 beats baseline" claim** | C-05 baseline is slow Python; lead is inflated | Fix C-05 (vectorize / reuse engine BM25Index) before any direct comparison |
+| **Reproducibility of any retrieval recall number** | H-80 incomplete seeding | Seed numpy/torch/transformers; re-run for record (paired Δs remain valid in the meantime) |
+| **Bench manifest as evidence of record** | H-76 empty `engram_config` | Populate `engram_config` from CLI args before next bench run |
+
+### Net effect on the session's takeaway
+
+Most of what we shipped this session is **retrieval-side and judge-independent**, so the audit doesn't unwind the headlines:
+
+- The component-level math is correct (Phase 1).
+- The catastrophic interactions (`bm25 × mmr`, recency, recent-window) are real.
+- The `--k 20` launch addition is gate-passing.
+- The reranker is net-positive.
+- Event-level recall ceiling at k=20 is ~0.94 on evaluable questions.
+
+What it DOES unwind is **the link from retrieval to end-to-end accuracy**:
+
+- The mid-70s baseline trajectory came from runs whose judge wasn't the official one.
+- The 0.78-0.83 predicted lift at k=20 should be re-expressed as "expected magnitude" rather than a comparable LongMemEval score.
+
+Before any SOTA-claiming LLM run lands on `SCOREBOARD.md`, **H-78 (judge) and H-77 (error accounting) MUST be fixed**. H-80 (seeding) and H-76 (manifest config) should land alongside for the same record.
+
+---
+
+## 21. Current state
 
 ### Codebase
 
@@ -877,20 +946,25 @@ python -m engram.bench run longmemeval `
 
 ---
 
-## 21. Next steps
+## 22. Next steps
 
-The k=20 experiment closed off the cheapest retrieval-side lever. Remaining work, in order of expected ROI:
+The audit re-ordered priorities. Anything that would land on `SCOREBOARD.md` now needs the bench-side correctness fixes first. Within retrieval, k=20 closed the cheapest lever.
 
-| Priority | Action | Cost | Expected impact |
+| Priority | Action | Cost | Why |
 |---|---|---|---|
-| 1 | **End-to-end LLM run with the new launch config** (k=20 + autotemp + surface-conflicts) | ~4-6 hr LLM | Confirm event-level lift translates to end-to-end accuracy. Predicted: 0.78-0.83 vs prior killed run's mid-0.70s. |
-| 2 | Test k=30 / k=50 to find diminishing returns | ~3 hr each | Maybe another 2-3 points if true-distractor cases relax |
-| 3 | Slice analysis on the 11 remaining zero-recall failures at k=20 | ~30 min | Identify whether consolidation or query rewriting is the right next lever |
-| 4 | Within-session over-sampling (force ≥3 turns per surfaced session) | ~50 lines | Could close the within-session gap further without raising k |
-| 5 | Consolidation (Engram's novelty) — per-question summary memory items | 1 LLM call per cluster at ingest | Replaces "find right turn" with "find right summary"; targets the true-distractor cases |
-| 6 | LLM-side levers (CoT, verify pass, self-consistency, stronger answer model) | $$ LLM cost | The remaining ~15-20 point gap after retrieval lift |
-| 7 | File PEP 541 reclaim for `engram-memory` (active squat by unrelated party) | clerical | Reclaim the canonical PyPI name |
-| 8 | Patch the orchestrator's sweep to set per-knob target qtype | ~10 lines | Sweep would actually test where features matter |
+| **1** | **Fix H-78 (judge parser) + H-77 (error accounting)** in `benchmarks/suites/longmemeval.py` | ~30 lines | Pre-requisite for any LongMemEval LLM accuracy number to be honest. Match the official scorer; separate `n_errored` from `n_correct/n_completed`. |
+| **2** | **Fix H-80 (incomplete seeding)** — seed numpy / torch / transformers / sentence-transformers | ~10 lines | Reproducibility; required to call any new run an evidence-of-record. |
+| **3** | Fix H-76 (populate `engram_config` in manifest) | ~15 lines | Manifest becomes self-describing; reproducibility. |
+| 4 | **End-to-end LongMemEval LLM run with new launch config + new judge** | ~4-6 hr LLM | First honest, comparable LongMemEval score. Expected magnitude: high-70s to low-80s; only the post-fix run can be compared to published numbers. |
+| 5 | Test k=30 / k=50 to find diminishing returns | ~3 hr each | Maybe another 2-3 points if true-distractor cases relax |
+| 6 | Slice analysis on the 11 remaining zero-recall failures at k=20 | ~30 min | Identify whether consolidation or query rewriting is the right next lever |
+| 7 | Within-session over-sampling (force ≥3 turns per surfaced session) | ~50 lines | Could close the within-session gap further without raising k |
+| 8 | Consolidation (Engram's novelty) — per-question summary memory items | 1 LLM call per cluster at ingest | Replaces "find right turn" with "find right summary"; targets the true-distractor cases |
+| 9 | LLM-side levers (CoT, verify pass, self-consistency, stronger answer model) | $$ LLM cost | The remaining ~15-20 point gap after retrieval lift |
+| 10 | Fix C-05 (vectorize bench BM25 baseline) before any "engram-vs-baseline" comparison | ~30 lines | Required for any direct comparison claim to be honest |
+| 11 | Fix C-03 + C-04 (LoCoMo exact match + normalization) before running the LoCoMo suite | ~40 lines | Required before any LoCoMo number is comparable to published |
+| 12 | File PEP 541 reclaim for `engram-memory` (active squat by unrelated party) | clerical | Reclaim the canonical PyPI name |
+| 13 | Patch the orchestrator's sweep to set per-knob target qtype | ~10 lines | Sweep would actually test where features matter |
 
 ---
 
@@ -1042,4 +1116,4 @@ Reranker is decisively net positive.
 
 ---
 
-*Last updated 2026-05-16, after the k=20 and rerank-off experiments confirmed k=20 as a gate-passing launch addition.*
+*Last updated 2026-05-16, after the codebase-wide audit reclassified the SOTA-validity status of every claim in this session. Retrieval-side findings stand; end-to-end LongMemEval projections need H-77 + H-78 fixes before any score is comparable to published.*
