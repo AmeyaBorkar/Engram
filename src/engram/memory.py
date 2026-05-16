@@ -84,8 +84,7 @@ _OUTCOME_SIGNAL: dict[Outcome, str] = {
 }
 
 
-def _utcnow() -> datetime:
-    return datetime.now(tz=timezone.utc)
+from engram._time import utcnow as _utcnow  # noqa: E402
 
 
 class Memory:

@@ -134,8 +134,7 @@ class ConflictStatus(str, Enum):
     RESOLVED = "resolved"
 
 
-def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+from engram._time import utcnow as _utcnow  # noqa: E402  # re-export for legacy callers
 
 
 class Event(BaseModel):

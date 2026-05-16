@@ -79,8 +79,7 @@ from engram.storage._protocol import Storage
 _LOG = logging.getLogger("engram.consolidation")
 
 
-def _utcnow() -> datetime:
-    return datetime.now(tz=timezone.utc)
+from engram._time import utcnow as _utcnow  # noqa: E402
 
 
 @dataclass(frozen=True, slots=True)

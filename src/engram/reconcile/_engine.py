@@ -50,8 +50,7 @@ from engram.schemas import (
 from engram.storage._protocol import Storage
 
 
-def _utcnow() -> datetime:
-    return datetime.now(tz=timezone.utc)
+from engram._time import utcnow as _utcnow  # noqa: E402
 
 
 def _normalize(vec: Sequence[float]) -> list[float]:
