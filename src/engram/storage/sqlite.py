@@ -223,12 +223,25 @@ _ITER_DECAY_STATES_ALL_SQL: dict[ItemKind, str] = {
     kind: f"SELECT {_DECAY_COLS} FROM {table} ORDER BY id"  # noqa: S608
     for kind, table in _DECAY_TABLES.items()
 }
-_UPDATE_DECAY_STATE_SQL: dict[ItemKind, str] = {
-    kind: (
+def _build_update_decay_sql(kind: ItemKind, table: str) -> str:
+    # memory_items / procedures carry `updated_at`; events do not.  Bump
+    # it alongside the decay-state write so audit logs that watch
+    # `updated_at` reflect every reinforce / corroborate / tick.
+    if kind is ItemKind.EVENT:
+        return (
+            f"UPDATE {table} SET weight = ?, reinforcement_count = ?, "  # noqa: S608
+            "corroboration_count = ?, contradiction_count = ?, "
+            "last_decayed_at = ?, cold_at = ? WHERE id = ?"
+        )
+    return (
         f"UPDATE {table} SET weight = ?, reinforcement_count = ?, "  # noqa: S608
         "corroboration_count = ?, contradiction_count = ?, "
-        "last_decayed_at = ?, cold_at = ? WHERE id = ?"
+        "last_decayed_at = ?, cold_at = ?, updated_at = ? WHERE id = ?"
     )
+
+
+_UPDATE_DECAY_STATE_SQL: dict[ItemKind, str] = {
+    kind: _build_update_decay_sql(kind, table)
     for kind, table in _DECAY_TABLES.items()
 }
 _MARK_COLD_SQL: dict[ItemKind, str] = {
@@ -1620,18 +1633,21 @@ class SqliteStorage:
 
     def update_decay_state(self, state: DecayState) -> None:
         sql = _UPDATE_DECAY_STATE_SQL[state.item_kind]
-        cursor = self._connect().execute(
-            sql,
-            (
-                state.weight,
-                state.reinforcement_count,
-                state.corroboration_count,
-                state.contradiction_count,
-                iso(state.last_decayed_at),
-                iso(state.cold_at) if state.cold_at is not None else None,
-                state.item_id.bytes,
-            ),
+        params: tuple[Any, ...] = (
+            state.weight,
+            state.reinforcement_count,
+            state.corroboration_count,
+            state.contradiction_count,
+            iso(state.last_decayed_at),
+            iso(state.cold_at) if state.cold_at is not None else None,
         )
+        # memory_items and procedures also carry `updated_at`; bump it
+        # so audit logs reflect the decay-state write.  Events have no
+        # `updated_at` column.
+        if state.item_kind is not ItemKind.EVENT:
+            params = (*params, iso(state.last_decayed_at))
+        params = (*params, state.item_id.bytes)
+        cursor = self._connect().execute(sql, params)
         if cursor.rowcount == 0:
             raise KeyError(f"{state.item_kind.value} {state.item_id} not found")
 
