@@ -321,7 +321,10 @@ class TestEndToEndPromotion:
 
 
 def test_corpus_is_non_empty() -> None:
-    assert len(CORPUS) >= 5
+    # Same floor as tests/test_prompt_injection_corpus.py: keeps the
+    # Phase 0 expansion (Unicode/RTL/base64/multilingual entries) from
+    # silently regressing.
+    assert len(CORPUS) >= 15
 
 
 def test_every_attack_pattern_caught_by_filter() -> None:

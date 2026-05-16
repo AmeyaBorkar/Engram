@@ -19,7 +19,11 @@ from engram.providers import FakeChat, Message
 
 
 def test_corpus_is_nonempty() -> None:
-    assert len(CORPUS) >= 5
+    # Pinned to >= 15 so the expanded surface (Phase 0 added Unicode,
+    # RTL, base64, multilingual, etc.) cannot silently regress to the
+    # 8-entry ASCII-only set that preceded it.  Bumping this floor is
+    # encouraged whenever the corpus grows.
+    assert len(CORPUS) >= 15
 
 
 def test_corpus_entries_have_forbidden_substrings() -> None:
