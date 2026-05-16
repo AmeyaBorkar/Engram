@@ -110,11 +110,6 @@ class BM25Index(Generic[DocId]):
         for term, tf in counts.items():
             self._postings.setdefault(term, []).append(_Posting(doc_idx, tf))
 
-    def add_docs(self, docs: Iterable[tuple[DocId, str]]) -> None:
-        """Batch shorthand for `add_doc`."""
-        for doc_id, text in docs:
-            self.add_doc(doc_id, text)
-
     def _freeze(self) -> None:
         """Materialize the postings into numpy arrays for fast scoring.
 
