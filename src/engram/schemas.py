@@ -3,6 +3,16 @@
 These are the Pydantic v2 models that flow through every layer: storage,
 consolidation, retrieval. They are deliberately small — most behavior lives
 in the modules that operate on them, not on the models themselves.
+
+Schema versioning
+-----------------
+`SCHEMA_VERSION` is the integer-stringified version of the on-disk shape of
+the persisted models below. A bump means at least one persisted model gained,
+lost, or renamed a field in a way that an older reader cannot interpret. The
+storage layer reads the constant on initialize and can refuse to open a store
+written by a newer version. Because we forbid extra fields on every persisted
+model, an unknown field at parse time is a loud failure rather than a silent
+drop, so a missed bump surfaces immediately in tests.
 """
 
 from __future__ import annotations
@@ -15,6 +25,13 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from engram.ids import new_id
+
+# Version of the persisted schema. Bump on any breaking change to a model
+# below (field rename, deletion, or type change). Additive changes do not
+# require a bump because readers tolerate missing optional fields. The
+# storage layer can pin this on initialize and refuse to mount a database
+# written by a newer schema version it does not understand.
+SCHEMA_VERSION = "1"
 
 
 class Level(str, Enum):
@@ -132,7 +149,10 @@ def _utcnow() -> datetime:
 class Event(BaseModel):
     """A raw observation. Lands first; is never modified."""
 
-    model_config = ConfigDict(frozen=True)
+    # `extra="forbid"` so a v2 field rename fails parsing instead of
+    # silently dropping the old name -- which would mean older payloads
+    # read as if the field were never set, with no traceable signal.
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     id: UUID = Field(default_factory=new_id)
     content: str
@@ -171,9 +191,27 @@ class MemoryItem(BaseModel):
         retrieves but surface again with `as_of=` before invalidation.
       * `source_trust`: in `[0, 1]`; denormalized from the `Source` that
         introduced the item, used by `Resolution.PREFER_TRUSTED`.
+
+    Tenant scoping (v0.4 plan)
+    ---------------------------
+    `tenant_id` is currently nullable so existing single-tenant deployments
+    continue to read clean. v0.4 will:
+      * require a non-null tenant_id for every newly inserted row at the
+        write surface (Memory.observe, record_*, etc.);
+      * enforce read-side filtering at every retrieve entry point, so
+        cross-tenant leakage cannot happen even via direct storage
+        calls (the protocol will accept a `tenant_id` kwarg on every
+        list/iterate method);
+      * provide a one-shot backfill migration for v0.3 stores that
+        rewrites `tenant_id IS NULL` rows under an explicit
+        "_default" tenant chosen by the caller.
+    Until then, callers that pass a tenant on write get tenant-scoped
+    storage; callers that omit it land in the unscoped pool.
     """
 
-    model_config = ConfigDict(frozen=False)
+    # See module docstring -- `extra="forbid"` is uniform across persisted
+    # models so a renamed field in v2 raises rather than silently drops.
+    model_config = ConfigDict(frozen=False, extra="forbid")
 
     id: UUID = Field(default_factory=new_id)
     level: Level
@@ -190,11 +228,36 @@ class MemoryItem(BaseModel):
     source_trust: float | None = Field(default=None, ge=0.0, le=1.0)
     tenant_id: str | None = None
 
+    @model_validator(mode="before")
+    @classmethod
+    def _default_valid_from(cls, data: Any) -> Any:
+        # Default valid_from to created_at *before* the model is constructed,
+        # so the validator does not mutate `self` on a model that may be
+        # frozen in a future revision. We only handle the mapping form; other
+        # inputs (already-constructed MemoryItems via model_copy, etc.) fall
+        # through unchanged.
+        if isinstance(data, dict):
+            valid_from = data.get("valid_from")
+            if valid_from is None:
+                created_at = data.get("created_at")
+                if created_at is not None:
+                    # Caller passed created_at explicitly; mirror it.
+                    data = {**data, "valid_from": created_at}
+                else:
+                    # Compute one default that both fields share, so
+                    # `created_at == valid_from` is exact rather than
+                    # microsecond-skewed across two _utcnow() calls.
+                    moment = _utcnow()
+                    data = {**data, "created_at": moment, "valid_from": moment}
+        return data
+
     @model_validator(mode="after")
     def _check_temporal_invariants(self) -> MemoryItem:
-        # valid_from defaults to created_at when callers omit it.
-        # frozen=False + default validate_assignment=False means direct
-        # assignment is safe here (no re-validation loop).
+        # _default_valid_from above guarantees valid_from is set before we
+        # get here for the dict-input case; for model_copy / direct kwargs
+        # bypassing the before-validator, the fallback is still safe because
+        # frozen=False. If the model ever switches to frozen=True, the
+        # before-validator path is the one that survives.
         if self.valid_from is None:
             self.valid_from = self.created_at
         if self.valid_until is not None and self.valid_until < self.valid_from:
@@ -227,7 +290,9 @@ class Procedure(BaseModel):
     working. Decay state lives alongside in the storage row.
     """
 
-    model_config = ConfigDict(frozen=False)
+    # `extra="forbid"` -- field renames in v2 fail loudly instead of
+    # silently dropping data; see module docstring.
+    model_config = ConfigDict(frozen=False, extra="forbid")
 
     id: UUID = Field(default_factory=new_id)
     situation: str
@@ -260,7 +325,9 @@ class ProcedureMatch(BaseModel):
 class Embedding(BaseModel):
     """A dense vector representation of an event or memory item."""
 
-    model_config = ConfigDict(frozen=True)
+    # See module docstring -- `extra="forbid"` for persisted-model rename
+    # safety.
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     id: UUID = Field(default_factory=new_id)
     item_id: UUID
@@ -317,7 +384,8 @@ class Conflict(BaseModel):
     storage row is the source of truth; in-memory copies are snapshots.
     """
 
-    model_config = ConfigDict(frozen=False)
+    # `extra="forbid"` -- see module docstring.
+    model_config = ConfigDict(frozen=False, extra="forbid")
 
     id: UUID = Field(default_factory=new_id)
     source_item_id: UUID
@@ -375,7 +443,8 @@ class ProvenanceLink(BaseModel):
     that invariant is enforced by storage CHECKs once Stage 5 ships.
     """
 
-    model_config = ConfigDict(frozen=True)
+    # `extra="forbid"` -- see module docstring.
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     id: UUID = Field(default_factory=new_id)
     memory_item_id: UUID
@@ -392,9 +461,28 @@ class RetrievalResult(BaseModel):
     query, and `supported_by` is the singleton `[item_id]` (the event
     itself is its only support). Stage 6 generalizes - abstractions return
     the supporting event ids and a confidence derived from cluster cohesion.
+
+    `supported_by` semantics
+    ------------------------
+    For event-level rows, `supported_by` is the singleton tuple of the event
+    id (the row supports itself). For consolidated rows (summary, topic,
+    abstraction, global) it is the tuple of supporting event ids drawn from
+    the provenance table; it MUST be non-empty for those levels because
+    every consolidated item must be reachable to its events for audit. An
+    empty tuple is permitted only at the abstraction / global levels when
+    the row was synthesized from earlier abstractions rather than directly
+    from events; callers that need event-grain provenance should walk the
+    provenance graph from the cluster or parent abstraction. We do not
+    enforce a non-empty constraint on the schema because the abstraction
+    case is legitimate, and the storage layer's provenance CHECK guards
+    invariants where it matters at write time.
     """
 
-    model_config = ConfigDict(frozen=True)
+    # `extra="forbid"` -- see module docstring. Even though
+    # RetrievalResult is a read-side projection, the same forward-compat
+    # contract applies: a renamed field in v2 should fail loudly when an
+    # older payload is parsed by a newer reader.
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     item_id: UUID
     level: Level
@@ -419,7 +507,8 @@ class DecayState(BaseModel):
     diverge from the database.
     """
 
-    model_config = ConfigDict(frozen=True)
+    # `extra="forbid"` -- see module docstring.
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     item_id: UUID
     item_kind: ItemKind
@@ -427,5 +516,9 @@ class DecayState(BaseModel):
     reinforcement_count: int = Field(default=0, ge=0)
     corroboration_count: int = Field(default=0, ge=0)
     contradiction_count: int = Field(default=0, ge=0)
-    last_decayed_at: datetime
+    # Defaulted to now() rather than required so callers constructing a
+    # DecayState in-place (notably storage tests and fixture builders) do
+    # not have to thread a clock through. The decay engine always passes
+    # an explicit moment when it builds new states via model_copy.
+    last_decayed_at: datetime = Field(default_factory=_utcnow)
     cold_at: datetime | None = None

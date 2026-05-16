@@ -2,17 +2,23 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 import pytest
 from pydantic import ValidationError
 
 from engram.ids import new_id
 from engram.schemas import (
+    SCHEMA_VERSION,
     Cluster,
+    Conflict,
+    DecayState,
     Embedding,
     Event,
     ItemKind,
     Level,
     MemoryItem,
+    Procedure,
     ProvenanceLink,
 )
 
@@ -130,3 +136,116 @@ def test_retrieval_result_is_frozen() -> None:
     )
     with pytest.raises(ValidationError):
         r.content = "y"  # type: ignore[misc]
+
+
+# --- schema versioning + extra=forbid ---------------------------------------
+
+
+def test_schema_version_is_string_one() -> None:
+    """`SCHEMA_VERSION` is the canonical persisted-schema marker.
+
+    Bumping this constant is the single signal that storage migrations
+    must run; tests pin the value to make accidental bumps loud.
+    """
+    assert SCHEMA_VERSION == "1"
+    assert isinstance(SCHEMA_VERSION, str)
+
+
+class TestExtraForbid:
+    """Persisted models reject unknown fields.
+
+    A v2 field rename would otherwise silently drop the v1 name with no
+    audit trail. Forbidding extras lets a renamed-field migration fail at
+    parse time instead.
+    """
+
+    def test_event_rejects_unknown_field(self) -> None:
+        with pytest.raises(ValidationError, match="extra"):
+            Event.model_validate({"content": "hi", "unknown_field": 1})
+
+    def test_memory_item_rejects_unknown_field(self) -> None:
+        with pytest.raises(ValidationError, match="extra"):
+            MemoryItem.model_validate(
+                {"level": "event", "content": "x", "unknown_field": 1}
+            )
+
+    def test_procedure_rejects_unknown_field(self) -> None:
+        with pytest.raises(ValidationError, match="extra"):
+            Procedure.model_validate(
+                {"situation": "s", "action": "a", "unknown_field": 1}
+            )
+
+    def test_embedding_rejects_unknown_field(self) -> None:
+        with pytest.raises(ValidationError, match="extra"):
+            Embedding.model_validate(
+                {
+                    "item_id": str(new_id()),
+                    "item_kind": "event",
+                    "model": "m",
+                    "dim": 1,
+                    "vector": [0.0],
+                    "unknown_field": 1,
+                }
+            )
+
+    def test_conflict_rejects_unknown_field(self) -> None:
+        with pytest.raises(ValidationError, match="extra"):
+            Conflict.model_validate(
+                {
+                    "source_item_id": str(new_id()),
+                    "target_item_id": str(new_id()),
+                    "similarity": 0.5,
+                    "unknown_field": 1,
+                }
+            )
+
+    def test_provenance_link_rejects_unknown_field(self) -> None:
+        with pytest.raises(ValidationError, match="extra"):
+            ProvenanceLink.model_validate(
+                {
+                    "memory_item_id": str(new_id()),
+                    "event_id": str(new_id()),
+                    "unknown_field": 1,
+                }
+            )
+
+    def test_decay_state_rejects_unknown_field(self) -> None:
+        with pytest.raises(ValidationError, match="extra"):
+            DecayState.model_validate(
+                {
+                    "item_id": str(new_id()),
+                    "item_kind": "event",
+                    "unknown_field": 1,
+                }
+            )
+
+
+# --- MemoryItem temporal-default validator -----------------------------------
+
+
+class TestMemoryItemValidFromBeforeValidator:
+    """`_default_valid_from` is a `mode='before'` validator.
+
+    Returns a new mapping rather than mutating `self`, so the model can be
+    frozen in a future revision without breaking the default.
+    """
+
+    def test_valid_from_defaults_to_created_at(self) -> None:
+        item = MemoryItem(level=Level.EVENT, content="x")
+        assert item.valid_from == item.created_at
+
+    def test_explicit_created_at_propagates_to_valid_from(self) -> None:
+        when = datetime(2026, 1, 2, tzinfo=timezone.utc)
+        item = MemoryItem(level=Level.EVENT, content="x", created_at=when)
+        assert item.valid_from == when
+
+    def test_caller_supplied_valid_from_wins(self) -> None:
+        vf = datetime(2025, 6, 1, tzinfo=timezone.utc)
+        item = MemoryItem(level=Level.EVENT, content="x", valid_from=vf)
+        assert item.valid_from == vf
+
+    def test_valid_until_before_valid_from_rejected(self) -> None:
+        vf = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        vu = vf - timedelta(days=1)
+        with pytest.raises(ValidationError, match="precedes"):
+            MemoryItem(level=Level.EVENT, content="x", valid_from=vf, valid_until=vu)
