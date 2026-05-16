@@ -201,60 +201,48 @@ class TestJudgeFallbackOnFailure:
 
 
 class TestEndToEndJudgeAgainstInjectionCorpus:
-    def test_every_attack_as_statement_a_does_not_crash(self) -> None:
-        """For every entry in the shared CORPUS, planting it as statement
-        A and a benign statement as B must:
-          1. produce a valid rendered prompt
-          2. not change the resulting verdict away from the FakeChat
-             scripted reply
-          3. never crash the judge() wrapper
+    """End-to-end behavior of judge() against the prompt-injection corpus.
 
-        Verdict-manipulation defense relies on the LLM, not on the
-        deterministic FakeChat; we exercise the *plumbing* here so that
-        real-LLM regression tests (paid runs) can be layered on top
-        cheaply.
+    Post-M-04: the judge short-circuits to UNRELATED when either
+    statement looks like an injection attempt, before the chat call.
+    The previous contract (LLM is trusted to be robust; FakeChat reply
+    is surfaced verbatim) was permissive — feeding an obviously-hostile
+    payload through the LLM bills tokens for a verdict we discard, and
+    gives the model a chance to leak system context through future
+    reasoning fields if the schema is widened.
+    """
+
+    def test_every_attack_as_statement_a_short_circuits(self) -> None:
+        """For every entry in the shared CORPUS, planting it as A
+        forces judge() to return UNRELATED without ever calling chat.
         """
         for attack in CORPUS:
-            prompt = render_judge_prompt(a=attack.payload, b=SAFE_B)
-            # Render must not raise and must produce non-empty output.
-            assert "STATEMENTS" in prompt
-            assert "CRITICAL RULES" in prompt
-
-            # Script FakeChat to a definite answer; the wrapper should
-            # surface it cleanly.
-            chat = FakeChat(
-                scripts={content_hash(prompt): json.dumps({"verdict": "unrelated"})}
-            )
+            # FakeChat will return AGREE if asked — but the
+            # short-circuit means chat is never called.
+            chat = FakeChat(default=json.dumps({"verdict": "agree"}))
             verdict = judge(
                 a=attack.payload, b=SAFE_B, chat=chat, max_retries=0
             )
             assert verdict is Verdict.UNRELATED, attack.name
 
-    def test_every_attack_as_statement_b(self) -> None:
+    def test_every_attack_as_statement_b_short_circuits(self) -> None:
         """Symmetric: payload as B, benign as A."""
         for attack in CORPUS:
-            prompt = render_judge_prompt(a=SAFE_A, b=attack.payload)
-            chat = FakeChat(
-                scripts={content_hash(prompt): json.dumps({"verdict": "agree"})}
-            )
+            chat = FakeChat(default=json.dumps({"verdict": "agree"}))
             verdict = judge(
                 a=SAFE_A, b=attack.payload, chat=chat, max_retries=0
             )
-            assert verdict is Verdict.AGREE, attack.name
+            assert verdict is Verdict.UNRELATED, attack.name
 
-    def test_injection_in_both_statements(self) -> None:
-        """Belt-and-suspenders: A and B both injection payloads. The
-        FakeChat-scripted reply must still come through."""
+    def test_injection_in_both_statements_short_circuits(self) -> None:
+        """Both statements being injection payloads also short-circuits."""
         a_attack = next(a for a in CORPUS if a.name == "ignore_prior_instructions")
         b_attack = next(a for a in CORPUS if a.name == "fake_system_role")
-        prompt = render_judge_prompt(a=a_attack.payload, b=b_attack.payload)
-        chat = FakeChat(
-            scripts={content_hash(prompt): json.dumps({"verdict": "contradict"})}
-        )
+        chat = FakeChat(default=json.dumps({"verdict": "contradict"}))
         verdict = judge(
             a=a_attack.payload,
             b=b_attack.payload,
             chat=chat,
             max_retries=0,
         )
-        assert verdict is Verdict.CONTRADICT
+        assert verdict is Verdict.UNRELATED
