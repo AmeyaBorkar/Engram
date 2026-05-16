@@ -112,12 +112,19 @@ class BGEReranker:
         if not candidates:
             return []
         pairs = [(query, cand.result.content) for cand in candidates]
-        scores = self._model.predict(
-            pairs,
-            batch_size=self._batch_size,
-            show_progress_bar=False,
-            convert_to_numpy=True,
-        )
+        # Shares the engram._gpu_lock semaphore with LocalEmbedder; in
+        # a parallel-bench setup the cross-encoder pass is the bigger
+        # forward (rerank pool ~50 with seq~200), so capping concurrency
+        # here is what actually keeps VRAM bounded on 12 GB at fp32.
+        from engram._gpu_lock import gpu_section
+
+        with gpu_section():
+            scores = self._model.predict(
+                pairs,
+                batch_size=self._batch_size,
+                show_progress_bar=False,
+                convert_to_numpy=True,
+            )
         return [float(s) for s in scores]
 
 

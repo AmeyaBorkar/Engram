@@ -599,6 +599,10 @@ class LongMemEvalSuite:
         # ThreadPoolExecutor; the shared embedder and chat provider
         # handle concurrent calls inside their own connection pools.
         self._parallel: int = 1
+        # GPU concurrency cap (recorded for manifest reproducibility).
+        # The actual enforcement lives in engram._gpu_lock; this just
+        # mirrors the value into the manifest.
+        self._gpu_concurrency: int = 1
         # Phase F retrieve knobs (BM25 + MMR + recency + drill / pool).
         self._bm25_weight: float = 0.0
         self._mmr_lambda: float = 0.0
@@ -634,6 +638,7 @@ class LongMemEvalSuite:
         judge_chat: ChatProvider | None = None,
         sample_n: int | None = None,
         parallel: int = 1,
+        gpu_concurrency: int = 1,
         bm25_weight: float = 0.0,
         mmr_lambda: float = 0.0,
         recency_lambda: float = 0.0,
@@ -693,6 +698,13 @@ class LongMemEvalSuite:
         if parallel < 1:
             raise ValueError(f"parallel must be >= 1, got {parallel}")
         self._parallel = parallel
+        # gpu_concurrency is a recorded copy of the env-var-driven setting
+        # (the CLI sets ENGRAM_GPU_CONCURRENCY before suite construction;
+        # engram._gpu_lock reads it lazily). Capturing it here gets the
+        # value into the manifest's engram_config for reproducibility.
+        if gpu_concurrency < 1:
+            raise ValueError(f"gpu_concurrency must be >= 1, got {gpu_concurrency}")
+        self._gpu_concurrency = gpu_concurrency
         self._bm25_weight = bm25_weight
         self._mmr_lambda = mmr_lambda
         self._recency_lambda = recency_lambda

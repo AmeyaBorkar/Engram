@@ -255,7 +255,15 @@ class LocalEmbedder:
         }
         if extra:
             kwargs.update(extra)
-        vectors = self._st.encode(texts, **kwargs)
+        # Cap concurrent CUDA forward passes process-wide (engram._gpu_lock).
+        # Weights stay loaded across threads; activations stack per call,
+        # so a 12 GB card with bge-large + bge-reranker-v2-m3 loaded at
+        # fp32 OOMs at >~4 simultaneous forward passes.  --gpu-concurrency
+        # K on the bench CLI sets the semaphore size; default 1.
+        from engram._gpu_lock import gpu_section
+
+        with gpu_section():
+            vectors = self._st.encode(texts, **kwargs)
         return [row.tolist() for row in vectors]
 
     def embed(self, texts: Sequence[str]) -> list[list[float]]:

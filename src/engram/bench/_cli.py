@@ -205,6 +205,19 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     run.add_argument(
+        "--gpu-concurrency",
+        type=int,
+        default=1,
+        help=(
+            "Cap concurrent CUDA forward passes (embedder + reranker share "
+            "this semaphore). Default 1 -- safe on 12 GB cards at fp32. "
+            "Raise to 2-4 with headroom (24 GB cards, or fp16). Decoupled "
+            "from --parallel: chat / judge HTTP fan-out at high parallel "
+            "while GPU work serializes here, preventing OOM. Set via the "
+            "ENGRAM_GPU_CONCURRENCY env var if you bypass this flag."
+        ),
+    )
+    run.add_argument(
         "--k",
         type=int,
         default=None,
@@ -592,6 +605,8 @@ def _resolve_suite_config(args: argparse.Namespace) -> dict[str, Any]:
         cfg["sample_n"] = args.sample
     if args.parallel != 1:
         cfg["parallel"] = args.parallel
+    if args.gpu_concurrency != 1:
+        cfg["gpu_concurrency"] = args.gpu_concurrency
     return cfg
 
 
@@ -605,6 +620,17 @@ def main(argv: list[str] | None = None) -> int:
         # `.env` may carry `ENGRAM_LOG_LEVEL=DEBUG`; load it before
         # configuring logging so user overrides take effect.
         _configure_logging(os.environ.get("ENGRAM_LOG_LEVEL", "INFO"))
+        # `--gpu-concurrency` sets the engram._gpu_lock semaphore size
+        # via env var.  Must happen BEFORE provider construction so
+        # the LocalEmbedder / BGEReranker pick up the cap on their
+        # first forward pass (the semaphore is lazily initialized
+        # from the env var).
+        if args.gpu_concurrency != 1:
+            os.environ["ENGRAM_GPU_CONCURRENCY"] = str(args.gpu_concurrency)
+            print(
+                f"--gpu-concurrency {args.gpu_concurrency} applied",
+                file=sys.stderr,
+            )
         # `--limit` overrides the suite-specific cap env vars. Set them
         # BEFORE importing the suite -- the suite reads them at module
         # import time in its `SUITE = ...()` line. When `--sample` is
