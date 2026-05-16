@@ -56,30 +56,28 @@ class Retry:
 
     def call(self, fn: Callable[P, T], /, *args: P.args, **kwargs: P.kwargs) -> T:
         """Invoke `fn`, retrying on configured exceptions."""
-        last_exc: BaseException | None = None
         for attempt in range(self.max_attempts):
             try:
                 return fn(*args, **kwargs)
-            except self.exceptions as exc:
-                last_exc = exc
+            except self.exceptions:
                 if attempt == self.max_attempts - 1:
                     raise
                 self.sleep(self._delay(attempt))
-        # Unreachable: the loop either returns or re-raises the last exception.
-        raise RuntimeError("retry loop exited without returning") from last_exc
+        # Genuinely unreachable: the loop body either returns on success
+        # or re-raises on the final attempt.  AssertionError gives a
+        # clear marker if a future refactor breaks the invariant.
+        raise AssertionError("unreachable: retry loop must return or raise")  # pragma: no cover
 
     async def acall(self, fn: Callable[P, Awaitable[T]], /, *args: P.args, **kwargs: P.kwargs) -> T:
         """Async variant of `call`."""
-        last_exc: BaseException | None = None
         for attempt in range(self.max_attempts):
             try:
                 return await fn(*args, **kwargs)
-            except self.exceptions as exc:
-                last_exc = exc
+            except self.exceptions:
                 if attempt == self.max_attempts - 1:
                     raise
                 await self.asleep(self._delay(attempt))
-        raise RuntimeError("retry loop exited without returning") from last_exc
+        raise AssertionError("unreachable: retry loop must return or raise")  # pragma: no cover
 
     def _delay(self, attempt: int) -> float:
         delay: float = min(self.base_delay * (2.0**attempt), self.max_delay)
