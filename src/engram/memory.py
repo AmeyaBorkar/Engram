@@ -127,6 +127,10 @@ class Memory:
         # If the goal is to forbid consolidation entirely, construct
         # the Memory with `chat=None` and the consolidator stays None.
         self._consolidate_chat = consolidate_chat if consolidate_chat is not None else chat
+        # Reject empty / whitespace-only tenant_id — neither is meant to
+        # be a legitimate scope.  None (untagged) is fine.
+        if tenant_id is not None and not tenant_id.strip():
+            raise ValueError("tenant_id must be non-empty and non-whitespace")
         self._tenant_id = tenant_id
         self._clock: Callable[[], datetime] = clock or _utcnow
         self._engine = DecayEngine(
