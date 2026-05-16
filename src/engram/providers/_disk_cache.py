@@ -98,10 +98,14 @@ class DiskCache:
             row = self._conn.execute(
                 "SELECT value FROM chat WHERE key = ?", (key,)
             ).fetchone()
-        if row is None:
-            self._chat_misses += 1
-            return None
-        self._chat_hits += 1
+            # Counter updates under the same lock that protects the
+            # sqlite operation so two concurrent chat_get calls don't
+            # race on the integer increment (CPython int += is not
+            # atomic across threads under contention).
+            if row is None:
+                self._chat_misses += 1
+                return None
+            self._chat_hits += 1
         return str(row["value"])
 
     def chat_set(self, key: str, value: str) -> None:
@@ -122,27 +126,26 @@ class DiskCache:
             row = self._conn.execute(
                 "SELECT value FROM embed WHERE key = ?", (key,)
             ).fetchone()
-        if row is None:
-            self._embed_misses += 1
-            return None
-        # Treat any deserialization failure as a cache miss.  A truncated /
-        # corrupt blob (post-crash, manual file tampering, sqlite page
-        # corruption) used to propagate UnicodeDecodeError / JSONDecodeError
-        # uncaught and brick the whole bench; instead we drop the row, log
-        # nothing (caller will re-embed), and bump the miss counter.  Also
-        # validate shape so a JSON object or list of strings doesn't sneak
-        # through as a malformed vector.
-        try:
-            decoded = json.loads(row["value"].decode("utf-8"))
-        except (UnicodeDecodeError, json.JSONDecodeError):
-            self._embed_misses += 1
-            return None
-        if not isinstance(decoded, list) or not all(
-            isinstance(x, (int, float)) for x in decoded
-        ):
-            self._embed_misses += 1
-            return None
-        self._embed_hits += 1
+            if row is None:
+                self._embed_misses += 1
+                return None
+            # Treat any deserialization failure as a cache miss.  A
+            # truncated / corrupt blob (post-crash, manual file tampering,
+            # sqlite page corruption) used to propagate UnicodeDecodeError
+            # / JSONDecodeError uncaught and brick the whole bench;
+            # instead we drop the row, log nothing (caller will re-embed),
+            # and bump the miss counter.
+            try:
+                decoded = json.loads(row["value"].decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                self._embed_misses += 1
+                return None
+            if not isinstance(decoded, list) or not all(
+                isinstance(x, (int, float)) for x in decoded
+            ):
+                self._embed_misses += 1
+                return None
+            self._embed_hits += 1
         return [float(x) for x in decoded]
 
     def embed_set(self, key: str, vector: Sequence[float]) -> None:
