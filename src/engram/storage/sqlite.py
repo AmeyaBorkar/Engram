@@ -363,6 +363,17 @@ class SqliteStorage:
 
     # --- lifecycle ----------------------------------------------------------
 
+    @property
+    def path(self) -> str:
+        """The database path, as the constructor received it.
+
+        Diagnostic surface — a downstream tool wanting to print which
+        database an instance is talking to (for log enrichment, error
+        messages, manifest fields) can read this without poking
+        `_path` directly.  Returns ``':memory:'`` for in-memory stores.
+        """
+        return self._path
+
     def __enter__(self) -> SqliteStorage:
         self.initialize()
         return self
