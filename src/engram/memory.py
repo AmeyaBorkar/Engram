@@ -307,6 +307,12 @@ class Memory:
         defaults = self._retrieve_params
         # Temporal scaffolding: when the caller didn't pass an explicit
         # as_of AND temporal=True is set, compute one via the chat
+        # Validate k early so `retrieve(q, k=0)` raises ValueError
+        # consistently with retrieve_procedures / retrieve_preferences /
+        # retrieve_iterative.  Previously an explicit k<1 silently
+        # returned an empty list, divergent from the rest of the API.
+        if k is not None and k < 1:
+            raise ValueError(f"k must be >= 1, got {k}")
         # provider. Cheap regex gates the chat call.
         effective_temporal = temporal if temporal is not None else defaults.temporal
         effective_as_of = as_of
