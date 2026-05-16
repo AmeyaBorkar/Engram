@@ -306,3 +306,122 @@ class TestTickAsync:
             result = asyncio.run(engine.tick_async(now=_now()))
             assert isinstance(result, TickResult)
             assert result.items_processed >= 1
+
+
+# ---------------------------------------------------------------------------
+# Cold-transition routing (H-69): newly-cold rows go through mark_cold so
+# the vector + BM25 indexes are invalidated, not via raw update_decay_state.
+# ---------------------------------------------------------------------------
+
+
+class TestColdTransitionInvalidatesIndexes:
+    """Newly-cold rows must invalidate the vector and BM25 indexes.
+
+    `mark_cold` flips the dirty flags; `update_decay_state` does not. A
+    previous implementation set `cold_at` via the plain update path, so
+    the cold row stayed visible in retrieve until the next index rebuild.
+    Route the cold transition through `mark_cold` to fix that.
+    """
+
+    def test_record_cold_calls_mark_cold(self, tmp_path: Path) -> None:
+        # Spy on storage.mark_cold. The engine must call it when a record
+        # transitions the row into the cold pool.
+        with SqliteStorage(tmp_path / "x.db") as storage:
+            item = _seed_memory_item(storage, weight=0.30)
+            params = DecayParams(half_life_seconds=1e9, delta=0.30, threshold=0.10)
+            engine = DecayEngine(storage, params=params)
+            calls: list[tuple] = []
+            real_mark_cold = storage.mark_cold
+
+            def spy_mark_cold(item_id, kind, *, at):  # type: ignore[no-untyped-def]
+                calls.append((item_id, kind, at))
+                real_mark_cold(item_id, kind, at=at)
+
+            storage.mark_cold = spy_mark_cold  # type: ignore[method-assign]
+            engine.contradict(item.id, ItemKind.MEMORY_ITEM, count=1)
+            assert len(calls) == 1
+            assert calls[0][0] == item.id
+            assert calls[0][1] is ItemKind.MEMORY_ITEM
+
+    def test_tick_cold_calls_mark_cold(self, tmp_path: Path) -> None:
+        # Spy on storage.mark_cold during tick: rows that cross under
+        # threshold must be routed through mark_cold so vector+BM25
+        # invalidation kicks in.
+        with SqliteStorage(tmp_path / "x.db") as storage:
+            event = _seed_event(storage)
+            params = DecayParams(half_life_seconds=1.0, threshold=0.05)
+            engine = DecayEngine(storage, params=params)
+            calls: list[tuple] = []
+            real_mark_cold = storage.mark_cold
+
+            def spy_mark_cold(item_id, kind, *, at):  # type: ignore[no-untyped-def]
+                calls.append((item_id, kind, at))
+                real_mark_cold(item_id, kind, at=at)
+
+            storage.mark_cold = spy_mark_cold  # type: ignore[method-assign]
+            future = event.created_at + timedelta(seconds=20)
+            result = engine.tick(now=future)
+            assert result.items_pruned >= 1
+            assert any(c[0] == event.id and c[1] is ItemKind.EVENT for c in calls)
+
+
+# ---------------------------------------------------------------------------
+# Concurrency guard on tick (H-68)
+# ---------------------------------------------------------------------------
+
+
+class TestTickConcurrencyGuard:
+    """A second `tick` call while one is in flight raises rather than
+    silently corrupting the iterator-then-update sequence.
+    """
+
+    def test_concurrent_tick_raises_runtime_error(self, tmp_path: Path) -> None:
+        import threading
+
+        with SqliteStorage(tmp_path / "x.db") as storage:
+            _seed_event(storage)
+            engine = DecayEngine(storage)
+            held = threading.Event()
+            release = threading.Event()
+
+            # Reach into the engine's threading lock so the helper thread
+            # blocks at the top of tick. We acquire it from the test thread,
+            # then a worker thread tries tick and observes the contention.
+            assert engine._tick_lock.acquire()  # type: ignore[attr-defined]
+            held.set()
+
+            failure: dict[str, BaseException] = {}
+
+            def worker() -> None:
+                try:
+                    engine.tick()
+                except BaseException as exc:
+                    failure["exc"] = exc
+
+            t = threading.Thread(target=worker)
+            t.start()
+            t.join(timeout=2.0)
+            engine._tick_lock.release()  # type: ignore[attr-defined]
+            release.set()
+            t.join()
+            assert "exc" in failure
+            assert isinstance(failure["exc"], RuntimeError)
+            assert "already running" in str(failure["exc"])
+
+
+# ---------------------------------------------------------------------------
+# Streaming iteration (H-66) -- batch_size should bound peak memory.
+# ---------------------------------------------------------------------------
+
+
+class TestTickStreaming:
+    def test_tick_handles_large_store_in_chunks(self, tmp_path: Path) -> None:
+        # Seed many items; tick with a small batch_size to exercise the
+        # chunked drain path. The engine should still process all of them.
+        with SqliteStorage(tmp_path / "x.db") as storage:
+            n = 25  # small but > 2 * batch_size below
+            for i in range(n):
+                _seed_event(storage, content=f"event-{i}")
+            engine = DecayEngine(storage, batch_size=4)
+            result = engine.tick(now=_now())
+            assert result.items_processed == n

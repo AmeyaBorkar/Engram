@@ -26,6 +26,7 @@ no other source of nondeterminism enters the engine).
 from __future__ import annotations
 
 import asyncio
+import threading
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -36,6 +37,14 @@ from engram.decay._math import DecayParams, apply, is_cold
 from engram.decay._metrics import DecayMetrics, KindCounters
 from engram.schemas import DecayState, ItemKind
 from engram.storage._protocol import Storage
+
+
+# Message-substring marker that storage layers use when they refuse to
+# hard-delete cold events because they participate in provenance links.
+# The decay engine catches RuntimeError narrowly by message so unrelated
+# RuntimeErrors (transaction conflicts, etc.) propagate instead of being
+# silently counted as 0 deletions.
+_COLD_PROVENANCE_MARKER = "cold event(s) with provenance"
 
 # Mode for what to do with items whose weight has dropped below the prune
 # threshold. `"cold"` marks `cold_at = now` and leaves the row in place
@@ -113,6 +122,15 @@ class DecayEngine:
         self._kinds = tuple(kinds)
         self._batch_size = batch_size
         self._last_tick: TickResult | None = None
+        # Concurrency guards on the sweep. Two threads calling `tick`
+        # concurrently would race on the per-kind iterator + update inside
+        # one transaction (the storage layer's transaction is per-engine,
+        # but the iterator-then-update pattern is not safe to interleave).
+        # The threading lock protects the sync path; an asyncio Lock is
+        # lazy-created on first `tick_async` so we never construct one
+        # outside a running event loop.
+        self._tick_lock = threading.Lock()
+        self._tick_async_lock: asyncio.Lock | None = None
 
     # --- introspection ------------------------------------------------------
 
@@ -166,6 +184,15 @@ class DecayEngine:
                 params=self._params,
             )
             now_cold = is_cold(new_weight, self._params)
+            # `update_decay_state` does not invalidate the vector/BM25
+            # indexes, but `mark_cold` does. When a record() call drops
+            # the weight below threshold we must go through mark_cold so
+            # the cold row is excluded from future vector / BM25 queries
+            # immediately; otherwise a retrieve in the same transaction
+            # window would surface a row the user just contradicted into
+            # the cold pool. Update first to commit the new weight/counts
+            # (cold_at stays None on that write), then mark_cold to flip
+            # the cold pointer and invalidate the indexes in one step.
             new_state = state.model_copy(
                 update={
                     "weight": new_weight,
@@ -173,10 +200,13 @@ class DecayEngine:
                     "corroboration_count": state.corroboration_count + corroboration,
                     "contradiction_count": state.contradiction_count + contradiction,
                     "last_decayed_at": moment,
-                    "cold_at": moment if now_cold else None,
+                    "cold_at": None,
                 }
             )
             self._storage.update_decay_state(new_state)
+            if now_cold:
+                self._storage.mark_cold(item_id, kind, at=moment)
+                new_state = new_state.model_copy(update={"cold_at": moment})
             return new_state
 
     def reinforce(
@@ -212,7 +242,27 @@ class DecayEngine:
     # --- tick ---------------------------------------------------------------
 
     def tick(self, *, now: datetime | None = None) -> TickResult:
-        """Sweep every hot item; apply pure decay; prune below threshold."""
+        """Sweep every hot item; apply pure decay; prune below threshold.
+
+        Concurrency: protected by `self._tick_lock`. Two threads calling
+        `tick` concurrently is a programming error -- the iterator + per-row
+        write pattern cannot be safely interleaved against the same storage
+        instance. We acquire under a `Lock.acquire(blocking=False)`-style
+        check: a second concurrent caller raises `RuntimeError` rather than
+        silently serializing (which would mask the misuse).
+        """
+        if not self._tick_lock.acquire(blocking=False):
+            raise RuntimeError(
+                "DecayEngine.tick is already running in another thread; "
+                "do not call tick concurrently against the same engine"
+            )
+        try:
+            return self._tick_locked(now=now)
+        finally:
+            self._tick_lock.release()
+
+    def _tick_locked(self, *, now: datetime | None) -> TickResult:
+        """Inner tick body; runs under `self._tick_lock`."""
         moment = now if now is not None else self._clock()
         wall_started = time.perf_counter()
         total_processed = 0
@@ -221,45 +271,7 @@ class DecayEngine:
         per_kind: dict[ItemKind, dict[str, int]] = {}
 
         for kind in self._kinds:
-            kind_processed = 0
-            kind_pruned = 0
-            kind_deleted = 0
-            with self._storage.transaction():
-                # Materialize the hot snapshot so we can update during the
-                # same transaction without disturbing the iterator's view.
-                states = list(self._storage.iter_decay_states(kind, batch_size=self._batch_size))
-                for state in states:
-                    kind_processed += 1
-                    dt = max(0.0, (moment - state.last_decayed_at).total_seconds())
-                    new_weight = apply(weight=state.weight, dt_seconds=dt, params=self._params)
-                    became_cold = is_cold(new_weight, self._params)
-                    if (
-                        new_weight == state.weight
-                        and state.last_decayed_at == moment
-                        and not became_cold
-                    ):
-                        # Nothing changed. Skip the write.
-                        continue
-
-                    new_state = state.model_copy(
-                        update={
-                            "weight": new_weight,
-                            "last_decayed_at": moment,
-                            "cold_at": moment if became_cold else None,
-                        }
-                    )
-                    self._storage.update_decay_state(new_state)
-                    if became_cold:
-                        kind_pruned += 1
-
-                if self._prune_policy == "delete":
-                    try:
-                        kind_deleted = self._storage.delete_cold_items(kind)
-                    except RuntimeError:
-                        # Cold events with provenance can't be hard-deleted;
-                        # they remain cold (auditable). Counts as 0 deleted.
-                        kind_deleted = 0
-
+            kind_processed, kind_pruned, kind_deleted = self._tick_kind(kind, moment=moment)
             per_kind[kind] = {
                 "processed": kind_processed,
                 "pruned": kind_pruned,
@@ -281,14 +293,150 @@ class DecayEngine:
         self._last_tick = result
         return result
 
+    def _tick_kind(
+        self, kind: ItemKind, *, moment: datetime
+    ) -> tuple[int, int, int]:
+        """Sweep one kind; return (processed, pruned, deleted) for it.
+
+        Reads the iterator into per-batch chunks and flushes each chunk
+        inside one transaction before moving to the next. A previous
+        implementation materialized the entire iterator into a list,
+        which defeated streaming and forced a million-row decay sweep to
+        hold every DecayState in memory. Chunking keeps peak memory
+        proportional to `batch_size` (default 1000 rows) regardless of
+        store size, while still emitting one transaction per chunk to
+        keep the iterator's read snapshot separate from the writes.
+
+        Cold transitions go through `mark_cold` rather than embedding
+        `cold_at` in `update_decay_state` -- `mark_cold` invalidates the
+        vector and BM25 indexes; `update_decay_state` does not. Without
+        the routing, a row that newly crossed under threshold would
+        still appear in retrieve until the next index rebuild.
+        """
+        kind_processed = 0
+        kind_pruned = 0
+        kind_deleted = 0
+
+        # Drain the iterator chunk by chunk so peak memory is O(batch_size)
+        # rather than O(store size). Each chunk is one transaction so
+        # mid-sweep failures cap the loss to a single chunk's worth of
+        # rolled-back writes.
+        chunk: list[DecayState] = []
+        iterator = self._storage.iter_decay_states(kind, batch_size=self._batch_size)
+        try:
+            while True:
+                # Pull at most batch_size states into a list, then close
+                # the iterator's cursor while we mutate. We do not hold
+                # the SELECT cursor open across writes -- a sqlite cursor
+                # walking the same table that is being updated in the
+                # same connection can return inconsistent rows under WAL.
+                chunk.clear()
+                try:
+                    for _ in range(self._batch_size):
+                        chunk.append(next(iterator))
+                except StopIteration:
+                    pass
+                if not chunk:
+                    break
+                p, k = self._flush_chunk(chunk, kind=kind, moment=moment)
+                kind_processed += p
+                kind_pruned += k
+                if len(chunk) < self._batch_size:
+                    break
+        finally:
+            # Close the iterator if the storage backend exposes one
+            # (`Iterator` is a generator on SqliteStorage; close releases
+            # the cursor immediately). Generators always have .close().
+            close = getattr(iterator, "close", None)
+            if callable(close):
+                close()
+
+        # Delete-policy pass: only after the per-chunk mark_cold writes
+        # have committed, so the cold pool includes anything we just
+        # transitioned in this sweep.
+        if self._prune_policy == "delete":
+            try:
+                with self._storage.transaction():
+                    kind_deleted = self._storage.delete_cold_items(kind)
+            except RuntimeError as exc:
+                # Narrowly catch the storage-layer's
+                # "cannot delete cold event(s) with provenance" case;
+                # any other RuntimeError is a real bug and MUST
+                # propagate. Match the documented marker string from
+                # the storage layer rather than swallowing every
+                # RuntimeError.
+                if _COLD_PROVENANCE_MARKER not in str(exc):
+                    raise
+                # Provenance-protected cold events stay cold (auditable).
+                # Counts as 0 deleted.
+                kind_deleted = 0
+        return kind_processed, kind_pruned, kind_deleted
+
+    def _flush_chunk(
+        self,
+        chunk: list[DecayState],
+        *,
+        kind: ItemKind,
+        moment: datetime,
+    ) -> tuple[int, int]:
+        """Apply decay to one chunk and write back. Returns (processed, pruned).
+
+        Runs inside one transaction so the writes flush atomically per
+        chunk; a million-row sweep with batch_size=1000 commits 1000
+        times instead of once-at-end. That trades durability granularity
+        for memory boundedness, which is the right call when a tick has
+        already been split across many minutes.
+        """
+        processed = 0
+        pruned = 0
+        with self._storage.transaction():
+            for state in chunk:
+                processed += 1
+                dt = max(0.0, (moment - state.last_decayed_at).total_seconds())
+                new_weight = apply(weight=state.weight, dt_seconds=dt, params=self._params)
+                became_cold = is_cold(new_weight, self._params)
+                if (
+                    new_weight == state.weight
+                    and state.last_decayed_at == moment
+                    and not became_cold
+                ):
+                    # Nothing changed. Skip the write.
+                    continue
+
+                new_state = state.model_copy(
+                    update={
+                        "weight": new_weight,
+                        "last_decayed_at": moment,
+                        "cold_at": None,
+                    }
+                )
+                self._storage.update_decay_state(new_state)
+                if became_cold:
+                    # mark_cold invalidates vector + BM25 indexes; the
+                    # plain update_decay_state above does not. Route the
+                    # cold transition through it so the row is excluded
+                    # from retrieve immediately after this transaction
+                    # commits.
+                    self._storage.mark_cold(state.item_id, kind, at=moment)
+                    pruned += 1
+        return processed, pruned
+
     async def tick_async(self, *, now: datetime | None = None) -> TickResult:
         """Async wrapper around `tick`.
 
         Runs the sync tick on the default thread pool so an asyncio event
-        loop is not blocked. Stage 9 will introduce a native async storage
+        loop is not blocked. Concurrent `await tick_async()` coroutines on
+        the same engine serialize via `self._tick_async_lock` so we do not
+        schedule two `to_thread` workers that race each other on the inner
+        `self._tick_lock`. Stage 9 will introduce a native async storage
         backend; until then this is the canonical async surface.
         """
-        return await asyncio.to_thread(self.tick, now=now)
+        # Lazy-create the asyncio.Lock inside a running loop so we never
+        # construct one outside a loop context.
+        if self._tick_async_lock is None:
+            self._tick_async_lock = asyncio.Lock()
+        async with self._tick_async_lock:
+            return await asyncio.to_thread(self.tick, now=now)
 
     # --- metrics ------------------------------------------------------------
 
