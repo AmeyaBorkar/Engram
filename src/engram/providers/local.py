@@ -198,7 +198,18 @@ class LocalEmbedder:
         resolved_dtype = _resolve_dtype(dtype, chosen_device)
         self._dtype = resolved_dtype
         if resolved_dtype == "float16":
-            self._st.half()
+            # `.half()` mutates the model in place.  If it raises mid-way
+            # (e.g. on an unsupported model architecture, or an MPS
+            # device that doesn't support fp16 for some op), we'd leave
+            # the instance carrying a partially-converted SentenceTrans-
+            # former.  Drop the reference and re-raise so the caller
+            # gets a clean exception instead of a half-initialized
+            # LocalEmbedder that fails opaquely on first encode().
+            try:
+                self._st.half()
+            except Exception:
+                self._st = None  # type: ignore[assignment]
+                raise
         native_dim = int(self._st.get_sentence_embedding_dimension() or 0)
         if dim is not None and dim != native_dim:
             raise ValueError(f"requested dim={dim} does not match model native dim={native_dim}")
