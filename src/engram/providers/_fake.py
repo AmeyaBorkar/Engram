@@ -50,11 +50,18 @@ class FakeEmbedder:
 
     def _embed_one(self, text: str) -> list[float]:
         # Stretch SHA-256 output until we have `dim * 2` bytes (one int16 per dim).
+        # Length-prefix the text so an input ending in ":N" can't collide
+        # with a different input whose counter starts mid-stretch (e.g.
+        # text="foo:0\xff" + counter=0 vs text="foo:0" + counter=0xff).
         needed = self.dim * 2
         blob = b""
         counter = 0
+        encoded = text.encode("utf-8")
+        prefix = f"L={len(encoded)}|"
         while len(blob) < needed:
-            blob += hashlib.sha256(f"{text}:{counter}".encode()).digest()
+            blob += hashlib.sha256(
+                f"{prefix}{text}:{counter}".encode("utf-8")
+            ).digest()
             counter += 1
         blob = blob[:needed]
 
