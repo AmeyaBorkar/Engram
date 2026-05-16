@@ -1451,6 +1451,16 @@ class Memory:
         """
         if not supporting_event_ids:
             raise ValueError("record_topic requires at least one supporting event id")
+        # Dedupe while preserving order — duplicate event ids inflate
+        # provenance weight and trip the storage UNIQUE constraint on
+        # provenance_links.  Callers passing the same list of seed
+        # events twice (e.g. resuming a partial run) used to crash.
+        unique_event_ids: list[UUID] = []
+        seen: set[UUID] = set()
+        for eid in supporting_event_ids:
+            if eid not in seen:
+                seen.add(eid)
+                unique_event_ids.append(eid)
         item = MemoryItem(
             level=Level.TOPIC,
             content=content,
@@ -1470,7 +1480,7 @@ class Memory:
         with self._storage.transaction():
             self._storage.insert_memory_item_with_provenance(
                 item,
-                list(supporting_event_ids),
+                unique_event_ids,
                 embedding=embedding,
             )
         return item
