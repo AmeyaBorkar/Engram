@@ -55,6 +55,16 @@ from engram.storage._vector_index import VectorIndex
 from engram.storage.migrations import apply_migrations
 
 
+class ProvenanceProtectedError(RuntimeError):
+    """Raised by `delete_cold_items(EVENT)` when blocked by provenance links.
+
+    Subclass of RuntimeError for backwards compatibility — callers that
+    used to catch the bare RuntimeError still catch this — while letting
+    new code catch this exact class to distinguish 'cold-protected by
+    provenance' from any other RuntimeError surfacing from storage.
+    """
+
+
 def _row_to_event(row: sqlite3.Row) -> Event:
     keys = row.keys()
     tenant_id = row["tenant_id"] if "tenant_id" in keys else None
@@ -1699,7 +1709,7 @@ class SqliteStorage:
                 .fetchone()[0]
             )
             if blockers:
-                raise RuntimeError(
+                raise ProvenanceProtectedError(
                     f"cannot delete {blockers} cold event(s) with provenance links; "
                     "use the 'cold' prune policy instead"
                 )
