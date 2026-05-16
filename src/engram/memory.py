@@ -1322,7 +1322,7 @@ class Memory:
     # Exactly one per tenant. Updated incrementally; surfaced
     # alongside any user-centric query.
 
-    _USER_STATE_FLAG = "engram_user_state"
+    _USER_STATE_FLAG: str = "engram_user_state"
 
     def set_user_state(
         self,

@@ -272,7 +272,7 @@ class ProcedureMatch(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     procedure: Procedure
-    score: float
+    score: float = Field(allow_inf_nan=False)
     similarity: float = Field(ge=-1.0, le=1.0)
 
 
@@ -419,7 +419,11 @@ class RetrievalResult(BaseModel):
     level: Level
     content: str
     confidence: float = Field(ge=0.0, le=1.0)
-    score: float
+    # `score` is the per-retrieve sort key; the units depend on which
+    # path produced it (RRF, reranker logit, raw cosine).  Reject NaN
+    # and ±inf so a corrupt downstream computation surfaces at the
+    # boundary instead of poisoning a later top-k sort.
+    score: float = Field(allow_inf_nan=False)
     supported_by: tuple[UUID, ...]
 
 
