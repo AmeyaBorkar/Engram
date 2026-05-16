@@ -79,8 +79,3 @@ def new_id() -> UUID:
     return UUID(int=value)
 
 
-def timestamp_ms(uid: UUID) -> int:
-    """Extract the millisecond timestamp from a UUIDv7. Raises if not v7."""
-    if uid.version != 7:
-        raise ValueError(f"not a UUIDv7 (version={uid.version})")
-    return uid.int >> 80

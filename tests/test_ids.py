@@ -6,7 +6,7 @@ import time
 
 import pytest
 
-from engram.ids import new_id, timestamp_ms
+from engram.ids import new_id
 
 
 def test_new_id_returns_uuidv7() -> None:
@@ -26,17 +26,3 @@ def test_new_id_time_ordered() -> None:
     b = new_id()
     assert a.bytes < b.bytes, "UUIDv7 should be time-ordered when generation gap > 1ms"
 
-
-def test_timestamp_ms_recent() -> None:
-    before = int(time.time() * 1000)
-    uid = new_id()
-    after = int(time.time() * 1000)
-    ts = timestamp_ms(uid)
-    assert before <= ts <= after
-
-
-def test_timestamp_ms_rejects_non_v7() -> None:
-    import uuid
-
-    with pytest.raises(ValueError, match="not a UUIDv7"):
-        timestamp_ms(uuid.uuid4())
