@@ -42,6 +42,10 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 from engram.consolidation._abstraction import AbstractionParseError
 from engram.providers._message import Message
 from engram.providers._protocols import ChatProvider
+from engram._prompt_util import (
+    inline as _inline,
+    strip_code_fence as _strip_code_fence,
+)
 
 TEMPORAL_PROMPT_NAME = "temporal_anchor"
 TEMPORAL_PROMPT_VERSION = "v1"
@@ -189,28 +193,6 @@ def compute_temporal_anchor(
         # tests that work on the anchor.
         parsed = parsed.astimezone(timezone.utc)
     return parsed
-
-
-_FENCE_RE = re.compile(r"^```(?:json|JSON)?\s*\n?(.*?)\n?```\s*$", re.DOTALL)
-
-
-def _strip_code_fence(text: str) -> str:
-    m = _FENCE_RE.match(text.strip())
-    return m.group(1) if m else text
-
-
-def _inline(content: str) -> str:
-    # See consolidation/_abstraction._inline.
-    return (
-        content.replace("\\", "\\\\")
-        .replace("\r\n", "\\n")
-        .replace("\n", "\\n")
-        .replace("\r", "\\n")
-        .replace(" ", "\\n")
-        .replace(" ", "\\n")
-        .replace("\t", "\\t")
-    )
-
 
 __all__ = [
     "TemporalAnchor",

@@ -22,6 +22,7 @@ from importlib import resources
 
 from engram.providers._message import Message
 from engram.providers._protocols import ChatProvider
+from engram._prompt_util import inline as _inline
 
 DECOMPOSE_PROMPT_NAME = "decompose"
 DECOMPOSE_PROMPT_VERSION = "v1"
@@ -82,20 +83,6 @@ def _strip_marker(line: str) -> str:
     if line[0] in "-*•" and len(line) > 1 and line[1] == " ":
         return line[2:].strip()
     return line
-
-
-def _inline(content: str) -> str:
-    # See consolidation/_abstraction._inline.
-    return (
-        content.replace("\\", "\\\\")
-        .replace("\r\n", "\\n")
-        .replace("\n", "\\n")
-        .replace("\r", "\\n")
-        .replace(" ", "\\n")
-        .replace(" ", "\\n")
-        .replace("\t", "\\t")
-    )
-
 
 __all__ = [
     "decompose_query",

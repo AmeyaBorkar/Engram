@@ -39,6 +39,10 @@ from engram.providers._message import Message
 from engram.providers._protocols import ChatProvider
 from engram.schemas import Verdict
 from engram._security.prompt_injection import looks_like_injection
+from engram._prompt_util import (
+    inline as _inline,
+    strip_code_fence as _strip_code_fence,
+)
 
 _LOG = logging.getLogger(__name__)
 
@@ -242,32 +246,6 @@ def conflicts_to_metadata(conflicts: list[DetectedConflict]) -> list[dict[str, A
         }
         for c in conflicts
     ]
-
-
-_FENCE_RE = re.compile(
-    r"^```(?:json|JSON)?\s*\n?(.*?)\n?```\s*$",
-    flags=re.DOTALL,
-)
-
-
-def _strip_code_fence(text: str) -> str:
-    match = _FENCE_RE.match(text.strip())
-    return match.group(1) if match else text
-
-
-def _inline(content: str) -> str:
-    # See consolidation/_abstraction._inline for the rationale: CR and
-    # U+2028 / U+2029 are paragraph-break-equivalents for some LLMs.
-    return (
-        content.replace("\\", "\\\\")
-        .replace("\r\n", "\\n")
-        .replace("\n", "\\n")
-        .replace("\r", "\\n")
-        .replace(" ", "\\n")
-        .replace(" ", "\\n")
-        .replace("\t", "\\t")
-    )
-
 
 # Re-export for the engine.
 __all__ = [

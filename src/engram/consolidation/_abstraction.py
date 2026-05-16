@@ -30,6 +30,10 @@ from importlib import resources
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from engram._prompt_util import (
+    inline as _inline,
+    strip_code_fence as _strip_code_fence,
+)
 from engram.providers._message import Message
 from engram.providers._protocols import ChatProvider
 
@@ -237,34 +241,3 @@ async def aextract_abstraction(
             last_error = exc
             continue
     raise last_error  # type: ignore[misc]
-
-
-_FENCE_RE = re.compile(
-    r"^```(?:json|JSON)?\s*\n?(.*?)\n?```\s*$",
-    flags=re.DOTALL,
-)
-
-
-def _strip_code_fence(text: str) -> str:
-    match = _FENCE_RE.match(text.strip())
-    return match.group(1) if match else text
-
-
-def _inline(content: str) -> str:
-    """Collapse line-breaking characters so each observation is one prompt line.
-
-    The previous implementation only escaped LF and tab; it missed CR
-    (CRLF on Windows-typed input survived as a raw \\r), and the Unicode
-    line/paragraph separators U+2028 / U+2029 which some models interpret
-    as paragraph breaks.  Backslash is escaped first so the subsequent
-    escape sequences survive intact.
-    """
-    return (
-        content.replace("\\", "\\\\")
-        .replace("\r\n", "\\n")
-        .replace("\n", "\\n")
-        .replace("\r", "\\n")
-        .replace(" ", "\\n")
-        .replace(" ", "\\n")
-        .replace("\t", "\\t")
-    )

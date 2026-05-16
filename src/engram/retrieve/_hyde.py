@@ -24,6 +24,7 @@ from __future__ import annotations
 
 from importlib import resources
 
+from engram._prompt_util import inline as _inline  # noqa: F401  -- used in render
 from engram.providers._message import Message
 from engram.providers._protocols import ChatProvider
 
@@ -62,20 +63,6 @@ def hyde_transform(query: str, chat: ChatProvider) -> str:
     if len(cleaned) < max(8, len(query) // 4):
         return query
     return cleaned
-
-
-def _inline(content: str) -> str:
-    # See consolidation/_abstraction._inline.
-    return (
-        content.replace("\\", "\\\\")
-        .replace("\r\n", "\\n")
-        .replace("\n", "\\n")
-        .replace("\r", "\\n")
-        .replace(" ", "\\n")
-        .replace(" ", "\\n")
-        .replace("\t", "\\t")
-    )
-
 
 __all__ = [
     "hyde_transform",

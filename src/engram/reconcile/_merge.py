@@ -16,7 +16,6 @@ irreconcilable" guidance).
 from __future__ import annotations
 
 import json
-import re
 from importlib import resources
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
@@ -24,6 +23,10 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_valida
 from engram.consolidation._abstraction import AbstractionParseError
 from engram.providers._message import Message
 from engram.providers._protocols import ChatProvider
+from engram._prompt_util import (
+    inline as _inline,
+    strip_code_fence as _strip_code_fence,
+)
 
 MERGE_PROMPT_NAME = "merge"
 MERGE_PROMPT_VERSION = "v1"
@@ -109,31 +112,6 @@ def merge(
                 ),
             ]
     return fallback if fallback is not None else b
-
-
-_FENCE_RE = re.compile(
-    r"^```(?:json|JSON)?\s*\n?(.*?)\n?```\s*$",
-    flags=re.DOTALL,
-)
-
-
-def _strip_code_fence(text: str) -> str:
-    match = _FENCE_RE.match(text.strip())
-    return match.group(1) if match else text
-
-
-def _inline(content: str) -> str:
-    # See consolidation/_abstraction._inline.
-    return (
-        content.replace("\\", "\\\\")
-        .replace("\r\n", "\\n")
-        .replace("\n", "\\n")
-        .replace("\r", "\\n")
-        .replace(" ", "\\n")
-        .replace(" ", "\\n")
-        .replace("\t", "\\t")
-    )
-
 
 __all__ = [
     "MergeResponse",

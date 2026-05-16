@@ -21,6 +21,10 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 from engram.consolidation._abstraction import AbstractionParseError
 from engram.providers._message import Message
 from engram.providers._protocols import ChatProvider
+from engram._prompt_util import (
+    inline as _inline,
+    strip_code_fence as _strip_code_fence,
+)
 
 VERIFY_PROMPT_NAME = "verify"
 VERIFY_PROMPT_VERSION = "v1"
@@ -129,29 +133,6 @@ def verify_answer(
     # infinite retry loops on a misbehaving verifier) but the reason
     # field now distinguishes the cases.
     return VerifyVerdict(supported=True, reason="verifier_unparsable")
-
-
-_FENCE_RE = re.compile(r"^```(?:json|JSON)?\s*\n?(.*?)\n?```\s*$", re.DOTALL)
-
-
-def _strip_code_fence(text: str) -> str:
-    m = _FENCE_RE.match(text.strip())
-    return m.group(1) if m else text
-
-
-def _inline(content: str) -> str:
-    # See consolidation/_abstraction._inline: CR and U+2028/U+2029 are
-    # paragraph-break-equivalents for some LLMs.
-    return (
-        content.replace("\\", "\\\\")
-        .replace("\r\n", "\\n")
-        .replace("\n", "\\n")
-        .replace("\r", "\\n")
-        .replace(" ", "\\n")
-        .replace(" ", "\\n")
-        .replace("\t", "\\t")
-    )
-
 
 __all__ = [
     "VerifyVerdict",

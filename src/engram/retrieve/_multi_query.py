@@ -29,6 +29,7 @@ from importlib import resources
 from engram.providers._message import Message
 from engram.providers._protocols import ChatProvider
 from engram.schemas import RetrievalResult
+from engram._prompt_util import inline as _inline
 
 MULTI_QUERY_PROMPT_NAME = "multi_query"
 MULTI_QUERY_PROMPT_VERSION = "v1"
@@ -111,20 +112,6 @@ def reciprocal_rank_fusion(
         )
     out.sort(key=lambda r: r.score, reverse=True)
     return out
-
-
-def _inline(content: str) -> str:
-    # See consolidation/_abstraction._inline.
-    return (
-        content.replace("\\", "\\\\")
-        .replace("\r\n", "\\n")
-        .replace("\n", "\\n")
-        .replace("\r", "\\n")
-        .replace(" ", "\\n")
-        .replace(" ", "\\n")
-        .replace("\t", "\\t")
-    )
-
 
 def _strip_leading_marker(line: str) -> str:
     """Strip a leading list marker like '1. ' or '- '."""
