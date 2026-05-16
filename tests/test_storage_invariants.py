@@ -18,8 +18,13 @@ from engram.schemas import Event, Level, MemoryItem
 from engram.storage import SqliteStorage
 
 # Bound the runtime of property tests in CI.
+#
+# `max_examples` was 50, which only sampled the small-graph corner of
+# the input space.  Bumping to 200 quadruples coverage; combined with
+# the wider `n_events`/`n_links` strategy below, the suite still
+# completes well under the 2s deadline on a laptop.
 _settings = settings(
-    max_examples=50,
+    max_examples=200,
     deadline=2000,
     suppress_health_check=[HealthCheck.function_scoped_fixture],
 )
@@ -57,8 +62,11 @@ def test_memory_item_weight_round_trip(
 
 
 @given(
-    n_events=st.integers(min_value=1, max_value=10),
-    n_links=st.integers(min_value=1, max_value=10),
+    # Widened from `max_value=10` so Hypothesis explores larger
+    # provenance graphs.  Combined with `max_examples=200` above,
+    # the property runs over many more shapes.
+    n_events=st.integers(min_value=1, max_value=50),
+    n_links=st.integers(min_value=1, max_value=50),
 )
 @_settings
 def test_provenance_never_dangles(storage: SqliteStorage, n_events: int, n_links: int) -> None:
