@@ -11,6 +11,40 @@ from engram.bench._provider import Provider
 from engram.bench._suite import Suite
 
 
+def _serialize_for_manifest(value: Any) -> Any:
+    """Convert arbitrary config values into JSON-safe descriptors.
+
+    Audit H-76: `engram_config` is the reproducibility ledger for a
+    bench run; ~30 knobs flow through `suite_config` (BM25 / MMR /
+    recency, drill / pool, reranker, consolidate / judge providers,
+    Phase E agent flags). Provider instances and `Reranker` objects
+    aren't JSON-serializable, so we lower them to a stable descriptor
+    (`name` / `model` / `manifest_hash()` when available) instead of
+    dropping them. The goal is a JSON blob a reviewer can read to
+    reproduce a run, not the live objects themselves.
+    """
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, (list, tuple)):
+        return [_serialize_for_manifest(v) for v in value]
+    if isinstance(value, dict):
+        return {str(k): _serialize_for_manifest(v) for k, v in value.items()}
+    desc: dict[str, Any] = {"type": type(value).__name__}
+    for attr in ("name", "model", "dim"):
+        val = getattr(value, attr, None)
+        if isinstance(val, (str, int, float, bool)):
+            desc[attr] = val
+    mh = getattr(value, "manifest_hash", None)
+    if callable(mh):
+        try:
+            hashed = mh()
+        except Exception:  # pragma: no cover - manifest hash is best-effort
+            hashed = None
+        if isinstance(hashed, str):
+            desc["manifest_hash"] = hashed
+    return desc
+
+
 def load_suite(name: str) -> Suite:
     """Look up a suite by name.
 
@@ -76,6 +110,11 @@ def run(
     finally:
         suite.teardown()
 
+    engram_config = (
+        {str(k): _serialize_for_manifest(v) for k, v in suite_config.items()}
+        if suite_config
+        else {}
+    )
     manifest: Manifest = manifest_from_run(
         suite_name=result.name,
         provider_name=provider.name,
@@ -86,5 +125,6 @@ def run(
         confidence_intervals=result.confidence_intervals,
         per_question=result.per_question,
         latency_ms=result.latency_ms,
+        engram_config=engram_config,
     )
     return manifest.write(runs_dir)

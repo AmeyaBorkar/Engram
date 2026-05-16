@@ -54,9 +54,11 @@ import logging
 import math
 import os
 import re
+import threading
 import time
 from collections.abc import Sequence
-from dataclasses import dataclass
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -131,6 +133,78 @@ _JUDGE_INSTRUCTIONS: dict[str, str] = {
 }
 
 
+@dataclass
+class _QuestionOutcome:
+    """One question's pipeline result. Returned by `_run_one_question`.
+
+    The previous code path mutated shared lists in-place (per_question,
+    per_type_scores, retrieve_ms, ...) from inside the worker, which
+    fights parallel execution. Returning a value here lets the
+    ThreadPoolExecutor path collect results without locks and the
+    serial path stay bit-identical.
+    """
+
+    qid: str
+    qtype: str
+    question: str
+    gold: str
+    response: str
+    score: float
+    k: int
+    turns_ingested: int
+    ingest_ms: float
+    consolidate_ms: float
+    retrieve_ms: float
+    answer_ms: float
+    judge_ms: float
+    error_msg: str | None = None
+
+
+@dataclass
+class _Progress:
+    """Thread-safe completion / accuracy counter for progress logging.
+
+    The serial and parallel paths both go through `mark()`; the lock
+    serializes the running-accuracy log line so concurrent workers
+    don't interleave the format string. Logging itself is already
+    thread-safe (`logging.Handler.emit` uses an internal lock); the
+    lock here is for the counter math, not the I/O.
+    """
+
+    total: int
+    log_interval: int
+    completed: int = 0
+    correct: float = 0.0
+    lock: threading.Lock = field(default_factory=threading.Lock)
+
+    def mark(self, outcome: _QuestionOutcome) -> None:
+        verdict = (
+            "ERROR"
+            if outcome.error_msg
+            else ("PASS" if outcome.score == 1.0 else "FAIL")
+        )
+        with self.lock:
+            self.completed += 1
+            self.correct += outcome.score
+            done = self.completed
+            acc = self.correct / done if done else 0.0
+            should_log = done % self.log_interval == 0 or done == self.total
+            if should_log:
+                _LOG.info(
+                    "q %d/%d [%s] -> %s "
+                    "(ingest %d turns in %.1fs, ans %.1fs, jud %.1fs; acc=%.3f)",
+                    done,
+                    self.total,
+                    outcome.qtype,
+                    verdict,
+                    outcome.turns_ingested,
+                    outcome.ingest_ms / 1000.0,
+                    outcome.answer_ms / 1000.0,
+                    outcome.judge_ms / 1000.0,
+                    acc,
+                )
+
+
 @dataclass(frozen=True)
 class _Question:
     qid: str
@@ -142,6 +216,57 @@ class _Question:
     haystack_dates: tuple[str, ...]
     haystack_session_ids: tuple[str, ...]
     haystack_sessions: tuple[tuple[dict[str, Any], ...], ...]
+
+
+def _stratified_sample(
+    questions: Sequence[_Question],
+    n: int,
+    seed: int | None,
+) -> list[_Question]:
+    """Take a stratified sample of `n` questions across qtypes.
+
+    Each qtype gets a slice proportional to its share of the full
+    dataset; rounding remainder is allocated to the largest qtypes
+    first. Within a qtype, selection is deterministic given `seed`:
+    sort by `qid`, then shuffle with `random.Random(seed)` and take
+    the leading slice. Two calls with the same `(questions, n, seed)`
+    return the same list -- a prerequisite for reproducibility audits.
+
+    If `n >= len(questions)`, returns all questions in their original
+    order (sampling is a no-op).
+    """
+    if n >= len(questions):
+        return list(questions)
+    import random as _random
+
+    by_qtype: dict[str, list[_Question]] = {}
+    qtype_order: list[str] = []
+    for q in questions:
+        if q.qtype not in by_qtype:
+            qtype_order.append(q.qtype)
+            by_qtype[q.qtype] = []
+        by_qtype[q.qtype].append(q)
+
+    total = len(questions)
+    # Proportional allocation with remainder going to the largest qtypes.
+    raw: dict[str, float] = {qt: len(rows) / total * n for qt, rows in by_qtype.items()}
+    floor: dict[str, int] = {qt: int(v) for qt, v in raw.items()}
+    remainder = n - sum(floor.values())
+    fractional = sorted(
+        ((raw[qt] - floor[qt], qt) for qt in by_qtype),
+        reverse=True,
+    )
+    for _, qt in fractional[:remainder]:
+        floor[qt] += 1
+
+    rng = _random.Random(seed if seed is not None else 0)  # noqa: S311 - sampling, not crypto
+    picked: list[_Question] = []
+    for qt in qtype_order:
+        # Deterministic shuffle within qtype.
+        pool = sorted(by_qtype[qt], key=lambda q: q.qid)
+        rng.shuffle(pool)
+        picked.extend(pool[: floor[qt]])
+    return picked
 
 
 def _load_dataset(path: Path) -> list[_Question]:
@@ -214,6 +339,42 @@ def _generate_answer(
     return chat.chat(messages)
 
 
+_OFFICIAL_JUDGE_YES_RE = re.compile(r"^\s*yes\b")
+_OFFICIAL_JUDGE_NO_RE = re.compile(r"^\s*no\b")
+
+
+def _parse_judge_verdict(raw: str) -> bool:
+    """Mirror the official LongMemEval scorer's yes/no parsing.
+
+    The official `evaluate_qa.py` scorer takes the first non-empty line
+    of the judge response, lowercases it, and exact-matches "yes" vs
+    "no" (with leading whitespace tolerated). CoT preambles like
+    "Let me check ... Yes" do NOT count as yes; the verdict line must
+    be the first content line. This is stricter than the prior
+    substring match and removes parser-driven false positives /
+    negatives across the bench (audit H-78).
+
+    Returns True iff the first content line begins with "yes". Any
+    response that begins with "no" -- or doesn't begin with either --
+    returns False (judge is treated as "not confident yes").
+    """
+    if not raw:
+        return False
+    # First non-empty line is the verdict; everything after is rationale.
+    for line in raw.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        lowered = stripped.lower()
+        if _OFFICIAL_JUDGE_YES_RE.match(lowered):
+            return True
+        if _OFFICIAL_JUDGE_NO_RE.match(lowered):
+            return False
+        # First non-empty line is not yes/no -- treat as ambiguous = no.
+        return False
+    return False
+
+
 def _judge(
     chat: Any,
     *,
@@ -241,10 +402,8 @@ def _judge(
         response=response,
     )
     messages = [Message(role="user", content=prompt)]
-    raw = chat.chat(messages).strip().lower()
-    # The official scorer uses substring match for "yes" -- we mirror it
-    # so verdicts are comparable across runs.
-    return "yes" in raw and "no" not in raw.split("yes", 1)[0]
+    raw = chat.chat(messages)
+    return _parse_judge_verdict(raw)
 
 
 _HAYSTACK_DATE_DOW_RE = re.compile(r"\s*\([A-Za-z]+\)\s*")
@@ -259,7 +418,7 @@ def _build_auto_temporal_filter(question: str) -> str | None:
     `\b(2023|2024)\b`. The pattern is case-insensitive at the engine
     level so no need to lower-case here.
     """
-    years = sorted({m for m in _AUTO_TEMPORAL_YEAR_RE.findall(question)})
+    years = sorted(set(_AUTO_TEMPORAL_YEAR_RE.findall(question)))
     if not years:
         return None
     alt = "|".join(years)
@@ -310,6 +469,12 @@ def _ingest_haystack(memory: Memory, q: _Question) -> int:
             else None
         )
         session_dt = _parse_haystack_date(date)
+        # Pre-count content-bearing turns in this session so the per-turn
+        # `is_last_turn` flag and `session_n_turns` are correct even when
+        # some turns have empty content (skipped below).
+        session_turns_with_content = [t for t in session if t.get("content")]
+        session_n_turns = len(session_turns_with_content)
+        turn_index = 0
         for turn in session:
             content = turn.get("content")
             if not content:
@@ -325,6 +490,20 @@ def _ingest_haystack(memory: Memory, q: _Question) -> int:
                 # opaque to retrieve / rerank, so this is a free
                 # observability hook with no behavior change.
                 metadata["session_id"] = session_id
+            # Structural position. `turn_index` is 0-based within the
+            # session; `session_idx` orders sessions by haystack
+            # appearance (≈ chronology when haystack_dates is set).
+            # `is_first_turn` / `is_last_turn` make boundary lookups O(1)
+            # without re-counting. Downstream consumers (per-session
+            # diversity, within-session ranking, qtype-specific
+            # heuristics) read these without re-deriving from session_id.
+            metadata["turn_index"] = turn_index
+            metadata["session_idx"] = session_idx
+            metadata["session_n_turns"] = session_n_turns
+            metadata["is_first_turn"] = turn_index == 0
+            metadata["is_last_turn"] = turn_index == session_n_turns - 1
+            metadata["role"] = role
+            turn_index += 1
             # `has_answer` is LongMemEval's per-turn ground-truth flag:
             # True  -> this exact turn contains the answer
             # False -> in an answer session but not the answer turn
@@ -404,8 +583,22 @@ class LongMemEvalSuite:
         self._verify_max_retries: int = 1
         self._consolidate_chat: ChatProvider | None = None
         self._consolidate: bool = False
+        # Consolidation parallelism. The async path's per-cluster
+        # abstraction LLM calls fan out via asyncio.gather behind a
+        # semaphore; the default 8 is rate-limit-friendly but leaves
+        # 5-10x wall-time on the table when the chat provider supports
+        # higher concurrency (e.g. Haiku / GPT-4o-mini at 50+).
+        self._aconsolidate_concurrency: int = 8
         self._judge_chat: ChatProvider | None = None
         self._seed: int | None = None
+        # Sample size for stratified discovery experiments. None = full
+        # dataset (subject to LONGMEMEVAL_MAX_QUESTIONS / --limit).
+        self._sample_n: int | None = None
+        # Parallelism for the question loop. 1 = serial (default,
+        # bit-identical to the prior code path). >=2 fans out via
+        # ThreadPoolExecutor; the shared embedder and chat provider
+        # handle concurrent calls inside their own connection pools.
+        self._parallel: int = 1
         # Phase F retrieve knobs (BM25 + MMR + recency + drill / pool).
         self._bm25_weight: float = 0.0
         self._mmr_lambda: float = 0.0
@@ -437,7 +630,10 @@ class LongMemEvalSuite:
         verify_max_retries: int = 1,
         consolidate_chat: ChatProvider | None = None,
         consolidate: bool = False,
+        aconsolidate_concurrency: int = 8,
         judge_chat: ChatProvider | None = None,
+        sample_n: int | None = None,
+        parallel: int = 1,
         bm25_weight: float = 0.0,
         mmr_lambda: float = 0.0,
         recency_lambda: float = 0.0,
@@ -461,9 +657,18 @@ class LongMemEvalSuite:
             self._k = k
         self._seed = seed
         if seed is not None:
-            import random
+            # Audit H-80: seed every RNG, not just `random`. numpy / torch /
+            # torch.cuda / transformers each have their own state; without
+            # this, two --seed 1337 runs produced different embeddings,
+            # rerank orders, and retrieval pools even on identical code.
+            from engram._seed import seed_everything
 
-            random.seed(seed)
+            seeded = seed_everything(seed)
+            _LOG.info(
+                "longmemeval: seeded RNGs %s with seed=%d",
+                sorted(k for k, v in seeded.items() if v),
+                seed,
+            )
         self._hyde = hyde
         self._multi_query_n = multi_query_n
         self._decompose = decompose
@@ -476,7 +681,18 @@ class LongMemEvalSuite:
         self._verify_max_retries = verify_max_retries
         self._consolidate_chat = consolidate_chat
         self._consolidate = consolidate
+        if aconsolidate_concurrency < 1:
+            raise ValueError(
+                f"aconsolidate_concurrency must be >= 1, got {aconsolidate_concurrency}"
+            )
+        self._aconsolidate_concurrency = aconsolidate_concurrency
         self._judge_chat = judge_chat
+        if sample_n is not None and sample_n < 1:
+            raise ValueError(f"sample_n must be >= 1, got {sample_n}")
+        self._sample_n = sample_n
+        if parallel < 1:
+            raise ValueError(f"parallel must be >= 1, got {parallel}")
+        self._parallel = parallel
         self._bm25_weight = bm25_weight
         self._mmr_lambda = mmr_lambda
         self._recency_lambda = recency_lambda
@@ -518,29 +734,39 @@ class LongMemEvalSuite:
                 per_question=[],
                 latency_ms={},
             )
-        if self._max is not None:
+        # `--sample N` takes precedence over `--limit M` -- a stratified
+        # sample is rarely what the caller wants AND a leading slice
+        # both. Warn if both are set so the manifest tells the story.
+        if self._sample_n is not None:
+            if self._max is not None:
+                _LOG.warning(
+                    "longmemeval: --sample %d overrides --limit %d "
+                    "(taking a stratified sample of the full dataset)",
+                    self._sample_n,
+                    self._max,
+                )
+            questions = _stratified_sample(
+                questions, self._sample_n, seed=self._seed
+            )
+            _LOG.info(
+                "longmemeval: stratified sample of %d questions (seed=%s)",
+                len(questions),
+                self._seed,
+            )
+        elif self._max is not None:
             questions = questions[: self._max]
 
-        per_question: list[dict[str, Any]] = []
-        retrieve_ms: list[float] = []
-        answer_ms: list[float] = []
-        judge_ms: list[float] = []
-        # Ingest is often the most expensive phase by wall clock (embed +
-        # insert a 500-turn haystack per question).  Track it alongside
-        # the others so the manifest's latency_ms summary doesn't hide
-        # the dominant cost.
-        ingest_ms_list: list[float] = []
-        per_type_scores: dict[str, list[float]] = {}
         # Log every question for small smoke runs; every 10 for full runs
         # so 500-question manifests don't bury the user in INFO lines.
         log_interval = 1 if len(questions) <= 20 else 10
 
         _LOG.info(
-            "longmemeval: starting %d questions (k=%d, %d turn avg, cap=%s)",
+            "longmemeval: starting %d questions (k=%d, %d turn avg, cap=%s, parallel=%d)",
             len(questions),
             self._k,
             sum(len(s) for q in questions for s in q.haystack_sessions) // max(len(questions), 1),
             self._max if self._max is not None else "none",
+            self._parallel,
         )
 
         # Pre-build the per-question RetrieveParams: Phase E flags only
@@ -571,41 +797,144 @@ class LongMemEvalSuite:
             base_params_kwargs["candidate_multiplier"] = self._candidate_multiplier
         default_retrieve_params = RetrieveParams(**base_params_kwargs)
         judge_chat = self._judge_chat if self._judge_chat is not None else chat
-        for q_idx, q in enumerate(questions):
-            storage = SqliteStorage(":memory:")
-            storage.initialize()
-            try:
-                self._run_one_question(
-                    q,
-                    q_idx=q_idx,
-                    questions=questions,
-                    storage=storage,
-                    embedder=embedder,
-                    chat=chat,
-                    judge_chat=judge_chat,
-                    default_retrieve_params=default_retrieve_params,
-                    per_question=per_question,
-                    per_type_scores=per_type_scores,
-                    retrieve_ms=retrieve_ms,
-                    answer_ms=answer_ms,
-                    judge_ms=judge_ms,
-                    ingest_ms_list=ingest_ms_list,
-                    log_interval=log_interval,
-                )
-            finally:
-                storage.close()
 
+        progress = _Progress(total=len(questions), log_interval=log_interval)
+        outcomes: list[_QuestionOutcome | None] = [None] * len(questions)
+
+        def _run(q_idx: int, q: _Question) -> tuple[int, _QuestionOutcome]:
+            outcome = self._run_one_question(
+                q,
+                q_idx=q_idx,
+                total=len(questions),
+                embedder=embedder,
+                chat=chat,
+                judge_chat=judge_chat,
+                default_retrieve_params=default_retrieve_params,
+            )
+            progress.mark(outcome)
+            return q_idx, outcome
+
+        if self._parallel <= 1:
+            # Serial path. Bit-identical to the prior code path for any
+            # `--parallel 1` (and the default).
+            for q_idx, q in enumerate(questions):
+                idx, outcome = _run(q_idx, q)
+                outcomes[idx] = outcome
+        else:
+            # Parallel path. Each worker owns its SqliteStorage (created
+            # inside `_run_one_question`). The shared embedder, chat,
+            # judge_chat, and reranker must be thread-safe -- this is
+            # already true for sentence-transformers, OpenAI / Anthropic
+            # SDK clients, BGEReranker, and the disk cache (which holds
+            # its own internal lock).
+            with ThreadPoolExecutor(max_workers=self._parallel) as ex:
+                fut_to_idx = {
+                    ex.submit(_run, q_idx, q): q_idx
+                    for q_idx, q in enumerate(questions)
+                }
+                for fut in as_completed(fut_to_idx):
+                    idx, outcome = fut.result()
+                    outcomes[idx] = outcome
+
+        # Assemble per-question manifest entries and latency arrays in
+        # original question order. The shape matches the prior code
+        # path so downstream tooling reads the manifest the same way.
+        per_question: list[dict[str, Any]] = []
+        retrieve_ms: list[float] = []
+        answer_ms: list[float] = []
+        judge_ms: list[float] = []
+        ingest_ms_list: list[float] = []
+        per_type_scores: dict[str, list[float]] = {}
+        for oc in outcomes:
+            if oc is None:
+                # Defensive: ThreadPoolExecutor / serial loop fill every
+                # slot before this aggregation runs. A None here would
+                # be a code bug, not a runtime condition.
+                raise RuntimeError("longmemeval: outcome slot left unfilled")
+            per_type_scores.setdefault(oc.qtype, []).append(oc.score)
+            entry: dict[str, Any] = {
+                "question_id": oc.qid,
+                "question_type": oc.qtype,
+                "question": oc.question,
+                "gold": oc.gold,
+                "response": oc.response,
+                "score": oc.score,
+                "k": oc.k,
+                "turns_ingested": oc.turns_ingested,
+                "consolidate_ms": oc.consolidate_ms,
+            }
+            if oc.error_msg is not None:
+                entry["error"] = oc.error_msg
+            per_question.append(entry)
+            ingest_ms_list.append(oc.ingest_ms)
+            retrieve_ms.append(oc.retrieve_ms)
+            answer_ms.append(oc.answer_ms)
+            judge_ms.append(oc.judge_ms)
+
+        # Audit H-77: errored questions (content-filter rejections, 429s,
+        # network blips) used to score 0 and be conflated with wrong-but-
+        # completed answers. Split them out:
+        #   `accuracy`           -- legacy denominator (n_questions), kept
+        #                           for back-compat with prior manifests.
+        #   `accuracy_correct`   -- correct / n_completed; the honest
+        #                           number to compare across runs.
+        #   `n_errored`          -- how many entries carry an `error` key.
+        #   `error_rate`         -- n_errored / n_questions.
+        # Per-qtype variants land too.
         flat = [s for vals in per_type_scores.values() for s in vals]
         accuracy = sum(flat) / len(flat) if flat else 0.0
+        per_type_errored: dict[str, int] = dict.fromkeys(per_type_scores, 0)
+        n_errored_total = 0
+        for entry in per_question:
+            if "error" in entry:
+                qt = entry.get("question_type", "")
+                per_type_errored[qt] = per_type_errored.get(qt, 0) + 1
+                n_errored_total += 1
+
+        def _safe_div(num: float, den: float) -> float:
+            return num / den if den > 0 else 0.0
+
+        n_total = len(flat)
+        n_completed_total = n_total - n_errored_total
+        correct_total = sum(flat)
+        accuracy_correct = _safe_div(correct_total, float(n_completed_total))
+
         metrics: dict[str, float] = {
             "accuracy": accuracy,
-            "n_questions": float(len(flat)),
+            "accuracy_correct": accuracy_correct,
+            "n_questions": float(n_total),
+            "n_completed": float(n_completed_total),
+            "n_errored": float(n_errored_total),
+            "error_rate": _safe_div(float(n_errored_total), float(n_total)),
             "k": float(self._k),
         }
+        if n_errored_total > 0 and n_total > 0 and n_errored_total / n_total > 0.01:
+            _LOG.warning(
+                "longmemeval: %d/%d questions errored (%.1f%%); "
+                "use accuracy_correct (=%.3f over %d completed) instead of "
+                "accuracy (=%.3f over %d total) for cross-run comparison",
+                n_errored_total,
+                n_total,
+                n_errored_total / n_total * 100.0,
+                accuracy_correct,
+                n_completed_total,
+                accuracy,
+                n_total,
+            )
         for qtype, scores in per_type_scores.items():
-            if scores:
-                metrics[f"accuracy_{qtype}"] = sum(scores) / len(scores)
-                metrics[f"n_{qtype}"] = float(len(scores))
+            if not scores:
+                continue
+            qt_correct = sum(scores)
+            qt_total = len(scores)
+            qt_errored = per_type_errored.get(qtype, 0)
+            qt_completed = qt_total - qt_errored
+            metrics[f"accuracy_{qtype}"] = _safe_div(qt_correct, float(qt_total))
+            metrics[f"accuracy_correct_{qtype}"] = _safe_div(
+                qt_correct, float(qt_completed)
+            )
+            metrics[f"n_{qtype}"] = float(qt_total)
+            metrics[f"n_completed_{qtype}"] = float(qt_completed)
+            metrics[f"n_errored_{qtype}"] = float(qt_errored)
         cis: dict[str, tuple[float, float]] = {k: (v, v) for k, v in metrics.items()}
         return SuiteResult(
             name=self.name,
@@ -625,177 +954,160 @@ class LongMemEvalSuite:
         q: _Question,
         *,
         q_idx: int,
-        questions: Sequence[_Question],
-        storage: Any,
+        total: int,
         embedder: Any,
         chat: Any,
         judge_chat: Any,
         default_retrieve_params: RetrieveParams,
-        per_question: list[dict[str, Any]],
-        per_type_scores: dict[str, list[float]],
-        retrieve_ms: list[float],
-        answer_ms: list[float],
-        judge_ms: list[float],
-        ingest_ms_list: list[float],
-        log_interval: int,
-    ) -> None:
+    ) -> _QuestionOutcome:
         """Run the ingest + retrieve + answer + judge pipeline for one
         question, with full per-question exception isolation.
 
+        Thread-safe by construction: creates its own SqliteStorage,
+        builds a fresh `Memory` against the shared embedder/chat, and
+        returns a value rather than mutating shared state. The shared
+        providers must themselves be thread-safe (sentence-transformers,
+        OpenAI SDK, Anthropic SDK, BGEReranker, DiskCache all are).
+
         Wraps the whole body in `try/except Exception`: any failure
-        (content-filter rejection from a chat provider, network blip,
-        parse error, even a defensive RuntimeError from the engine)
-        scores the question as 0 and records the exception message on
-        the per-question manifest entry. The next question proceeds
-        normally -- a single bad request never costs more than its own
-        slot in the manifest.
+        (content-filter rejection, 429, network blip, parse error,
+        defensive RuntimeError from the engine) scores the question as
+        0 and surfaces the exception message in
+        `_QuestionOutcome.error_msg`. The outer loop's aggregation
+        treats those as `n_errored` and excludes them from
+        `accuracy_correct` (audit H-77).
 
         KeyboardInterrupt and SystemExit are NOT swallowed so Ctrl+C
         still aborts the run cleanly.
         """
         ingest_ms = 0.0
         consolidate_ms = 0.0
+        retrieve_ms_v = 0.0
+        answer_ms_v = 0.0
+        judge_ms_v = 0.0
         turns = 0
         response = ""
         score = 0.0
         error_msg: str | None = None
+
+        storage = SqliteStorage(":memory:")
+        storage.initialize()
         try:
-            memory = Memory(
-                storage=storage,
-                embedder=embedder,
-                chat=chat,
-                consolidate_chat=self._consolidate_chat,
-                retrieve_params=default_retrieve_params,
-                reranker=self._reranker,
-            )
-            t_ingest = time.perf_counter()
-            turns = _ingest_haystack(memory, q)
-            ingest_ms = (time.perf_counter() - t_ingest) * 1000.0
-            ingest_ms_list.append(ingest_ms)
+            try:
+                memory = Memory(
+                    storage=storage,
+                    embedder=embedder,
+                    chat=chat,
+                    consolidate_chat=self._consolidate_chat,
+                    retrieve_params=default_retrieve_params,
+                    reranker=self._reranker,
+                )
+                t_ingest = time.perf_counter()
+                turns = _ingest_haystack(memory, q)
+                ingest_ms = (time.perf_counter() - t_ingest) * 1000.0
 
-            if self._consolidate:
-                t_consolidate = time.perf_counter()
-                try:
-                    cons_result = asyncio.run(memory.aconsolidate())
-                    consolidate_ms = (time.perf_counter() - t_consolidate) * 1000.0
-                    _LOG.info(
-                        "  consolidated: %d clusters -> %d abstractions in %.1fs",
-                        getattr(cons_result, "clusters_formed", 0),
-                        getattr(cons_result, "abstractions_created", 0),
-                        consolidate_ms / 1000.0,
-                    )
-                except Exception as exc:
-                    _LOG.warning(
-                        "  consolidate failed for q %d/%d: %s",
-                        q_idx + 1,
-                        len(questions),
-                        exc,
-                    )
+                if self._consolidate:
+                    t_consolidate = time.perf_counter()
+                    try:
+                        cons_result = asyncio.run(
+                            memory.aconsolidate(
+                                max_concurrent_abstractions=self._aconsolidate_concurrency,
+                            )
+                        )
+                        consolidate_ms = (time.perf_counter() - t_consolidate) * 1000.0
+                        _LOG.info(
+                            "  q %d/%d consolidated: %d clusters -> %d abstractions in %.1fs",
+                            q_idx + 1,
+                            total,
+                            getattr(cons_result, "clusters_formed", 0),
+                            getattr(cons_result, "abstractions_created", 0),
+                            consolidate_ms / 1000.0,
+                        )
+                    except Exception as exc:
+                        _LOG.warning(
+                            "  consolidate failed for q %d/%d: %s",
+                            q_idx + 1,
+                            total,
+                            exc,
+                        )
 
-            t0 = time.perf_counter()
-            retrieve_kwargs: dict[str, Any] = {
-                "k": self._k,
-                "reinforce": False,
-            }
-            if self._recency_lambda > 0:
-                question_dt = _parse_haystack_date(q.question_date)
-                if question_dt is not None:
-                    retrieve_kwargs["as_of"] = question_dt
-            if self._auto_temporal:
-                filt = _build_auto_temporal_filter(q.question)
-                if filt:
-                    retrieve_kwargs["lexical_filter"] = filt
-            results = memory.retrieve(q.question, **retrieve_kwargs)
-            if (
-                self._auto_temporal
-                and not results
-                and retrieve_kwargs.get("lexical_filter")
-            ):
-                retrieve_kwargs.pop("lexical_filter", None)
+                t0 = time.perf_counter()
+                retrieve_kwargs: dict[str, Any] = {
+                    "k": self._k,
+                    "reinforce": False,
+                }
+                if self._recency_lambda > 0:
+                    question_dt = _parse_haystack_date(q.question_date)
+                    if question_dt is not None:
+                        retrieve_kwargs["as_of"] = question_dt
+                if self._auto_temporal:
+                    filt = _build_auto_temporal_filter(q.question)
+                    if filt:
+                        retrieve_kwargs["lexical_filter"] = filt
                 results = memory.retrieve(q.question, **retrieve_kwargs)
-            retrieve_ms.append((time.perf_counter() - t0) * 1000.0)
+                if (
+                    self._auto_temporal
+                    and not results
+                    and retrieve_kwargs.get("lexical_filter")
+                ):
+                    retrieve_kwargs.pop("lexical_filter", None)
+                    results = memory.retrieve(q.question, **retrieve_kwargs)
+                retrieve_ms_v = (time.perf_counter() - t0) * 1000.0
 
-            memory_text = _format_memory(results)
+                memory_text = _format_memory(results)
 
-            t0 = time.perf_counter()
-            response = self._answer_with_phase_e(
-                chat=chat,
-                memory=memory,
-                memory_text=memory_text,
-                question=q.question,
-                question_date=q.question_date,
-            )
-            answer_ms.append((time.perf_counter() - t0) * 1000.0)
+                t0 = time.perf_counter()
+                response = self._answer_with_phase_e(
+                    chat=chat,
+                    memory=memory,
+                    memory_text=memory_text,
+                    question=q.question,
+                    question_date=q.question_date,
+                )
+                answer_ms_v = (time.perf_counter() - t0) * 1000.0
 
-            t0 = time.perf_counter()
-            correct = _judge(
-                judge_chat,
-                qtype=q.qtype,
-                question=q.question,
-                gold=q.gold,
-                response=response,
-            )
-            judge_ms.append((time.perf_counter() - t0) * 1000.0)
+                t0 = time.perf_counter()
+                correct = _judge(
+                    judge_chat,
+                    qtype=q.qtype,
+                    question=q.question,
+                    gold=q.gold,
+                    response=response,
+                )
+                judge_ms_v = (time.perf_counter() - t0) * 1000.0
 
-            score = 1.0 if correct else 0.0
-        except (KeyboardInterrupt, SystemExit):
-            raise
-        except Exception as exc:
-            # Content-filter rejections, rate-limit drops, network blips,
-            # parse failures all land here. Record the failure on the
-            # manifest, log it, score 0, and let the outer loop move on.
-            error_msg = f"{type(exc).__name__}: {exc}"
-            _LOG.warning(
-                "q %d/%d [%s] -> ERROR (%s)",
-                q_idx + 1,
-                len(questions),
-                q.qtype,
-                error_msg,
-            )
-            score = 0.0
-            # Keep latency arrays aligned: append placeholders for any
-            # phase that didn't finish so the per-phase latency stats
-            # don't grow misaligned with `per_question`.
-            if len(retrieve_ms) <= q_idx:
-                retrieve_ms.append(0.0)
-            if len(answer_ms) <= q_idx:
-                answer_ms.append(0.0)
-            if len(judge_ms) <= q_idx:
-                judge_ms.append(0.0)
+                score = 1.0 if correct else 0.0
+            except (KeyboardInterrupt, SystemExit):
+                raise
+            except Exception as exc:
+                error_msg = f"{type(exc).__name__}: {exc}"
+                _LOG.warning(
+                    "q %d/%d [%s] -> ERROR (%s)",
+                    q_idx + 1,
+                    total,
+                    q.qtype,
+                    error_msg,
+                )
+                score = 0.0
+        finally:
+            storage.close()
 
-        per_type_scores.setdefault(q.qtype, []).append(score)
-        entry: dict[str, Any] = {
-            "question_id": q.qid,
-            "question_type": q.qtype,
-            "question": q.question,
-            "gold": q.gold,
-            "response": response,
-            "score": score,
-            "k": self._k,
-            "turns_ingested": turns,
-            "consolidate_ms": consolidate_ms,
-        }
-        if error_msg is not None:
-            entry["error"] = error_msg
-        per_question.append(entry)
-
-        if (q_idx + 1) % log_interval == 0 or q_idx == len(questions) - 1:
-            correct_so_far = sum(s for vs in per_type_scores.values() for s in vs)
-            total = sum(len(vs) for vs in per_type_scores.values())
-            verdict = "ERROR" if error_msg else ("PASS" if score == 1.0 else "FAIL")
-            _LOG.info(
-                "q %d/%d [%s] -> %s "
-                "(ingest %d turns in %.1fs, ans %.1fs, jud %.1fs; acc=%.3f)",
-                q_idx + 1,
-                len(questions),
-                q.qtype,
-                verdict,
-                turns,
-                ingest_ms / 1000.0,
-                answer_ms[-1] / 1000.0 if answer_ms else 0.0,
-                judge_ms[-1] / 1000.0 if judge_ms else 0.0,
-                correct_so_far / total if total else 0.0,
-            )
+        return _QuestionOutcome(
+            qid=q.qid,
+            qtype=q.qtype,
+            question=q.question,
+            gold=q.gold,
+            response=response,
+            score=score,
+            k=self._k,
+            turns_ingested=turns,
+            ingest_ms=ingest_ms,
+            consolidate_ms=consolidate_ms,
+            retrieve_ms=retrieve_ms_v,
+            answer_ms=answer_ms_v,
+            judge_ms=judge_ms_v,
+            error_msg=error_msg,
+        )
 
     def _answer_with_phase_e(
         self,

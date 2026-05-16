@@ -178,6 +178,33 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     run.add_argument(
+        "--sample",
+        type=int,
+        default=None,
+        help=(
+            "Stratified sample N questions across the dataset's question "
+            "types (deterministic with --seed). Unlike --limit, which "
+            "takes the leading N rows in dataset order, --sample preserves "
+            "the qtype distribution -- use this for fast discovery runs "
+            "(e.g. --sample 100) before committing to a 500-question full "
+            "eval. Mutually exclusive with --limit."
+        ),
+    )
+    run.add_argument(
+        "--parallel",
+        type=int,
+        default=1,
+        help=(
+            "Process N questions concurrently via a thread pool. Default 1 "
+            "(serial; bit-identical to prior code path). 20-30 typically "
+            "cuts wall-time 10-30x on LLM-bound runs without exceeding the "
+            "provider's concurrent-request limit. Embedder calls inside "
+            "ThreadPoolExecutor are still serialized by the underlying "
+            "model lock (sentence-transformers, BGE reranker) -- the win "
+            "is on chat / judge HTTP calls and downstream ops."
+        ),
+    )
+    run.add_argument(
         "--k",
         type=int,
         default=None,
@@ -391,6 +418,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="Model name for --consolidate-chat.",
     )
     run.add_argument(
+        "--aconsolidate-concurrency",
+        type=int,
+        default=8,
+        help=(
+            "Max concurrent abstraction LLM calls inside aconsolidate. "
+            "Default 8 (rate-limit safe). Raise to 30-50 against Haiku / "
+            "GPT-4o-mini for ~5-10x faster consolidation."
+        ),
+    )
+    run.add_argument(
         "--judge-chat",
         default=None,
         choices=(
@@ -547,8 +584,14 @@ def _resolve_suite_config(args: argparse.Namespace) -> dict[str, Any]:
         cfg["consolidate_chat"] = build_chat(
             args.consolidate_chat, args.consolidate_chat_model
         )
+    if args.aconsolidate_concurrency != 8:
+        cfg["aconsolidate_concurrency"] = args.aconsolidate_concurrency
     if args.judge_chat:
         cfg["judge_chat"] = build_chat(args.judge_chat, args.judge_chat_model)
+    if args.sample is not None:
+        cfg["sample_n"] = args.sample
+    if args.parallel != 1:
+        cfg["parallel"] = args.parallel
     return cfg
 
 
@@ -564,11 +607,19 @@ def main(argv: list[str] | None = None) -> int:
         _configure_logging(os.environ.get("ENGRAM_LOG_LEVEL", "INFO"))
         # `--limit` overrides the suite-specific cap env vars. Set them
         # BEFORE importing the suite -- the suite reads them at module
-        # import time in its `SUITE = ...()` line.
-        if args.limit is not None:
+        # import time in its `SUITE = ...()` line. When `--sample` is
+        # also set, skip the env-var override so the suite loads the
+        # full dataset and then takes a stratified sample of N.
+        if args.limit is not None and args.sample is None:
             for var in ("LONGMEMEVAL_MAX_QUESTIONS", "LOCOMO_MAX_QUESTIONS"):
                 os.environ[var] = str(args.limit)
             print(f"--limit {args.limit} applied", file=sys.stderr)
+        elif args.sample is not None:
+            print(
+                f"--sample {args.sample} applied "
+                "(stratified across qtypes)",
+                file=sys.stderr,
+            )
         try:
             provider = _resolve_provider(args)
             suite_config = _resolve_suite_config(args)
