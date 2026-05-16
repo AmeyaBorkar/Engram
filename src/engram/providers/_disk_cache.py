@@ -28,6 +28,7 @@ import hashlib
 import json
 import sqlite3
 import threading
+import warnings
 from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -38,6 +39,7 @@ if TYPE_CHECKING:
     from engram.providers._protocols import ChatProvider, EmbeddingProvider
 
 
+_SCHEMA_VERSION = 1
 _SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS chat (
     key   TEXT PRIMARY KEY,
@@ -72,6 +74,20 @@ class DiskCache:
         self._conn.execute("PRAGMA synchronous = NORMAL")
         self._conn.execute("PRAGMA temp_store = MEMORY")
         self._conn.executescript(_SCHEMA_SQL)
+        # Record the on-disk schema version so a future schema bump can
+        # detect old caches and migrate / blow them away.  Until a
+        # schema-aware migration arrives, a mismatch is just a warning.
+        existing_ver = int(self._conn.execute("PRAGMA user_version").fetchone()[0])
+        if existing_ver == 0:
+            self._conn.execute(f"PRAGMA user_version = {_SCHEMA_VERSION}")
+        elif existing_ver != _SCHEMA_VERSION:
+            warnings.warn(
+                f"DiskCache at {self._path!r} has user_version="
+                f"{existing_ver}, expected {_SCHEMA_VERSION}; results "
+                "may be stale.  Delete the file to recreate.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
         self._chat_hits = 0
         self._chat_misses = 0
         self._embed_hits = 0
