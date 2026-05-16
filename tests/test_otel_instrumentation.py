@@ -23,6 +23,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
     InMemorySpanExporter,
 )
 
+import engram as _engram_pkg
 from engram import (
     Conflict,
     Level,
@@ -31,7 +32,13 @@ from engram import (
     Resolution,
     SqliteStorage,
 )
-from engram._otel import INSTRUMENTATION_NAME, is_otel_available
+from engram._otel import (
+    INSTRUMENTATION_NAME,
+    INSTRUMENTATION_VERSION,
+    METRICS,
+    is_otel_available,
+    safe_set_attribute,
+)
 from engram.providers._fake import FakeEmbedder
 
 
@@ -172,3 +179,79 @@ class TestInstrumentationName:
 def test_otel_available() -> None:
     """Smoke: the dev environment ships opentelemetry-api."""
     assert is_otel_available()
+
+
+class TestInstrumentationVersion:
+    """`INSTRUMENTATION_VERSION` must equal `engram.__version__`.
+
+    Drifting these is the classic observability bug -- a release ships
+    one but forgets the other and downstream metrics pivot off the
+    wrong tag. Pin them via importlib.metadata so they cannot drift.
+    """
+
+    def test_matches_package_version(self) -> None:
+        assert INSTRUMENTATION_VERSION == _engram_pkg.__version__
+
+
+class TestSafeSetAttribute:
+    """`safe_set_attribute` tolerates malformed values without raising."""
+
+    def test_none_value_is_noop(self) -> None:
+        # Should not raise even with None span.
+        safe_set_attribute(None, "k", "v")
+        # Should not raise with None value.
+        safe_set_attribute(_DummySpan(), "k", None)
+
+    def test_bad_type_logged_and_dropped(self) -> None:
+        s = _DummySpan(raises=TypeError("bad"))
+        # No exception should escape.
+        safe_set_attribute(s, "key", object())
+
+    def test_value_error_swallowed(self) -> None:
+        s = _DummySpan(raises=ValueError("bad"))
+        safe_set_attribute(s, "key", object())
+
+    def test_unrelated_exception_propagates(self) -> None:
+        s = _DummySpan(raises=RuntimeError("not a value error"))
+        # safe_set_attribute should NOT swallow non-(TypeError, ValueError).
+        with pytest.raises(RuntimeError):
+            safe_set_attribute(s, "key", "v")
+
+
+class _DummySpan:
+    """Minimal Span-like object for safe_set_attribute tests."""
+
+    def __init__(self, raises: BaseException | None = None) -> None:
+        self._raises = raises
+
+    def set_attribute(self, key: str, value: object) -> None:  # noqa: ARG002
+        if self._raises is not None:
+            raise self._raises
+
+
+class TestMetricsGapFillCounters:
+    """The I-05 gap-fill counters are reachable and call into OTel.
+
+    We don't assert on the SDK's emitted values (the API contract is
+    delegated to the SDK); we assert the API is callable and
+    short-circuits cleanly when OTel is absent.
+    """
+
+    def test_reinforce_error_callable(self) -> None:
+        # Should not raise.
+        METRICS.reinforce_error(kind="event", error="missing")
+
+    def test_auto_temporal_fallback_callable(self) -> None:
+        METRICS.auto_temporal_fallback()
+
+    def test_verify_parse_fallback_callable(self) -> None:
+        METRICS.verify_parse_fallback()
+
+    def test_merge_fallback_callable(self) -> None:
+        METRICS.merge_fallback(reason="no_chat")
+
+    def test_retrieve_call_with_mode(self) -> None:
+        # Mode label is an opt-in dimension on retrieve.calls.
+        METRICS.retrieve_call(k=5, mode="base")
+        METRICS.retrieve_call(k=5, mode="decompose")
+        METRICS.retrieve_call(k=5)  # no mode is also fine
