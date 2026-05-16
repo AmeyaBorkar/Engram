@@ -61,9 +61,10 @@ openai = ["openai>=1.40,<3"]
 # 0.x minors.  Cap at <1 so a fresh install doesn't pick up an
 # incompatible major; bump deliberately when adopting a new minor.
 anthropic = ["anthropic>=0.40,<1"]
-postgres = ["psycopg[binary]>=3.1"]
-duckdb = ["duckdb>=0.10"]
-sqlite-vec = ["sqlite-vec>=0.1.0"]
+# `postgres`, `duckdb`, `sqlite-vec` extras were removed: no in-tree
+# consumer references psycopg, duckdb, or sqlite-vec — they advertised
+# backends that don't ship.  Re-add the extra when the corresponding
+# backend lands so users can opt-in to the right transitive deps.
 reranker = [
     # Tier 1 retrieval-precision uplift. Brings `sentence-transformers`
     # for the BGE cross-encoder family (default
