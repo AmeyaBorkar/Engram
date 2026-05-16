@@ -402,13 +402,22 @@ class Memory:
                 # answer for embedding; the reranker still sees the
                 # user's original question via `rerank_query`.
                 effective_query = query
+                hyde_applied = False
                 if params.hyde and self._chat is not None:
                     effective_query = hyde_transform(query, self._chat)
+                    # Track HyDE explicitly instead of via string-identity
+                    # (`effective_query is not query`).  hyde_transform
+                    # legitimately returns the input string when the LLM
+                    # echoes it back, and short interned strings can also
+                    # share identity — both made the previous check
+                    # unreliable.  `hyde_applied` is True iff we ran the
+                    # transform regardless of what it returned.
+                    hyde_applied = True
                 results = self._retriever.retrieve(
                     effective_query,
                     params=params,
                     reranker=effective_reranker,
-                    rerank_query=query if effective_query is not query else None,
+                    rerank_query=query if hyde_applied else None,
                 )
             if params.surface_conflicts and results:
                 results = self._surface_conflict_siblings(results)
