@@ -38,7 +38,10 @@ class TestGetDecayState:
             assert state is not None
             assert state.item_id == event.id
             assert state.item_kind is ItemKind.EVENT
-            assert state.weight == 1.0
+            # `pytest.approx` for float comparisons: storage's float
+            # round-trip is bit-exact today (REAL == IEEE 754 double),
+            # but the test contract shouldn't depend on that encoding.
+            assert state.weight == pytest.approx(1.0)
             assert state.reinforcement_count == 0
             assert state.corroboration_count == 0
             assert state.contradiction_count == 0
@@ -52,7 +55,7 @@ class TestGetDecayState:
             state = storage.get_decay_state(item.id, ItemKind.MEMORY_ITEM)
             assert state is not None
             assert state.item_kind is ItemKind.MEMORY_ITEM
-            assert state.weight == 0.4
+            assert state.weight == pytest.approx(0.4)
             assert state.last_decayed_at == item.updated_at
 
 
@@ -77,7 +80,20 @@ class TestUpdateDecayState:
             )
             storage.update_decay_state(new_state)
             roundtrip = storage.get_decay_state(event.id, ItemKind.EVENT)
-            assert roundtrip == new_state
+            # Compare field-by-field with `approx` for the float so the
+            # test doesn't blow up if storage ever changes its float
+            # encoding (e.g. fixed-point milliweight).  SQLite's REAL
+            # column round-trips IEEE 754 doubles bit-exact today, but
+            # the assertion contract should not depend on that.
+            assert roundtrip is not None
+            assert roundtrip.item_id == new_state.item_id
+            assert roundtrip.item_kind is new_state.item_kind
+            assert roundtrip.weight == pytest.approx(new_state.weight)
+            assert roundtrip.reinforcement_count == new_state.reinforcement_count
+            assert roundtrip.corroboration_count == new_state.corroboration_count
+            assert roundtrip.contradiction_count == new_state.contradiction_count
+            assert roundtrip.last_decayed_at == new_state.last_decayed_at
+            assert roundtrip.cold_at == new_state.cold_at
 
     def test_update_with_cold_at(self, tmp_path: Path) -> None:
         with SqliteStorage(tmp_path / "x.db") as storage:
