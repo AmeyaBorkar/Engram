@@ -34,18 +34,22 @@ from engram.consolidation._clustering import (
     cluster,
     cohesion,
 )
+# Re-export Verdict from its canonical home (engram.schemas) so it's
+# also reachable via engram.consolidation for back-compat.  The
+# duplicate import-path is intentional during the transition; tests
+# and downstream callers can move to `from engram import Verdict`.
 from engram.consolidation._contradiction import (
     CandidateRow,
     ContradictionParams,
     DetectedConflict,
     JudgeResponse,
-    Verdict,
     conflicts_to_metadata,
     detect_contradictions,
     judge,
     parse_judge_response,
     render_judge_prompt,
 )
+from engram.schemas import Verdict
 from engram.consolidation._engine import (
     ConsolidationEngine,
     ConsolidationParams,
