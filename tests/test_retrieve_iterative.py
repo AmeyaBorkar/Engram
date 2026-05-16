@@ -175,8 +175,24 @@ class TestRetrieveIterativeBasics:
                 )
             return json.dumps({"sufficient": True})
 
+        # NOTE on the `memory._chat = chat` coupling (here and below):
+        #
+        # Memory's constructor takes `chat` as a parameter, but once
+        # constructed there is no public setter; the private attribute
+        # `_chat` is what `retrieve_iterative` reads at call time.
+        # These tests want to swap the chat *after* observe() so the
+        # spy can count invocations, which requires writing to the
+        # private slot directly.
+        #
+        # We deliberately do NOT add a public `Memory.set_chat()` for
+        # this — it would couple the production surface to a testing
+        # need and invite misuse (mid-flight chat swaps from arbitrary
+        # callers).  The private-attr write is documented here so
+        # future readers know it's a conscious choice, not an oversight,
+        # and so a `_chat` rename in production code surfaces a clear
+        # test failure rather than a silent skip.
         chat.chat = chat_fn  # type: ignore[method-assign,assignment]
-        memory._chat = chat
+        memory._chat = chat  # noqa: SLF001 — see NOTE above
         # Wire reconciler back since we've now set chat.
         results = memory.retrieve_iterative("question?", k=5, max_steps=3)
         assert call_count == 2
@@ -203,7 +219,7 @@ class TestRetrieveIterativeBasics:
 
         chat = FakeChat(default="")
         chat.chat = chat_fn  # type: ignore[method-assign,assignment]
-        memory._chat = chat
+        memory._chat = chat  # noqa: SLF001 — see NOTE in test_refines_query_when_insufficient
         memory.retrieve_iterative("query", k=5, max_steps=4)
         # The judge is skipped on the final iteration (its verdict can't
         # change the outcome — the loop exits anyway), so max_steps=4
@@ -231,7 +247,7 @@ class TestRetrieveIterativeBasics:
 
         chat = FakeChat(default="")
         chat.chat = chat_fn  # type: ignore[method-assign,assignment]
-        memory._chat = chat
+        memory._chat = chat  # noqa: SLF001 — see NOTE in test_refines_query_when_insufficient
         memory.retrieve_iterative("query", k=5, max_steps=10)
         # One step's retrieve, then judge with no change -> stop.
         assert call_count == 1

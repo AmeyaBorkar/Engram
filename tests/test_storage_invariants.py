@@ -86,6 +86,12 @@ def test_provenance_never_dangles(storage: SqliteStorage, n_events: int, n_links
         seen.add(key)
         storage.link_provenance(item.id, target.id)
 
+    # Raw `_connect()` here: the property verifies a cross-table
+    # invariant (every provenance link's endpoints exist on both sides)
+    # that the public API doesn't surface — it only returns linked
+    # rows, not links pointing at missing rows.  Asking the SQL layer
+    # directly is the only way to see "ghost" links if any ever
+    # appeared.  noqa: SLF001
     rows = (
         storage._connect()
         .execute(

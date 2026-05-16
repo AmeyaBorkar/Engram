@@ -324,7 +324,14 @@ class TestProvenanceWeights:
         weights_by_event = {}
         for ev in events:
             for link in [ln for ln in storage.get_supporting_events(item.id) if ln.id == ev.id]:
-                # Get the link weight via direct lookup on provenance_links.
+                # Raw `_connect()` here: `get_supporting_events` returns
+                # the Event rows but not the join's `weight` column.
+                # The public surface doesn't expose link weights — the
+                # internal consolidation pipeline reads them via SQL
+                # directly — so the test does the same.  Adding a
+                # public `get_provenance_links_for_memory_item(id)`
+                # would be a cleaner long-term fix; until then, this
+                # raw lookup is the narrowest path.  noqa: SLF001
                 row = (
                     storage._connect()
                     .execute(

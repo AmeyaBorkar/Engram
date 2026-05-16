@@ -12,6 +12,8 @@ import sqlite3
 from pathlib import Path
 from uuid import uuid4
 
+import pytest
+
 from engram.storage import SqliteStorage
 from engram.storage.migrations import list_migrations
 
@@ -97,7 +99,7 @@ class TestFreshUpgrade:
                     (pid, outcome),
                 )
             # Invalid outcome rejected.
-            try:
+            with pytest.raises(sqlite3.IntegrityError):
                 conn.execute(
                     "INSERT INTO procedures "
                     "(id, situation, action, outcome, last_decayed_at, "
@@ -105,10 +107,6 @@ class TestFreshUpgrade:
                     "VALUES (?, 's', 'a', 'wrong', '', '', '')",
                     (uuid4().bytes,),
                 )
-            except sqlite3.IntegrityError:
-                pass
-            else:  # pragma: no cover
-                raise AssertionError("CHECK constraint did not reject 'wrong' outcome")
 
     def test_embeddings_check_allows_procedure(self, tmp_path: Path) -> None:
         with SqliteStorage(tmp_path / "x.db") as storage:
@@ -132,17 +130,13 @@ class TestFreshUpgrade:
     def test_embeddings_check_still_rejects_unknown_kind(self, tmp_path: Path) -> None:
         with SqliteStorage(tmp_path / "x.db") as storage:
             conn = storage._connect()
-            try:
+            with pytest.raises(sqlite3.IntegrityError):
                 conn.execute(
                     "INSERT INTO embeddings "
                     "(id, item_id, item_kind, model, dim, vector, created_at) "
                     "VALUES (?, ?, 'bogus', 'fake', 4, ?, '')",
                     (uuid4().bytes, uuid4().bytes, b"\x00" * 16),
                 )
-            except sqlite3.IntegrityError:
-                pass
-            else:  # pragma: no cover
-                raise AssertionError("embeddings CHECK accepted bogus item_kind")
 
 
 class TestUpgradeFromV2:
@@ -211,14 +205,10 @@ class TestUpgradeFromV2:
                 "VALUES (?, ?, 'procedure', 'fake', 4, ?, '')",
                 (uuid4().bytes, pid, b"\x00" * 16),
             )
-            try:
+            with pytest.raises(sqlite3.IntegrityError):
                 conn.execute(
                     "INSERT INTO embeddings "
                     "(id, item_id, item_kind, model, dim, vector, created_at) "
                     "VALUES (?, ?, 'procedure', 'fake', 4, ?, '')",
                     (uuid4().bytes, pid, b"\x00" * 16),
                 )
-            except sqlite3.IntegrityError:
-                pass
-            else:  # pragma: no cover
-                raise AssertionError("UNIQUE constraint not enforced post-rebuild")

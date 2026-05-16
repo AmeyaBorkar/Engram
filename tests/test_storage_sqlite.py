@@ -186,7 +186,14 @@ def test_cluster_link_set_null_on_delete(storage: SqliteStorage) -> None:
     item = MemoryItem(level=Level.SUMMARY, content="s", cluster_id=cluster.id)
     storage.insert_memory_item(item)
 
-    storage._connect().execute("DELETE FROM clusters WHERE id = ?", (cluster.id.bytes,))
+    # Use the private `_connect()` here on purpose: the public API does
+    # not expose a `delete_cluster` because the production code never
+    # deletes clusters mid-lifetime.  The test must exercise the SQL
+    # foreign-key SET NULL behavior directly to pin the schema's
+    # ON DELETE clause.  noqa: SLF001
+    storage._connect().execute(
+        "DELETE FROM clusters WHERE id = ?", (cluster.id.bytes,)
+    )
     fetched = storage.get_memory_item(item.id)
     assert fetched is not None
     assert fetched.cluster_id is None
@@ -231,8 +238,14 @@ def test_provenance_blocks_event_deletion(storage: SqliteStorage) -> None:
     storage.insert_memory_item(item)
     storage.link_provenance(item.id, event.id)
 
+    # Raw `_connect().execute` here: the public API intentionally
+    # offers no `delete_event` because production code never deletes
+    # events; the test must hit the SQL layer directly to verify the
+    # foreign-key contract.  noqa: SLF001
     def _delete_event() -> None:
-        storage._connect().execute("DELETE FROM events WHERE id = ?", (event.id.bytes,))
+        storage._connect().execute(
+            "DELETE FROM events WHERE id = ?", (event.id.bytes,)
+        )
 
     with pytest.raises(sqlite3.IntegrityError):
         _delete_event()
@@ -245,7 +258,12 @@ def test_memory_item_deletion_cascades_provenance(storage: SqliteStorage) -> Non
     storage.insert_memory_item(item)
     storage.link_provenance(item.id, event.id)
 
-    storage._connect().execute("DELETE FROM memory_items WHERE id = ?", (item.id.bytes,))
+    # Same rationale as above: production has no `delete_memory_item`
+    # public surface (Stage 4's `delete_cold_items` is the only path),
+    # so we drop into raw SQL to pin ON DELETE CASCADE.  noqa: SLF001
+    storage._connect().execute(
+        "DELETE FROM memory_items WHERE id = ?", (item.id.bytes,)
+    )
     assert storage.count_provenance_links() == 0
     assert storage.count_events() == 1
 

@@ -30,12 +30,27 @@ _settings = settings(
 
 # Generate content that includes nulls, control chars, surrogates-via-utf8,
 # oversized strings, and ordinary text.
+#
+# Why `blacklist_categories=("Cs",)` (unpaired surrogates) is excluded:
+# the SQLite Python binding encodes TEXT columns as UTF-8.  Unpaired
+# surrogates (U+D800..U+DFFF as code points, not as part of a valid
+# surrogate pair) are not legal Unicode and `str.encode("utf-8")`
+# raises `UnicodeEncodeError` on them.  The DB-API binding surfaces
+# that as an exception before the storage layer ever runs, so the
+# fuzz round-trip would only ever measure "the Python encoder rejects
+# these," not anything about storage behavior.
+#
+# This is a documented out-of-scope: the test surface is "everything
+# storage accepts must round-trip cleanly," and the encoder gate is a
+# layer above storage in the call stack.  If you ever lower the
+# encoder bypass (e.g. switch to a binary-safe BLOB column for content),
+# remove the blacklist and re-run — that's a real attack surface.
 _adversarial_text = st.one_of(
     st.text(min_size=0, max_size=64),
     st.text(alphabet=string.printable, min_size=0, max_size=2048),
     st.text(
         alphabet=st.characters(
-            blacklist_categories=("Cs",),  # exclude unpaired surrogates
+            blacklist_categories=("Cs",),  # see docstring above
         ),
         min_size=0,
         max_size=512,
