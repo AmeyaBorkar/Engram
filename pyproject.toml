@@ -51,88 +51,100 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-openai = ["openai>=1.40"]
-anthropic = ["anthropic>=0.40"]
-postgres = ["psycopg[binary]>=3.1"]
-duckdb = ["duckdb>=0.10"]
-sqlite-vec = ["sqlite-vec>=0.1.0"]
+# Upper bounds on every optional dep guard against breaking-change
+# majors that the audit identified as M-139/M-140/M-141. Bumping
+# requires a deliberate compatibility check + a CHANGELOG entry.
+openai = ["openai>=1.40,<3"]
+anthropic = ["anthropic>=0.40,<1"]
+postgres = ["psycopg[binary]>=3.1,<4"]
+duckdb = ["duckdb>=0.10,<2"]
+sqlite-vec = ["sqlite-vec>=0.1.0,<1"]
 reranker = [
     # Tier 1 retrieval-precision uplift. Brings `sentence-transformers`
     # for the BGE cross-encoder family (default
     # BAAI/bge-reranker-v2-m3). ~500MB model download on first use.
-    "sentence-transformers>=2.7",
+    "sentence-transformers>=2.7,<6",
 ]
 otel = [
     # Optional OpenTelemetry tracing/metrics. With this extra installed
     # and a configured TracerProvider/MeterProvider, every public Memory
     # call emits spans and counters. Without it, the otel calls inside
     # Memory short-circuit to no-ops (lazy import + None tracer).
-    "opentelemetry-api>=1.20",
-    "opentelemetry-sdk>=1.20",
+    "opentelemetry-api>=1.20,<2",
+    "opentelemetry-sdk>=1.20,<2",
 ]
 langgraph = [
     # LangGraph adapter (engram.integrations.langgraph). Imports the
     # framework lazily inside method bodies so the module loads without
     # this extra installed -- it's only required when a node actually
     # runs inside a `StateGraph`.
-    "langgraph>=0.2",
+    "langgraph>=0.2,<1",
 ]
 llamaindex = [
     # LlamaIndex BaseMemory adapter. `engram.integrations.llamaindex`
     # imports LlamaIndex types only in `as_chat_message()`, so the
     # module loads with or without this extra.
-    "llama-index-core>=0.12",
+    "llama-index-core>=0.12,<1",
 ]
 consolidation = [
     # Stage 5 clustering. Pure-numpy agglomerative fallback ships in core;
     # production users install this extra to get the density-based path.
-    "hdbscan>=0.8.40",
+    "hdbscan>=0.8.40,<1",
 ]
 bench = [
     # Baselines we measure against. Heavy install; opt in.
-    "chromadb>=0.5",
+    "chromadb>=0.5,<2",
     # Loads .env files for local benchmark runs so users don't have to set
     # OPENAI_API_KEY / ANTHROPIC_API_KEY / MOONSHOT_API_KEY in every shell.
     # The CLI checks for python-dotenv at startup; if absent, env vars must
     # be set the old-fashioned way.
-    "python-dotenv>=1.0",
+    "python-dotenv>=1.0,<2",
     # Local embedder for benchmarks. Pulls torch transitively. Pin loosely
     # since sentence-transformers is conservative about transformers/torch
     # compatibility and we don't want to over-constrain.
-    "sentence-transformers>=3.0",
-]
-dev = [
-    "pytest>=8",
-    "pytest-cov>=5",
-    "hypothesis>=6.100",
-    "ruff>=0.5",
-    "mypy>=1.10",
-    # Provider adapters are formally optional extras for end users; in dev
-    # we install them so mypy can typecheck the adapter modules and tests
-    # can use the real SDK types under mock.
-    "openai>=1.40",
-    "anthropic>=0.40",
-    # Consolidation backend so the HDBSCAN tests run in CI as well.
-    "hdbscan>=0.8.40",
-    # .env loading for local bench runs.
-    "python-dotenv>=1.0",
-    # OpenTelemetry for Stage 9 observability tests.
-    "opentelemetry-api>=1.20",
-    "opentelemetry-sdk>=1.20",
-    # Framework integrations (v0.2.1).
-    "langgraph>=0.2",
-    "llama-index-core>=0.12",
-    # Docs site (Stage 10).
-    "mkdocs>=1.6",
-    "mkdocs-material>=9.5",
-    "mkdocstrings[python]>=0.26",
+    "sentence-transformers>=3.0,<6",
 ]
 docs = [
     # Stage 10 docs site stack. Users who only want to build the docs
     # without the full dev toolchain.
-    "mkdocs>=1.6",
-    "mkdocs-material>=9.5",
-    "mkdocstrings[python]>=0.26",
+    "mkdocs>=1.6,<2",
+    "mkdocs-material>=9.5,<10",
+    "mkdocstrings[python]>=0.26,<1",
+]
+# `dev` is composed of explicit tooling deps + every other extra so a
+# single `pip install -e ".[dev]"` is one source of truth. We do NOT
+# self-reference `engrampy[other-extra]` (PEP 631 self-references would
+# work but make every wheel resolver re-resolve our own dist on
+# install); we duplicate the leaves once with the same caps used above.
+# M-142: previously hard-coded duplicates were caught here so we cap
+# in lockstep with the canonical extra above. A CI test verifies the
+# version pins line up.
+dev = [
+    "pytest>=8,<10",
+    "pytest-cov>=5,<10",
+    "hypothesis>=6.100,<7",
+    "ruff>=0.5,<1",
+    "mypy>=1.10,<2",
+    # Provider adapters are formally optional extras for end users; in dev
+    # we install them so mypy can typecheck the adapter modules and tests
+    # can use the real SDK types under mock. Caps mirror the canonical
+    # extras above.
+    "openai>=1.40,<3",
+    "anthropic>=0.40,<1",
+    # Consolidation backend so the HDBSCAN tests run in CI as well.
+    "hdbscan>=0.8.40,<1",
+    # .env loading for local bench runs.
+    "python-dotenv>=1.0,<2",
+    # OpenTelemetry for Stage 9 observability tests.
+    "opentelemetry-api>=1.20,<2",
+    "opentelemetry-sdk>=1.20,<2",
+    # Framework integrations (v0.2.1).
+    "langgraph>=0.2,<1",
+    "llama-index-core>=0.12,<1",
+    # Docs site (Stage 10).
+    "mkdocs>=1.6,<2",
+    "mkdocs-material>=9.5,<10",
+    "mkdocstrings[python]>=0.26,<1",
 ]
 
 [project.scripts]
@@ -189,9 +201,28 @@ select = [
     "ARG",  # unused arguments
     "PT",   # pytest style
     "TID",  # tidy imports
+    "ASYNC",  # async correctness (loop blocking, awaitable misuse, etc.)
 ]
+# PERF and TRY were considered (audit M-145) but enabling them across the
+# whole tree would touch out-of-scope modules with many small refactors
+# (try/except inside loops in providers/retry, retry decorators in
+# memory.py, list-append rewrites across the consolidation engine). They
+# are deliberately disabled and will be enabled incrementally as each
+# area is touched. New modules under engram/ SHOULD avoid the
+# anti-patterns the rules catch (don't put try/except inside a hot loop;
+# prefer list comprehensions over .append in tight code paths).
 
 [tool.ruff.lint.per-file-ignores]
+# Tests use plain `assert`, random for fixtures, and freely import
+# pytest fixtures by name. The audit (M-144) flagged the breadth of
+# what we disable for tests; revisit when the codebase quiets down.
+#   S101  -- assert (every test asserts)
+#   S311  -- "random" for crypto (tests use it for fixture variety)
+#   B     -- bugbear: many test fixtures `mutable-default-args` that
+#            ruff dislikes are deliberate test scaffolding
+#   SIM   -- simplify: occasionally tests want explicit if/else for
+#            clarity even if ruff thinks a ternary is shorter
+#   ARG   -- pytest fixtures pass-through unused-arg-style hooks
 "tests/*" = ["S101", "S311", "B", "SIM", "ARG"]
 
 [tool.mypy]
@@ -201,6 +232,23 @@ files = ["src/engram"]
 pretty = true
 show_error_codes = true
 warn_unreachable = true
+
+# M-143: extend mypy to the tests tree but relax the strict surface
+# there. Production code stays strict (every untyped-def, every
+# missing-return); tests get a softer profile so a typing knob does
+# not block writing a fast test.
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = false
+warn_return_any = false
+warn_unused_ignores = false
+# Disable the untyped-def/untyped-call errors for tests so fixtures with
+# loosely-annotated parameters compile cleanly under strict mode.
+# Production code stays under the strict profile from the top-level
+# `[tool.mypy]` block.
+disable_error_code = ["no-untyped-def", "no-untyped-call"]
 
 [tool.pytest.ini_options]
 minversion = "8.0"
