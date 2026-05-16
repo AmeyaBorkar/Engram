@@ -19,7 +19,7 @@ import json
 import re
 from importlib import resources
 
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from engram.consolidation._abstraction import AbstractionParseError
 from engram.providers._message import Message
@@ -31,11 +31,23 @@ MERGE_PROMPT_FILENAME = f"{MERGE_PROMPT_NAME}_{MERGE_PROMPT_VERSION}.txt"
 
 
 class MergeResponse(BaseModel):
-    """Validated output of one merge call."""
+    """Validated output of one merge call.
+
+    Bounded match for `MemoryItem.content`: same upper cap (64 KiB)
+    and a non-empty/non-whitespace requirement so a model that returns
+    `{"merged": ""}` or `{"merged": " "}` can't plant an empty memory
+    item that downstream consumers would treat as 'real'.
+    """
 
     model_config = ConfigDict(frozen=True)
 
-    merged: str
+    merged: str = Field(min_length=1, max_length=64 * 1024)
+
+    @model_validator(mode="after")
+    def _check_non_whitespace(self) -> MergeResponse:
+        if not self.merged.strip():
+            raise ValueError("merged content must not be whitespace-only")
+        return self
 
 
 def load_merge_prompt() -> str:
