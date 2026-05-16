@@ -105,6 +105,17 @@ def test_observe_durable_across_sigkill(tmp_path: Path) -> None:
 
 
 def test_concurrent_observers_no_drops(tmp_path: Path) -> None:
+    # Note on synchronization: the test uses a `threading.Barrier` to
+    # release all writers at the same instant, then `t.join(timeout)`
+    # to wait for them — no wall-clock budget is asserted against.  The
+    # final correctness assertions are pure count checks, so the test
+    # is *not* time-flaky: it fails iff the storage actually loses
+    # events under contention.
+    #
+    # The per-thread join timeout (30s, well above the wallclock the
+    # workload needs) exists only to bound the failure mode: if
+    # `memory.observe` deadlocks, the test fails fast instead of
+    # blocking until CI's outer kill.
     db_path = str(tmp_path / "concurrent.db")
     storage = SqliteStorage(db_path)
     storage.initialize()
@@ -113,6 +124,7 @@ def test_concurrent_observers_no_drops(tmp_path: Path) -> None:
     n_writers = 8
     n_per_writer = 50
     barrier = threading.Barrier(n_writers + 1)
+    errors_lock = threading.Lock()
     errors: list[BaseException] = []
 
     def writer(worker_id: int) -> None:
@@ -121,14 +133,19 @@ def test_concurrent_observers_no_drops(tmp_path: Path) -> None:
             for i in range(n_per_writer):
                 memory.observe(f"w{worker_id}-e{i}")
         except BaseException as exc:
-            errors.append(exc)
+            # list.append happens to be GIL-atomic for CPython, but a
+            # lock here makes the test's correctness independent of
+            # the implementation detail.
+            with errors_lock:
+                errors.append(exc)
 
     threads = [threading.Thread(target=writer, args=(i,)) for i in range(n_writers)]
     for t in threads:
         t.start()
     barrier.wait()
     for t in threads:
-        t.join()
+        t.join(timeout=30.0)
+        assert not t.is_alive(), f"writer {t.name} didn't exit within 30s"
 
     try:
         assert errors == []
