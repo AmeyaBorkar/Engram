@@ -83,7 +83,6 @@ from engram import Memory, SqliteStorage  # noqa: E402
 from engram.providers._message import Message  # noqa: E402
 from engram.providers._protocols import ChatProvider  # noqa: E402
 from engram.retrieve._params import RetrieveParams  # noqa: E402
-from engram.schemas import Embedding, Event, ItemKind  # noqa: E402
 
 from benchmarks.suites.longmemeval import (  # noqa: E402
     DATASET_ROOT,
