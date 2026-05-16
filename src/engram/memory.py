@@ -1665,11 +1665,8 @@ def _outcome_boost(outcome: Outcome) -> float:
     }[outcome]
 
 
-def _clip01(x: float) -> float:
-    return 0.0 if x < 0.0 else (1.0 if x > 1.0 else x)
-
-
 from engram._vec_math import normalize as _normalize  # noqa: E402
+from engram.decay._math import clamp01 as _clip01  # noqa: E402  # alias for legacy callers
 
 
 def _embed_search_query(embedder: EmbeddingProvider, query: str) -> list[float]:

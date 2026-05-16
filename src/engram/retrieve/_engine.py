@@ -668,9 +668,4 @@ _LEVEL_PRIORITY: dict[Level, int] = {
 from engram._vec_math import normalize as _normalize  # noqa: E402
 
 
-def _clip01(x: float) -> float:
-    if x < 0.0:
-        return 0.0
-    if x > 1.0:
-        return 1.0
-    return x
+from engram.decay._math import clamp01 as _clip01  # noqa: E402  # alias for legacy callers
