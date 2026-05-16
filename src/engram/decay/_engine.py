@@ -105,10 +105,23 @@ class DecayEngine:
         self._storage = storage
         self._params = params if params is not None else DecayParams()
         self._prune_policy: PrunePolicy = prune_policy
-        # `clock` is intentionally a callable returning `datetime`. We accept
-        # `object | None` only to keep the signature open to lambdas and
-        # functools.partial; the runtime check below is what matters.
-        self._clock = clock if callable(clock) else _utcnow
+        # `clock` is intentionally a callable returning `datetime`.  We
+        # accept `object | None` only to keep the signature open to
+        # lambdas and functools.partial.  Previously a caller passing
+        # `clock=datetime.now()` (a datetime, not a callable returning
+        # one) silently fell back to wall-clock without warning —
+        # producing a non-deterministic tick under what looked like a
+        # frozen-clock test.  Raise instead so the misuse surfaces.
+        if clock is None:
+            self._clock = _utcnow
+        elif callable(clock):
+            self._clock = clock  # type: ignore[assignment]
+        else:
+            raise TypeError(
+                f"DecayEngine.clock must be a callable returning datetime; "
+                f"got {type(clock).__name__}.  Pass `clock=lambda: my_dt` "
+                f"to inject a fixed time."
+            )
         self._kinds = tuple(kinds)
         self._batch_size = batch_size
         self._last_tick: TickResult | None = None

@@ -74,15 +74,13 @@ class TestConstruction:
             with pytest.raises(ValueError, match="kinds"):
                 DecayEngine(storage, kinds=())
 
-    def test_uncallable_clock_falls_back_to_utcnow(self, tmp_path: Path) -> None:
-        # Defensive: passing something non-callable for clock should not
-        # break the engine, it should just use the default.
+    def test_uncallable_clock_raises_typeerror(self, tmp_path: Path) -> None:
+        # Non-callable clock must surface as TypeError instead of
+        # silently falling back to utcnow (which used to produce
+        # non-deterministic ticks in tests that expected frozen time).
         with SqliteStorage(tmp_path / "x.db") as storage:
-            engine = DecayEngine(storage, clock=42)  # type: ignore[arg-type]
-            event = _seed_event(storage)
-            engine.reinforce(event.id, ItemKind.EVENT, count=1)
-            state = storage.get_decay_state(event.id, ItemKind.EVENT)
-            assert state is not None
+            with pytest.raises(TypeError, match="callable"):
+                DecayEngine(storage, clock=42)  # type: ignore[arg-type]
 
 
 # ---------------------------------------------------------------------------
