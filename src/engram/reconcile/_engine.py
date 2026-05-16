@@ -53,11 +53,7 @@ from engram.storage._protocol import Storage
 from engram._time import utcnow as _utcnow  # noqa: E402
 
 
-def _normalize(vec: Sequence[float]) -> list[float]:
-    norm = math.sqrt(sum(x * x for x in vec))
-    if norm == 0.0:
-        return list(vec)
-    return [x / norm for x in vec]
+from engram._vec_math import normalize as _normalize  # noqa: E402
 
 
 class Reconciler:

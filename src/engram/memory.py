@@ -1599,11 +1599,7 @@ def _clip01(x: float) -> float:
     return 0.0 if x < 0.0 else (1.0 if x > 1.0 else x)
 
 
-def _normalize(vec: Sequence[float]) -> list[float]:
-    norm = math.sqrt(sum(x * x for x in vec))
-    if norm == 0.0:
-        return list(vec)
-    return [x / norm for x in vec]
+from engram._vec_math import normalize as _normalize  # noqa: E402
 
 
 def _embed_search_query(embedder: EmbeddingProvider, query: str) -> list[float]:

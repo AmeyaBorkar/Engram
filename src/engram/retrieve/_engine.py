@@ -665,11 +665,7 @@ _LEVEL_PRIORITY: dict[Level, int] = {
 }
 
 
-def _normalize(vec: Sequence[float]) -> list[float]:
-    norm = math.sqrt(sum(x * x for x in vec))
-    if norm == 0.0:
-        return list(vec)
-    return [x / norm for x in vec]
+from engram._vec_math import normalize as _normalize  # noqa: E402
 
 
 def _clip01(x: float) -> float:
