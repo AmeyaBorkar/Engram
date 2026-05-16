@@ -66,9 +66,25 @@ class Redactor:
     def from_patterns(
         cls, patterns: Iterable[str | re.Pattern[str]], replacement: str = "[REDACTED]"
     ) -> Redactor:
-        """Build a redactor from string or pre-compiled regex patterns."""
-        compiled = tuple(p if isinstance(p, re.Pattern) else re.compile(p) for p in patterns)
-        return cls(patterns=compiled, replacement=replacement)
+        """Build a redactor from string or pre-compiled regex patterns.
+
+        Compiles each string pattern; a malformed regex raises
+        ``ValueError`` naming the index and the underlying re.error so
+        a JSON / YAML config with a typo is diagnosable without
+        bisecting the pattern list by hand.
+        """
+        compiled_list: list[re.Pattern[str]] = []
+        for i, p in enumerate(patterns):
+            if isinstance(p, re.Pattern):
+                compiled_list.append(p)
+                continue
+            try:
+                compiled_list.append(re.compile(p))
+            except re.error as exc:
+                raise ValueError(
+                    f"redactor pattern at index {i} ({p!r}) is invalid: {exc}"
+                ) from exc
+        return cls(patterns=tuple(compiled_list), replacement=replacement)
 
     def redact(self, text: str) -> str:
         """Return `text` with every match of any pattern replaced."""
