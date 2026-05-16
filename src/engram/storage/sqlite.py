@@ -931,8 +931,18 @@ class SqliteStorage:
         *,
         status: ConflictStatus | None = None,
         memory_item_id: UUID | None = None,
+        tenant_id: str | None = None,
         limit: int = 100,
     ) -> list[Conflict]:
+        """List conflicts with optional filters.
+
+        `tenant_id` filters to conflicts whose participating memory items
+        both belong to that tenant.  The conflicts table itself doesn't
+        carry tenant_id (Stage 9 deferred a schema migration), so we join
+        through memory_items twice — once per side — and intersect.
+        Untagged tenant_id (None) returns conflicts across all tenants,
+        same as the pre-fix behavior.
+        """
         if limit < 1:
             raise ValueError(f"limit must be >= 1, got {limit}")
         sql = "SELECT * FROM conflicts WHERE 1=1"
@@ -943,6 +953,18 @@ class SqliteStorage:
         if memory_item_id is not None:
             sql += " AND (source_item_id = ? OR target_item_id = ?)"
             params.extend((memory_item_id.bytes, memory_item_id.bytes))
+        if tenant_id is not None:
+            # Both sides must match the tenant.  Subselect rather than
+            # JOIN so the source/target filters above stay simple.
+            sql += (
+                " AND EXISTS (SELECT 1 FROM memory_items mi_s "
+                "             WHERE mi_s.id = conflicts.source_item_id "
+                "               AND mi_s.tenant_id = ?)"
+                " AND EXISTS (SELECT 1 FROM memory_items mi_t "
+                "             WHERE mi_t.id = conflicts.target_item_id "
+                "               AND mi_t.tenant_id = ?)"
+            )
+            params.extend((tenant_id, tenant_id))
         sql += " ORDER BY detected_at DESC, id DESC LIMIT ?"
         params.append(limit)
         rows = self._connect().execute(sql, params).fetchall()
