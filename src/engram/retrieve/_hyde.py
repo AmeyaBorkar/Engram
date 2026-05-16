@@ -24,7 +24,7 @@ from __future__ import annotations
 
 from importlib import resources
 
-from engram._prompt_util import inline as _inline  # noqa: F401  -- used in render
+from engram._prompt_util import inline as _inline, render_prompt
 from engram.providers._message import Message
 from engram.providers._protocols import ChatProvider
 
@@ -40,7 +40,7 @@ def load_hyde_prompt() -> str:
 
 def render_hyde_prompt(query: str) -> str:
     template = load_hyde_prompt()
-    return template.replace("{query}", _inline(query))
+    return render_prompt(template, query=_inline(query))
 
 
 def hyde_transform(query: str, chat: ChatProvider) -> str:

@@ -29,7 +29,7 @@ from importlib import resources
 from engram.providers._message import Message
 from engram.providers._protocols import ChatProvider
 from engram.schemas import RetrievalResult
-from engram._prompt_util import inline as _inline
+from engram._prompt_util import inline as _inline, render_prompt
 
 MULTI_QUERY_PROMPT_NAME = "multi_query"
 MULTI_QUERY_PROMPT_VERSION = "v1"
@@ -45,7 +45,7 @@ def load_multi_query_prompt() -> str:
 
 def render_multi_query_prompt(query: str, n: int) -> str:
     template = load_multi_query_prompt()
-    return template.replace("{query}", _inline(query)).replace("{n}", str(n))
+    return render_prompt(template, query=_inline(query), n=str(n))
 
 
 def expand_queries(query: str, n: int, chat: ChatProvider) -> list[str]:

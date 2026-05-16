@@ -23,6 +23,7 @@ from engram.providers._message import Message
 from engram.providers._protocols import ChatProvider
 from engram._prompt_util import (
     inline as _inline,
+    render_prompt,
     strip_code_fence as _strip_code_fence,
 )
 
@@ -48,10 +49,13 @@ def load_verify_prompt() -> str:
 def render_verify_prompt(*, question: str, context: str, answer: str) -> str:
     template = load_verify_prompt()
     safe_context = _scrub_tags(context) if context else "(none)"
-    return (
-        template.replace("{question}", _scrub_tags(_inline(question)))
-        .replace("{context}", safe_context)
-        .replace("{answer}", _scrub_tags(_inline(answer)))
+    # Single-pass substitution prevents user content in one slot from being
+    # interpreted as a literal {other_slot} placeholder (audit H-03).
+    return render_prompt(
+        template,
+        question=_scrub_tags(_inline(question)),
+        context=safe_context,
+        answer=_scrub_tags(_inline(answer)),
     )
 
 

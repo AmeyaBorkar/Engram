@@ -44,6 +44,7 @@ from engram.providers._message import Message
 from engram.providers._protocols import ChatProvider
 from engram._prompt_util import (
     inline as _inline,
+    render_prompt,
     strip_code_fence as _strip_code_fence,
 )
 
@@ -112,9 +113,7 @@ def load_temporal_prompt() -> str:
 
 def render_temporal_prompt(query: str, now: datetime) -> str:
     template = load_temporal_prompt()
-    return template.replace("{query}", _inline(query)).replace(
-        "{now}", now.isoformat()
-    )
+    return render_prompt(template, query=_inline(query), now=now.isoformat())
 
 
 def parse_temporal_response(text: str) -> TemporalAnchor:

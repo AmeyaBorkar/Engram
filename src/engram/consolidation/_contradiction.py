@@ -41,6 +41,7 @@ from engram.schemas import Verdict
 from engram._security.prompt_injection import looks_like_injection
 from engram._prompt_util import (
     inline as _inline,
+    render_prompt,
     strip_code_fence as _strip_code_fence,
 )
 
@@ -129,7 +130,9 @@ def load_judge_prompt() -> str:
 
 def render_judge_prompt(*, a: str, b: str) -> str:
     template = load_judge_prompt()
-    return template.replace("{a}", _inline(a)).replace("{b}", _inline(b))
+    # Single-pass: chained .replace lets `a` contain a literal `{b}` and
+    # redirect into the other slot (audit H-03).
+    return render_prompt(template, a=_inline(a), b=_inline(b))
 
 
 def parse_judge_response(text: str) -> JudgeResponse:

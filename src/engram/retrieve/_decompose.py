@@ -22,7 +22,7 @@ from importlib import resources
 
 from engram.providers._message import Message
 from engram.providers._protocols import ChatProvider
-from engram._prompt_util import inline as _inline
+from engram._prompt_util import inline as _inline, render_prompt
 
 DECOMPOSE_PROMPT_NAME = "decompose"
 DECOMPOSE_PROMPT_VERSION = "v1"
@@ -38,7 +38,7 @@ def load_decompose_prompt() -> str:
 
 def render_decompose_prompt(query: str) -> str:
     template = load_decompose_prompt()
-    return template.replace("{query}", _inline(query))
+    return render_prompt(template, query=_inline(query))
 
 
 # The decomposition prompt instructs the LLM to emit between 2 and 5

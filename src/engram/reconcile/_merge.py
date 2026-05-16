@@ -25,6 +25,7 @@ from engram.providers._message import Message
 from engram.providers._protocols import ChatProvider
 from engram._prompt_util import (
     inline as _inline,
+    render_prompt,
     strip_code_fence as _strip_code_fence,
 )
 
@@ -60,7 +61,11 @@ def load_merge_prompt() -> str:
 
 def render_merge_prompt(*, a: str, b: str) -> str:
     template = load_merge_prompt()
-    return template.replace("{a}", _inline(a)).replace("{b}", _inline(b))
+    # Single-pass substitution: a chained .replace("{a}",a).replace("{b}",b)
+    # lets `a` contain the literal text `{b}` and steer the second replace
+    # into the wrong slot (audit H-03).  render_prompt walks the template
+    # once and substitutes each placeholder at most once.
+    return render_prompt(template, a=_inline(a), b=_inline(b))
 
 
 def parse_merge_response(text: str) -> MergeResponse:

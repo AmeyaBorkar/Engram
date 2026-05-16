@@ -29,6 +29,7 @@ from engram.providers._protocols import ChatProvider
 from engram.schemas import RetrievalResult
 from engram._prompt_util import (
     inline as _inline,
+    render_prompt,
     strip_code_fence as _strip_code_fence,
 )
 
@@ -56,10 +57,17 @@ def render_react_prompt(question: str, memories: list[RetrievalResult]) -> str:
     if not memories:
         memory_block = "(none yet)"
     else:
-        lines = [f"- [{r.level.value}] {r.content}" for r in memories]
+        # Each memory's content is user-influenced data, so inline it
+        # before splicing it into the prompt (audit H-02).  Previously
+        # the loop interpolated `r.content` verbatim, so a memory item
+        # containing line breaks could close one bullet and start a new
+        # block addressed to the LLM as if from the system.
+        lines = [f"- [{r.level.value}] {_inline(r.content)}" for r in memories]
         memory_block = "\n".join(lines)
-    return template.replace("{question}", _inline(question)).replace(
-        "{memories}", memory_block
+    return render_prompt(
+        template,
+        question=_inline(question),
+        memories=memory_block,
     )
 
 
