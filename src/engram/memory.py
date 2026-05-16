@@ -249,6 +249,7 @@ class Memory:
         recency_decay_days: float | None = None,
         mmr_pool_size: int | None = None,
         recent_window_k: int | None = None,
+        rrf_k: int | None = None,
     ) -> list[RetrievalResult]:
         """Return up to `k` items most relevant to `query`, coarse-to-fine.
 
@@ -335,7 +336,7 @@ class Memory:
             multi_query_n=(
                 multi_query_n if multi_query_n is not None else defaults.multi_query_n
             ),
-            rrf_k=defaults.rrf_k,
+            rrf_k=rrf_k if rrf_k is not None else defaults.rrf_k,
             decompose=decompose if decompose is not None else defaults.decompose,
             surface_conflicts=(
                 surface_conflicts
