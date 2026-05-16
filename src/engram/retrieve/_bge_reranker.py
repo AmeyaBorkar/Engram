@@ -26,12 +26,9 @@ can still `import engram.retrieve` -- they just can't construct a
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any, Literal
+from typing import Any, Literal
 
 from engram.retrieve._reranker import RerankCandidate
-
-if TYPE_CHECKING:  # pragma: no cover - import-only for typing
-    pass
 
 DEFAULT_MODEL = "BAAI/bge-reranker-v2-m3"
 

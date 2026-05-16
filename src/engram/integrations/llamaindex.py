@@ -31,13 +31,10 @@ _LOG_LI = logging.getLogger(__name__)
 
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from engram.integrations._context import format_context
 from engram.memory import Memory
-
-if TYPE_CHECKING:  # pragma: no cover - import-only for typing
-    pass
 
 
 @dataclass

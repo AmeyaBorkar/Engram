@@ -12,13 +12,10 @@ Behind the `[bench]` extra. Tests skip when `chromadb` isn't installed.
 from __future__ import annotations
 
 import uuid
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from engram.bench import Hit
 from engram.providers import EmbeddingProvider
-
-if TYPE_CHECKING:
-    pass
 
 
 class ChromaRetriever:
