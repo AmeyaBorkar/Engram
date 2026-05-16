@@ -30,6 +30,8 @@ import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import pytest
+
 from engram import Memory, SqliteStorage
 from engram._security.prompt_injection import (
     CORPUS,
@@ -270,12 +272,31 @@ class TestEndToEndPromotion:
             assert forbidden.lower() not in items[0].content.lower()
         storage.close()
 
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "Stage 5 promote() lifts an injection-laden SUMMARY straight "
+            "into ABSTRACTION because the promotion path skips the "
+            "looks_like_injection filter (the filter only runs at "
+            "parse_response time).  This xfail pins the open invariant "
+            "(no injection content at Level.ABSTRACTION) so a future "
+            "fix in src/engram/consolidation/_engine.py — adding the "
+            "filter at promotion gate — flips this to pass and the "
+            "xfail-strict flag will surface it."
+        ),
+    )
     def test_injection_text_never_promoted_to_abstraction(self, tmp_path: Path) -> None:
-        # Belt-and-suspenders: even if a malicious memory_item ends up
-        # planted at level=summary (e.g. via direct storage manipulation
-        # or a future bug), promotion's criteria block it from rising.
-        # Here we test by manually inserting an injection-laden summary
-        # and trying to promote it.
+        # End-to-end version of the DoD invariant: even if a malicious
+        # memory_item is planted directly into storage at level=summary
+        # (bypassing the parse-time filter), promotion must not lift its
+        # injection-shaped content into level=abstraction.
+        #
+        # The previous version of this test only asserted
+        # `looks_like_injection(item.content)` on the planted content,
+        # which is tautological by construction.  The real invariant the
+        # DoD requires is: after promote() runs, no item at
+        # Level.ABSTRACTION contains a string that trips
+        # `looks_like_injection`.
         storage = SqliteStorage(tmp_path / "x.db")
         storage.initialize()
 
@@ -288,30 +309,50 @@ class TestEndToEndPromotion:
         )
         storage.insert_memory_item(item)
 
+        # Plant a few benign sibling summaries too so any post-promote
+        # walk that happens to land on a non-injection item still has a
+        # population to scan.
+        for i in range(2):
+            storage.insert_memory_item(
+                MemoryItem(
+                    level=Level.SUMMARY,
+                    content=f"benign summary {i}: alice met bob",
+                    weight=1.0,
+                    metadata={"consolidation": {"conflicts": []}},
+                )
+            )
+
         memory = Memory(
             storage=storage,
             embedder=FakeEmbedder(dim=8),
             chat=FakeChat(default="{}"),
             consolidation_params=ConsolidationParams(
-                promotion_params=PromotionParams(enabled=True, min_corroboration=1, min_weight=0.0),
+                promotion_params=PromotionParams(
+                    enabled=True, min_corroboration=1, min_weight=0.0
+                ),
             ),
         )
         for _ in range(5):
             memory.corroborate(item.id, ItemKind.MEMORY_ITEM)
 
-        # The promotion pass currently does not screen for injection
-        # content. This test pins the *invariant* the DoD wants: even
-        # if the item is promoted, our `looks_like_injection` filter
-        # would have been the gate at insert time, so by construction
-        # injection content never reaches abstraction in the regular
-        # pipeline. The defense-in-depth here is the parse-level filter
-        # we tested above; promotion adds defense-against-misuse for
-        # the corroboration counters.
         memory.promote()
-        # The item is at level=summary or level=abstraction here; the
-        # invariant we care about: any item whose content matches an
-        # injection pattern is detectable.
+
+        # Sanity: the planted content does trip the filter — otherwise
+        # the end-to-end assertion below would be vacuously true.
         assert looks_like_injection(item.content)
+
+        # The real invariant: no abstraction-level item contains
+        # injection-shaped content after promote().  The pipeline's
+        # parse-level filter is the canonical gate; this test pins the
+        # invariant from the downstream end so any future code path
+        # that bypasses the parse filter still gets caught here.
+        abstractions = storage.list_memory_items(level=Level.ABSTRACTION, limit=1000)
+        for abs_item in abstractions:
+            assert not looks_like_injection(abs_item.content), (
+                f"abstraction {abs_item.id} contains injection-shaped content: "
+                f"{abs_item.content!r}"
+            )
+
         storage.close()
 
 
