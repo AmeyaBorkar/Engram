@@ -1,11 +1,12 @@
 """The `Storage` protocol.
 
-A backend implements this surface. The SQLite backend in `sqlite.py` is the
-only implementation in Stage 1; Stage 9 brings Postgres against the same
-protocol.
+A backend implements this surface.  The SQLite backend in `sqlite.py`
+is the only implementation that ships today; alternate backends
+(Postgres, DuckDB, sqlite-vec) are roadmap items.
 
-The protocol is intentionally small and synchronous. Stage 9 layers an async
-surface on top.
+The protocol is intentionally small and synchronous; an async surface
+would layer on top (or live on Memory, where `aretrieve` etc. already
+do).
 """
 
 from __future__ import annotations

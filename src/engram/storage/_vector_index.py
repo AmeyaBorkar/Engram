@@ -16,9 +16,10 @@ Cache mechanics:
   * Rebuild cost is paid once per write burst, not once per query.
 
 The trade is simple: doubled memory (the matrix mirrors the embeddings
-table) for ~50x faster retrieval at scale. Stage 9's Postgres backend
-will swap this for `pgvector`; sqlite-vec is the natural Stage-N upgrade
-once the extension is widely deployable.
+table) for ~50x faster retrieval at scale.  A future Postgres backend
+would swap this for `pgvector`, and `sqlite-vec` is a natural upgrade
+once the extension is widely deployable — both are roadmap items, not
+shipped.
 
 NOT thread-safe by itself; `SqliteStorage` already serializes per-thread
 connection usage and only one rebuild happens per dirty cycle (subsequent

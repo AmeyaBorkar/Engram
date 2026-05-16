@@ -12,9 +12,10 @@ Module layout:
   * `_contradiction`  — pairwise check against existing abstractions
   * `_engine`         — orchestration that ties the above into one pipeline
 
-The engine is opt-in (call `Memory.consolidate(...)`) - the library does
-not run consolidation in the background. Stage 9 introduces a worker
-that schedules consolidation alongside the decay tick.
+The engine is opt-in (call `Memory.consolidate(...)`) — the library does
+not run consolidation in the background.  A background scheduler that
+runs consolidation alongside the decay tick is a roadmap item, not
+shipped.
 """
 
 from engram.consolidation._abstraction import (

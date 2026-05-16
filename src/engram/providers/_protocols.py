@@ -1,8 +1,8 @@
 """Provider protocols.
 
 `EmbeddingProvider` and `ChatProvider` are the two surfaces every
-implementation honors. Both expose sync and async paths; the async path
-matters once Stage 9 adds the async public API.
+implementation honors.  Both expose sync and async paths; the async
+path is consumed by `Memory.aretrieve` / `aconsolidate` etc.
 
 The `name`, `model`, and `manifest_hash()` triple is what benchmark
 manifests record; two providers compare equal by their hash, so swapping a

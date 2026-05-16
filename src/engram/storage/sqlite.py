@@ -1,8 +1,8 @@
 """SQLite storage backend.
 
-WAL mode, foreign keys on, per-thread connections. Single-process, single-
-machine — Stage 9 brings the multi-tenant Postgres backend against the same
-protocol.
+WAL mode, foreign keys on, per-thread connections. Single-process,
+single-machine.  A multi-tenant Postgres backend implementing the
+same Storage protocol is a roadmap item, not on disk yet.
 
 Threading model: each thread gets its own connection on first use. The
 connection is closed when `SqliteStorage.close()` is called by *that* thread,
