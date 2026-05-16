@@ -25,6 +25,10 @@ the bridge to those.
 
 from __future__ import annotations
 
+import logging
+
+_LOG_LI = logging.getLogger(__name__)
+
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
@@ -116,7 +120,7 @@ class EngramLlamaIndexMemory:
             self._memory.observe(str(content))
 
     def get(
-        self, input: str | None = None, **_: Any
+        self, input: str | None = None, **kwargs: Any
     ) -> Sequence[_PseudoChatMessage]:
         """Return one pseudo-message that carries the retrieved memory
         context.
@@ -124,13 +128,42 @@ class EngramLlamaIndexMemory:
         LlamaIndex's chat engine expects `get(input=question)` to
         return a list of messages to prepend to the chat. We pack the
         context into a single system-role message.
+
+        Honors `token_limit` and `chat_history_limit` kwargs as best-effort
+        caps on the retrieved-memory budget; other LlamaIndex-supplied
+        kwargs are accepted (so newer chat-engine versions don't
+        TypeError here) but emit a debug-level log so a caller can spot
+        when the adapter is dropping options the rest of the framework
+        might honor.
         """
         if not input:
             return []
-        results = self._memory.retrieve(input, k=self._k, reinforce=False)
+        # Best-effort respect for LlamaIndex's standard kwargs.  Both are
+        # caps; we use whichever is more restrictive against the
+        # constructor's `k`.
+        effective_k = self._k
+        token_limit = kwargs.pop("token_limit", None)
+        chat_history_limit = kwargs.pop("chat_history_limit", None)
+        if isinstance(chat_history_limit, int) and chat_history_limit > 0:
+            effective_k = min(effective_k, chat_history_limit)
+        if kwargs:
+            _LOG_LI.debug(
+                "EngramLlamaIndexMemory.get ignoring unknown kwargs: %s",
+                sorted(kwargs.keys()),
+            )
+        results = self._memory.retrieve(input, k=effective_k, reinforce=False)
         if not results:
             return []
         context = format_context(results, include_level=self._include_level)
+        # token_limit is a soft cap: we don't tokenize here (LlamaIndex's
+        # tokenizer isn't always importable), so we approximate via char
+        # count at the standard 4-chars-per-token rule.  Caller still
+        # gets the most-relevant top-k; only the rendered context is
+        # truncated.
+        if isinstance(token_limit, int) and token_limit > 0:
+            cap_chars = token_limit * 4
+            if len(context) > cap_chars:
+                context = context[:cap_chars]
         return [
             _PseudoChatMessage(
                 role=self._system_role,
