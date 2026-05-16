@@ -212,7 +212,14 @@ class LoCoMoSuite:
         splits_to_run = list(_SPLITS) if self.split == "all" else [self.split]
         per_question: list[dict[str, Any]] = []
         retrieve_ms: list[float] = []
-        per_type_scores: dict[str, list[float]] = {s: [] for s in _SPLITS}
+        # Per-qtype scores are populated by setdefault as each question
+        # is scored.  Pre-populating with empty lists keyed on _SPLITS
+        # used to put empty buckets in the aggregate (`single_hop: []`)
+        # for splits that weren't even run, and double-counted when a
+        # question's qtype was named differently from its split
+        # (e.g. qtype 'single_hop_v2' lived alongside an empty
+        # 'single_hop' bucket).
+        per_type_scores: dict[str, list[float]] = {}
 
         any_data = False
         for split in splits_to_run:
