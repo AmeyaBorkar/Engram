@@ -175,8 +175,14 @@ class TestRetrieveIterativeBasics:
                 )
             return json.dumps({"sufficient": True})
 
+        # Deliberate private-attr coupling (audit M-127): the test needs a
+        # spy that counts calls in-place. FakeChat.chat is replaced with a
+        # closure (`chat_fn`) and the closure is plumbed in via Memory._chat
+        # because the public constructor takes chat once, immutably. If
+        # FakeChat grows a counter API or Memory.set_chat() lands, prefer
+        # those over this private-attr write.
         chat.chat = chat_fn  # type: ignore[method-assign,assignment]
-        memory._chat = chat
+        memory._chat = chat  # noqa: SLF001 - see comment above (M-127)
         # Wire reconciler back since we've now set chat.
         results = memory.retrieve_iterative("question?", k=5, max_steps=3)
         assert call_count == 2
@@ -202,8 +208,9 @@ class TestRetrieveIterativeBasics:
             )
 
         chat = FakeChat(default="")
+        # See M-127 note above: deliberate private-attr coupling for spy chat.
         chat.chat = chat_fn  # type: ignore[method-assign,assignment]
-        memory._chat = chat
+        memory._chat = chat  # noqa: SLF001 - deliberate (M-127)
         memory.retrieve_iterative("query", k=5, max_steps=4)
         # The judge is skipped on the final iteration (its verdict can't
         # change the outcome — the loop exits anyway), so max_steps=4
@@ -230,8 +237,9 @@ class TestRetrieveIterativeBasics:
             )
 
         chat = FakeChat(default="")
+        # See M-127 note above: deliberate private-attr coupling for spy chat.
         chat.chat = chat_fn  # type: ignore[method-assign,assignment]
-        memory._chat = chat
+        memory._chat = chat  # noqa: SLF001 - deliberate (M-127)
         memory.retrieve_iterative("query", k=5, max_steps=10)
         # One step's retrieve, then judge with no change -> stop.
         assert call_count == 1

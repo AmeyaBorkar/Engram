@@ -163,13 +163,12 @@ class TestReconcileInstrumentation:
 
 
 class TestInstrumentationName:
-    def test_tracer_named_engram(self, span_exporter: InMemorySpanExporter) -> None:
+    def test_tracer_named_engram(
+        self, memory: Memory, span_exporter: InMemorySpanExporter
+    ) -> None:
         # Every span comes from the `engram` instrumentation library.
-        memory = Memory(
-            storage=SqliteStorage(":memory:"),
-            embedder=FakeEmbedder(dim=8),
-        )
-        memory.storage.initialize()
+        # Uses the conftest-derived `memory` fixture (audit M-134) so
+        # the underlying SqliteStorage is closed on teardown.
         memory.observe("x")
         for s in span_exporter.get_finished_spans():
             scope = s.instrumentation_scope

@@ -30,12 +30,22 @@ _settings = settings(
 
 # Generate content that includes nulls, control chars, surrogates-via-utf8,
 # oversized strings, and ordinary text.
+#
+# Surrogate exclusion (audit M-132): Python source code can hold lone
+# surrogates (str holds UTF-16 code units, not UTF-8 bytes), but SQLite's
+# TEXT column requires well-formed UTF-8 -- inserts containing unpaired
+# surrogates raise `UnicodeEncodeError` from the codec, not from our
+# code. Hypothesis-driven `Cs` (Surrogate) category exclusion focuses the
+# fuzz on the storage layer (what we own) rather than the codec layer
+# (which is well-tested upstream). Real attack surface for malformed
+# UTF-8 enters at the network/JSON boundary, not at the storage API,
+# which already receives a Python `str`.
 _adversarial_text = st.one_of(
     st.text(min_size=0, max_size=64),
     st.text(alphabet=string.printable, min_size=0, max_size=2048),
     st.text(
         alphabet=st.characters(
-            blacklist_categories=("Cs",),  # exclude unpaired surrogates
+            blacklist_categories=("Cs",),  # exclude unpaired surrogates - see note
         ),
         min_size=0,
         max_size=512,

@@ -14,6 +14,7 @@ abstraction step and use the cheap model everywhere else.
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from datetime import datetime, timezone
 
 import pytest
@@ -155,7 +156,10 @@ class TestMergeUsesConsolidateChat:
 
 
 @pytest.fixture
-def storage() -> SqliteStorage:
+def storage() -> Iterator[SqliteStorage]:
     backend = SqliteStorage(":memory:")
     backend.initialize()
-    return backend
+    try:
+        yield backend
+    finally:
+        backend.close()

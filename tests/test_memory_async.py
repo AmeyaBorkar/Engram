@@ -39,10 +39,15 @@ from engram.providers._fake import FakeChat, FakeEmbedder
 from engram.schemas import Embedding, Event
 
 
+# Audit M-134: kept local rather than promoted to conftest.
 # Async tests need cross-thread SQLite access (asyncio.to_thread runs
 # the sync body on a worker thread). `:memory:` databases are
 # per-connection in SQLite -- two threads see two separate databases.
-# A tempfile sidesteps the issue.
+# A tempfile sidesteps the issue. The shared conftest `storage` fixture
+# uses `:memory:` and is unsuitable here; `disk_storage` is conftest's
+# equivalent but is named for the storage-on-disk semantics, not for
+# cross-thread access. Renaming would churn many tests; keeping a local
+# fixture under its meaning-specific name documents the intent.
 @pytest.fixture
 def file_storage(tmp_path: Path) -> Iterator[SqliteStorage]:
     backend = SqliteStorage(tmp_path / "async.db")

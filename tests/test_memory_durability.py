@@ -27,19 +27,28 @@ from engram import Memory, SqliteStorage
 from engram.providers import FakeEmbedder
 
 
-def _writer_loop(db_path: str, dim: int) -> None:
-    """Subprocess entrypoint: observe events forever (until killed)."""
+def _writer_loop(db_path: str, dim: int, progress_path: str) -> None:
+    """Subprocess entrypoint: observe events forever (until killed).
+
+    Writes the running commit count to `progress_path` after each
+    observation so the parent can poll for liveness instead of guessing
+    with a fixed sleep.
+    """
     storage = SqliteStorage(db_path)
     storage.initialize()
     memory = Memory(storage=storage, embedder=FakeEmbedder(dim=dim))
     i = 0
+    progress = Path(progress_path)
     while True:
         memory.observe(f"event-{i}")
         i += 1
+        # Atomic-ish write: full content per tick is tiny.
+        progress.write_text(str(i), encoding="utf-8")
 
 
 def test_observe_durable_across_sigkill(tmp_path: Path) -> None:
     db_path = str(tmp_path / "kill.db")
+    progress_path = tmp_path / "progress.txt"
     # Bootstrap schema in the parent so the subprocess has a fully-migrated DB
     # to write into immediately.
     bootstrap = SqliteStorage(db_path)
@@ -47,10 +56,24 @@ def test_observe_durable_across_sigkill(tmp_path: Path) -> None:
     bootstrap.close()
 
     ctx = multiprocessing.get_context("spawn")
-    proc = ctx.Process(target=_writer_loop, args=(db_path, 16))
+    proc = ctx.Process(target=_writer_loop, args=(db_path, 16, str(progress_path)))
     proc.start()
     try:
-        time.sleep(1.0)
+        # Poll for the subprocess to commit at least one event. Slow
+        # runners (Windows spawn-import takes ~1s) get up to 30s of
+        # leeway; a healthy runner exits the loop in <100ms.
+        deadline = time.monotonic() + 30.0
+        observed = 0
+        while time.monotonic() < deadline:
+            if progress_path.exists():
+                try:
+                    observed = int(progress_path.read_text(encoding="utf-8") or "0")
+                except ValueError:
+                    observed = 0
+                if observed > 0:
+                    break
+            time.sleep(0.05)
+        assert observed > 0, "subprocess never reported progress before deadline"
     finally:
         proc.kill()
         proc.join(timeout=5.0)

@@ -38,7 +38,7 @@ class TestGetDecayState:
             assert state is not None
             assert state.item_id == event.id
             assert state.item_kind is ItemKind.EVENT
-            assert state.weight == 1.0
+            assert state.weight == pytest.approx(1.0)
             assert state.reinforcement_count == 0
             assert state.corroboration_count == 0
             assert state.contradiction_count == 0
@@ -52,7 +52,7 @@ class TestGetDecayState:
             state = storage.get_decay_state(item.id, ItemKind.MEMORY_ITEM)
             assert state is not None
             assert state.item_kind is ItemKind.MEMORY_ITEM
-            assert state.weight == 0.4
+            assert state.weight == pytest.approx(0.4)
             # `last_decayed_at` mirrors `created_at` on insert (same as
             # events) so the first decay tick computes dt from creation,
             # not from `updated_at` (which can lead `created_at` even for

@@ -14,6 +14,8 @@ from importlib import resources
 from pathlib import Path
 from uuid import uuid4
 
+import pytest
+
 from engram.storage import SqliteStorage
 from engram.storage.migrations import list_migrations
 
@@ -119,7 +121,7 @@ class TestFreshUpgrade:
                     "'2026-01-01T00:00:00+00:00')",
                     (mid,),
                 )
-            try:
+            with pytest.raises(sqlite3.IntegrityError):
                 conn.execute(
                     "INSERT INTO conflicts "
                     "(id, source_item_id, target_item_id, similarity, "
@@ -127,10 +129,6 @@ class TestFreshUpgrade:
                     "VALUES (?, ?, ?, 0.9, 'bogus', '2026-05-01T00:00:00+00:00')",
                     (uuid4().bytes, a, b),
                 )
-            except sqlite3.IntegrityError:
-                pass
-            else:  # pragma: no cover
-                raise AssertionError("CHECK constraint did not reject bogus status")
 
     def test_conflicts_resolution_check(self, tmp_path: Path) -> None:
         with SqliteStorage(tmp_path / "x.db") as storage:
@@ -146,7 +144,7 @@ class TestFreshUpgrade:
                     "'2026-01-01T00:00:00+00:00')",
                     (mid,),
                 )
-            try:
+            with pytest.raises(sqlite3.IntegrityError):
                 conn.execute(
                     "INSERT INTO conflicts "
                     "(id, source_item_id, target_item_id, similarity, "
@@ -155,10 +153,6 @@ class TestFreshUpgrade:
                     " '2026-05-01T00:00:00+00:00', '2026-05-01T00:00:00+00:00')",
                     (uuid4().bytes, a, b),
                 )
-            except sqlite3.IntegrityError:
-                pass
-            else:  # pragma: no cover
-                raise AssertionError("CHECK constraint did not reject bogus resolution")
 
     def test_conflicts_source_target_distinct(self, tmp_path: Path) -> None:
         with SqliteStorage(tmp_path / "x.db") as storage:
@@ -173,17 +167,13 @@ class TestFreshUpgrade:
                 "'2026-01-01T00:00:00+00:00')",
                 (a,),
             )
-            try:
+            with pytest.raises(sqlite3.IntegrityError):
                 conn.execute(
                     "INSERT INTO conflicts "
                     "(id, source_item_id, target_item_id, similarity, detected_at) "
                     "VALUES (?, ?, ?, 0.9, '2026-05-01T00:00:00+00:00')",
                     (uuid4().bytes, a, a),
                 )
-            except sqlite3.IntegrityError:
-                pass
-            else:  # pragma: no cover
-                raise AssertionError("CHECK accepted same source/target")
 
     def test_source_trust_bounds(self, tmp_path: Path) -> None:
         with SqliteStorage(tmp_path / "x.db") as storage:
@@ -198,7 +188,7 @@ class TestFreshUpgrade:
                 (mid,),
             )
             # Out-of-bounds rejected.
-            try:
+            with pytest.raises(sqlite3.IntegrityError):
                 conn.execute(
                     "INSERT INTO memory_items "
                     "(id, level, content, created_at, updated_at, last_decayed_at, "
@@ -206,10 +196,6 @@ class TestFreshUpgrade:
                     "VALUES (?, 'summary', 'x', '', '', '', '', 1.5)",
                     (uuid4().bytes,),
                 )
-            except sqlite3.IntegrityError:
-                pass
-            else:  # pragma: no cover
-                raise AssertionError("CHECK accepted source_trust > 1.0")
 
 
 class TestUpgradeFromV3:

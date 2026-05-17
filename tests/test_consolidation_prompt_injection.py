@@ -30,6 +30,8 @@ import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import pytest
+
 from engram import Memory, SqliteStorage
 from engram._security.prompt_injection import (
     CORPUS,
@@ -270,12 +272,20 @@ class TestEndToEndPromotion:
             assert forbidden.lower() not in items[0].content.lower()
         storage.close()
 
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "promotion gate not yet wired - production bug. "
+            "Memory.promote() does not screen content for "
+            "looks_like_injection() before raising to Level.ABSTRACTION. "
+            "See audit H-89."
+        ),
+    )
     def test_injection_text_never_promoted_to_abstraction(self, tmp_path: Path) -> None:
-        # Belt-and-suspenders: even if a malicious memory_item ends up
+        # End-to-end invariant: even if a malicious memory_item ends up
         # planted at level=summary (e.g. via direct storage manipulation
-        # or a future bug), promotion's criteria block it from rising.
-        # Here we test by manually inserting an injection-laden summary
-        # and trying to promote it.
+        # or a future bug), promotion's criteria must block it from
+        # rising to Level.ABSTRACTION.
         storage = SqliteStorage(tmp_path / "x.db")
         storage.initialize()
 
@@ -299,19 +309,18 @@ class TestEndToEndPromotion:
         for _ in range(5):
             memory.corroborate(item.id, ItemKind.MEMORY_ITEM)
 
-        # The promotion pass currently does not screen for injection
-        # content. This test pins the *invariant* the DoD wants: even
-        # if the item is promoted, our `looks_like_injection` filter
-        # would have been the gate at insert time, so by construction
-        # injection content never reaches abstraction in the regular
-        # pipeline. The defense-in-depth here is the parse-level filter
-        # we tested above; promotion adds defense-against-misuse for
-        # the corroboration counters.
         memory.promote()
-        # The item is at level=summary or level=abstraction here; the
-        # invariant we care about: any item whose content matches an
-        # injection pattern is detectable.
-        assert looks_like_injection(item.content)
+
+        # The invariant: NO Level.ABSTRACTION item may carry content
+        # that trips the injection filter. The promote() gate is the
+        # safety net for this; if missing, this assertion is the
+        # canary that catches the regression.
+        abstractions = storage.list_memory_items(level=Level.ABSTRACTION, limit=100)
+        for abstraction in abstractions:
+            assert not looks_like_injection(abstraction.content), (
+                f"injection content reached Level.ABSTRACTION: "
+                f"{abstraction.content!r}"
+            )
         storage.close()
 
 

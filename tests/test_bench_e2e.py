@@ -44,6 +44,12 @@ def test_run_noop_writes_manifest(tmp_path: Path) -> None:
     assert payload["provider"] == "fake"
     assert payload["aggregate_metrics"]["noop"] == pytest.approx(1.0)
     ci = payload["confidence_intervals"]["noop"]
+    # Audit M-211: zero-width CI is by design here. The noop suite
+    # returns exactly 1.0 for every question; the bootstrap then
+    # produces a degenerate (1.0, 1.0) CI. The assertion pins the
+    # invariant that a perfect, zero-variance score must yield a
+    # zero-width CI; a future refactor that introduces noise would
+    # break this and surface the regression.
     assert ci[0] == pytest.approx(1.0)
     assert ci[1] == pytest.approx(1.0)
 

@@ -19,7 +19,7 @@ from engram.storage import SqliteStorage
 
 # Bound the runtime of property tests in CI.
 _settings = settings(
-    max_examples=50,
+    max_examples=200,
     deadline=2000,
     suppress_health_check=[HealthCheck.function_scoped_fixture],
 )
@@ -57,8 +57,8 @@ def test_memory_item_weight_round_trip(
 
 
 @given(
-    n_events=st.integers(min_value=1, max_value=10),
-    n_links=st.integers(min_value=1, max_value=10),
+    n_events=st.integers(min_value=1, max_value=50),
+    n_links=st.integers(min_value=1, max_value=50),
 )
 @_settings
 def test_provenance_never_dangles(storage: SqliteStorage, n_events: int, n_links: int) -> None:
@@ -78,8 +78,13 @@ def test_provenance_never_dangles(storage: SqliteStorage, n_events: int, n_links
         seen.add(key)
         storage.link_provenance(item.id, target.id)
 
+    # SLF001: this invariant checks that EVERY provenance row references
+    # live rows on both sides. There is no public API to enumerate all
+    # provenance_links with their referential state; the supporting/
+    # supported lookups only resolve forward, not over the link table.
+    # Raw SELECT lets us pin the schema invariant directly. (Audit M-126.)
     rows = (
-        storage._connect()
+        storage._connect()  # noqa: SLF001
         .execute(
             "SELECT pl.memory_item_id, pl.event_id, "
             "       (SELECT 1 FROM memory_items mi WHERE mi.id = pl.memory_item_id) AS mi_ok, "

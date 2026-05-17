@@ -16,6 +16,7 @@ The cache-rebuild cost itself is measured separately as
 
 from __future__ import annotations
 
+import os
 import time
 from pathlib import Path
 
@@ -34,6 +35,9 @@ TIMED_RETRIEVES = 200
 P50_BUDGET_MS = 150.0
 P99_BUDGET_MS = 500.0
 COLD_REBUILD_BUDGET_MS = 1500.0
+
+# Audit M-129: skip the strict-bound assertions on slow runners.
+_SLOW_RUNNER = os.environ.get("SLOW_RUNNER") == "1"
 
 
 def _percentile(values: list[float], p: float) -> float:
@@ -68,6 +72,7 @@ def _build_corpus(
 
 
 @pytest.mark.slow
+@pytest.mark.skipif(_SLOW_RUNNER, reason="SLOW_RUNNER=1: budget unreliable on shared/slow hardware")
 def test_retrieve_warm_p50_p99_under_budget(tmp_path: Path) -> None:
     storage = SqliteStorage(tmp_path / "latency.db")
     storage.initialize()
@@ -100,6 +105,7 @@ def test_retrieve_warm_p50_p99_under_budget(tmp_path: Path) -> None:
 
 
 @pytest.mark.slow
+@pytest.mark.skipif(_SLOW_RUNNER, reason="SLOW_RUNNER=1: budget unreliable on shared/slow hardware")
 def test_cold_cache_rebuild_under_one_and_a_half_seconds(tmp_path: Path) -> None:
     """The first retrieve after a write burst is the cold-cache case."""
     storage = SqliteStorage(tmp_path / "cold.db")

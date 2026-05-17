@@ -19,6 +19,7 @@ test suite stays fast.
 
 from __future__ import annotations
 
+import os
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -48,6 +49,9 @@ RECONCILE_P50_MS = 25.0
 RECONCILE_P99_MS = 100.0
 LIST_CONFLICTS_P50_MS = 10.0
 LIST_CONFLICTS_P99_MS = 50.0
+
+# Audit M-129: skip the strict-bound assertions on slow runners.
+_SLOW_RUNNER = os.environ.get("SLOW_RUNNER") == "1"
 
 
 def _percentile(values: list[float], p: float) -> float:
@@ -94,6 +98,7 @@ def _seed_memory_corpus(
 
 
 @pytest.mark.slow
+@pytest.mark.skipif(_SLOW_RUNNER, reason="SLOW_RUNNER=1: budget unreliable on shared/slow hardware")
 def test_search_memory_item_embeddings_as_of_under_budget(
     tmp_path: Path,
 ) -> None:
@@ -139,6 +144,7 @@ def test_search_memory_item_embeddings_as_of_under_budget(
 
 
 @pytest.mark.slow
+@pytest.mark.skipif(_SLOW_RUNNER, reason="SLOW_RUNNER=1: budget unreliable on shared/slow hardware")
 def test_reconcile_under_budget(tmp_path: Path) -> None:
     """Pre-seed many pending conflicts, reconcile them in a loop, time
     each call. Excludes MERGE (which would dominate timings via the
@@ -198,6 +204,7 @@ def test_reconcile_under_budget(tmp_path: Path) -> None:
 
 
 @pytest.mark.slow
+@pytest.mark.skipif(_SLOW_RUNNER, reason="SLOW_RUNNER=1: budget unreliable on shared/slow hardware")
 def test_list_conflicts_under_budget(tmp_path: Path) -> None:
     """list_conflicts is one SQL query; even at 10k rows the slice
     cost should stay under 10 ms P50."""

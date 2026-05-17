@@ -324,9 +324,13 @@ class TestProvenanceWeights:
         weights_by_event = {}
         for ev in events:
             for link in [ln for ln in storage.get_supporting_events(item.id) if ln.id == ev.id]:
-                # Get the link weight via direct lookup on provenance_links.
+                # SLF001: provenance link *weight* is not exposed by the
+                # public Storage API (`get_supporting_events` returns just
+                # the events). Raw SELECT against provenance_links is the
+                # only way to verify the weight column was populated
+                # correctly by consolidation. (Audit M-126 / M-191.)
                 row = (
-                    storage._connect()
+                    storage._connect()  # noqa: SLF001
                     .execute(
                         "SELECT weight FROM provenance_links "
                         "WHERE memory_item_id = ? AND event_id = ?",
