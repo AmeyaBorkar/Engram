@@ -605,8 +605,15 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _resolve_provider(args: argparse.Namespace) -> Provider:
+def _resolve_provider(args: argparse.Namespace) -> tuple[Provider, str]:
     """Build a Provider from CLI flags. `--provider fake` is a shortcut.
+
+    Returns ``(provider, provider_hash)``. The hash is computed off the
+    UNWRAPPED provider so two runs with the same configured embedder +
+    chat -- one cached, one not -- share an identical
+    ``provider_hash``. Capturing it post-wrap (H-73) would let the
+    DiskCache wrapper drift the hash and break manifest-level
+    comparability between cached + uncached sweeps.
 
     When `--disk-cache PATH` is set, the resulting chat + embed
     providers are wrapped with `with_disk_cache(path=PATH)` so every
@@ -619,16 +626,32 @@ def _resolve_provider(args: argparse.Namespace) -> Provider:
                 "warning: --provider fake overrides --embedder/--chat",
                 file=sys.stderr,
             )
-        return FakeProvider()
+        provider = FakeProvider()
+        return provider, provider.manifest_hash()
 
     embedder = args.embedder or "fake"
     chat = args.chat or "fake"
     if embedder == "fake" and chat == "fake":
-        return FakeProvider()
+        provider = FakeProvider()
+        return provider, provider.manifest_hash()
+    # Refuse the silent-meaningless-retrieval trap: a real chat (Anthropic,
+    # Moonshot, OpenCode) paired with the fake embedder produces hashed-
+    # text fingerprint vectors that bear no relation to the query
+    # semantics. The retrieve step then surfaces arbitrary haystack rows
+    # and the chat earnestly answers nonsense (H-81). The fix the user
+    # almost always wants is `--embedder openai`, since none of those
+    # providers ship an embedding endpoint of their own; surface that
+    # hint in the error rather than silently degrading.
+    if chat in ("anthropic", "moonshot", "opencode-zen", "opencode-go") and embedder == "fake":
+        raise ValueError(
+            f"--chat {chat!r} has no embedder of its own; pairing with "
+            "--embedder fake produces meaningless retrievals. "
+            "Pass --embedder openai (or --embedder local for an offline run)."
+        )
     # CLI uses "fp16"/"fp32" as shorthand; the embedder accepts the
     # full names so map here.
     dtype_map = {"auto": "auto", "fp16": "float16", "fp32": "float32"}
-    provider = build_provider(
+    real_provider = build_provider(
         embedder_name=embedder,
         chat_name=chat,
         embed_model=args.embed_model,
@@ -638,15 +661,19 @@ def _resolve_provider(args: argparse.Namespace) -> Provider:
         chat_model=args.chat_model,
         chat_max_tokens=args.chat_max_tokens,
     )
+    # Snapshot the manifest hash BEFORE wrapping -- H-73. The disk-cache
+    # wrapper doesn't proxy `manifest_hash`, so a post-wrap capture
+    # would drift between cached and uncached runs of the same config.
+    pre_wrap_hash = real_provider.manifest_hash()
     if args.disk_cache is not None:
         from engram.providers._disk_cache import with_disk_cache
 
         cache_path = Path(args.disk_cache)
         cache_path.parent.mkdir(parents=True, exist_ok=True)
-        provider.embedder = with_disk_cache(provider.embedder, path=str(cache_path))
-        provider.chat = with_disk_cache(provider.chat, path=str(cache_path))
+        real_provider.embedder = with_disk_cache(real_provider.embedder, path=str(cache_path))
+        real_provider.chat = with_disk_cache(real_provider.chat, path=str(cache_path))
         print(f"disk cache enabled: {cache_path}", file=sys.stderr)
-    return provider
+    return real_provider, pre_wrap_hash
 
 
 def _resolve_suite_config(args: argparse.Namespace) -> dict[str, Any]:
@@ -751,6 +778,39 @@ def _resolve_suite_config(args: argparse.Namespace) -> dict[str, Any]:
     return cfg
 
 
+def _engram_config_from_args(args: argparse.Namespace) -> dict[str, Any]:
+    """Snapshot retrieval-affecting CLI args into a manifest-friendly dict.
+
+    Skips file paths, log levels, and the deferred-to-suite items
+    (`--env-file`, `--runs-dir`, `--disk-cache`, `--log-level`). Skips
+    reranker model objects too -- the model name lives in
+    `args.reranker_model`, which we keep. Captures the resolved
+    primary chat + embedder so a sweep with different `--chat-model`
+    values shows up explicitly in the manifest rather than collapsing
+    behind the coarse `--chat` choice (M-151 hint).
+    """
+    skip = {
+        "command",
+        "env_file",
+        "runs_dir",
+        "disk_cache",
+        "log_level",
+        "provider",
+    }
+    out: dict[str, Any] = {}
+    for k, v in vars(args).items():
+        if k in skip:
+            continue
+        # Path / object values would force `default=str` in JSON; the
+        # manifest writer already does that. Stringify Path values
+        # eagerly here so a JSON-walking consumer doesn't have to.
+        if isinstance(v, Path):
+            out[k] = str(v)
+        else:
+            out[k] = v
+    return out
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -772,14 +832,12 @@ def main(argv: list[str] | None = None) -> int:
                 f"--gpu-concurrency {args.gpu_concurrency} applied",
                 file=sys.stderr,
             )
-        # `--limit` overrides the suite-specific cap env vars. Set them
-        # BEFORE importing the suite -- the suite reads them at module
-        # import time in its `SUITE = ...()` line. When `--sample` is
-        # also set, skip the env-var override so the suite loads the
-        # full dataset and then takes a stratified sample of N.
+        # `--limit` is plumbed via `suite_config` (audit H-74). Suites
+        # respect it in their `configure(**)` method; the old behaviour
+        # of mutating `os.environ` left the variable set across
+        # in-process suite runs and only worked at all for LongMemEval
+        # (LoCoMo never read `LOCOMO_MAX_QUESTIONS`).
         if args.limit is not None and args.sample is None:
-            for var in ("LONGMEMEVAL_MAX_QUESTIONS", "LOCOMO_MAX_QUESTIONS"):
-                os.environ[var] = str(args.limit)
             print(f"--limit {args.limit} applied", file=sys.stderr)
         elif args.sample is not None:
             print(
@@ -788,7 +846,7 @@ def main(argv: list[str] | None = None) -> int:
                 file=sys.stderr,
             )
         try:
-            provider = _resolve_provider(args)
+            provider, provider_hash = _resolve_provider(args)
             suite_config = _resolve_suite_config(args)
             # Capture the primary chat + embedder in engram_config so
             # the manifest's reproducibility ledger includes them as
@@ -803,11 +861,17 @@ def main(argv: list[str] | None = None) -> int:
                 suite_config["chat"] = provider.chat
             if args.embedder and "embedder" not in suite_config:
                 suite_config["embedder"] = provider.embedder
+            # H-74: plumb --limit via suite_config instead of os.environ.
+            if args.limit is not None:
+                suite_config["max_questions"] = args.limit
+            engram_config = _engram_config_from_args(args)
             manifest_path = run_suite(
                 args.suite,
                 provider=provider,
                 runs_dir=args.runs_dir,
                 suite_config=suite_config,
+                provider_hash=provider_hash,
+                engram_config=engram_config,
             )
         except (ValueError, TypeError, RuntimeError) as exc:
             print(f"error: {exc}", file=sys.stderr)

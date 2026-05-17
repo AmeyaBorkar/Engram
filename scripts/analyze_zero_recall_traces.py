@@ -20,10 +20,16 @@ Outputs a markdown summary table to stdout.
 from __future__ import annotations
 
 import argparse
+import json
 import re
 from collections import Counter, defaultdict
 from pathlib import Path
 
+# M-170: prefer the structured `<trace-meta>{...}</trace-meta>` tag
+# the trace writer emits at the top of every dump. The regexes
+# below are kept as fallbacks for legacy traces that pre-date the
+# tag, but anything fresh should parse cleanly via the JSON path.
+_META_RE = re.compile(r"<trace-meta>(.+?)</trace-meta>", re.DOTALL)
 _HEADER_RE = re.compile(r"^qid=(\S+)\s+\[(\S+)\]\s*$")
 _GOLD_RE = re.compile(r"^GOLD:\s*(.+)$")
 _QUESTION_RE = re.compile(r"^Q:\s*(.+)$")
@@ -44,13 +50,32 @@ def _parse_trace(text: str) -> dict:
         "dense_top10_top_session_count": 0, "final_session_recall": None,
         "final_n_gold_in_topk": 0,
     }
+    # M-170: try the structured `<trace-meta>` tag first. If it's
+    # there, we get everything in one JSON parse and skip the
+    # regex-fragile header scan.
+    tag_match = _META_RE.search(text)
+    if tag_match:
+        try:
+            meta = json.loads(tag_match.group(1))
+        except json.JSONDecodeError:
+            meta = None
+        if isinstance(meta, dict):
+            out["qid"] = meta.get("qid") or out["qid"]
+            out["qtype"] = meta.get("qtype") or out["qtype"]
+            out["question"] = meta.get("question") or out["question"]
+            out["gold"] = meta.get("gold") or out["gold"]
+            answer_ids = meta.get("answer_session_ids")
+            if isinstance(answer_ids, list):
+                out["answer_sessions"] = list(answer_ids)
     lines = text.splitlines()
     in_dense_section = False
     dense_rows_seen = 0
     top10_session_count: Counter[str] = Counter()
     for line in lines:
+        # The legacy regex path remains as a fallback so older
+        # traces (pre-M-170) still parse cleanly.
         m = _HEADER_RE.match(line)
-        if m:
+        if m and out["qid"] is None:
             out["qid"] = m.group(1)
             out["qtype"] = m.group(2)
             continue

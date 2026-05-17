@@ -13,9 +13,12 @@ from __future__ import annotations
 
 import ctypes
 import json
+import os
 import platform
+import secrets
 import subprocess
 import sys
+import tempfile
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -48,12 +51,55 @@ class Manifest:
         return json.dumps(asdict(self), indent=2, default=str, sort_keys=True)
 
     def write(self, runs_dir: Path) -> Path:
-        """Write the manifest to `runs_dir`. Returns the file path."""
+        """Write the manifest to `runs_dir` atomically. Returns the file path.
+
+        H-75 fix: ``Path.write_text`` is not atomic and the original
+        filename used second-precision timestamps, so two runs in the
+        same second silently overwrote each other's evidence. The
+        replacement strategy:
+
+        1. Build the base filename (timestamp-sha-suite).
+        2. If a manifest of that exact name already exists, append a
+           4-hex-char random salt suffix and try again until we find a
+           fresh path. The salt has 16 bits of entropy per attempt; a
+           collision would need two writes to draw the same 4-hex
+           value AND beat the existence check in the same second.
+        3. Serialize JSON to a temp file in the same directory, then
+           ``os.replace(tmp, dest)`` -- atomic on POSIX and on Windows
+           when both paths sit on the same volume. A crash mid-write
+           leaves the temp file behind (visible, easy to clean up)
+           rather than a half-written manifest.
+        """
         runs_dir.mkdir(parents=True, exist_ok=True)
         sha = (self.git_commit[:8] or "nogit") + ("-dirty" if self.git_dirty else "")
         ts = self.timestamp.replace(":", "").replace("-", "").replace(".", "_")
-        path = runs_dir / f"{ts}-{sha}-{self.suite}.json"
-        path.write_text(self.to_json(), encoding="utf-8")
+        base = f"{ts}-{sha}-{self.suite}"
+        path = runs_dir / f"{base}.json"
+        # Same-second collisions get a salt suffix until we find a
+        # filename that doesn't already exist. The TOCTOU window
+        # between exists() and replace() is closed below by the atomic
+        # os.replace.
+        while path.exists():
+            salt = secrets.token_hex(2)  # 4 hex chars
+            path = runs_dir / f"{base}-{salt}.json"
+        payload = self.to_json()
+        # NamedTemporaryFile with delete=False so we control the
+        # rename ourselves; suffix matches the destination so a glob
+        # for *.json still sees it if the process crashes mid-write.
+        fd, tmp_name = tempfile.mkstemp(
+            prefix=f"{base}.", suffix=".json.tmp", dir=str(runs_dir)
+        )
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(payload)
+            os.replace(tmp_name, path)
+        except BaseException:
+            # Best-effort cleanup: leave nothing behind on failure.
+            try:
+                os.unlink(tmp_name)
+            except OSError:
+                pass
+            raise
         return path
 
 

@@ -391,5 +391,13 @@ def build_provider(
         embed_model, embed_dim, embed_device, embed_dtype
     )
     chat = _CHAT_BUILDERS[chat_name](chat_model, chat_max_tokens)
-    name = f"{embedder_name}+{chat_name}"
+    # M-151: name includes the resolved model so a sweep over
+    # `--chat-model` produces distinguishable rows in the
+    # SCOREBOARD's first column. Pre-fix the name collapsed every
+    # OpenAI run to `openai+openai` regardless of which model was
+    # behind it; the manifest_hash distinguished them, but readers
+    # had to cross-reference SCOREBOARD prose to know.
+    embedder_model = getattr(embedder, "model", "?")
+    chat_model_label = getattr(chat, "model", "?")
+    name = f"{embedder_name}:{embedder_model}+{chat_name}:{chat_model_label}"
     return _MixedProvider(name=name, embedder=embedder, chat=chat)

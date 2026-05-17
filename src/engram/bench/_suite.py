@@ -16,6 +16,12 @@ class SuiteResult:
     holds the bootstrap CIs (n=1000 by convention) for those numbers; the
     other fields support drilling into per-question behavior and per-API
     latency.
+
+    ``suite_metadata`` is an opt-in slot for the suite to surface
+    structural facts the runner should fold into the manifest --
+    prompt template versions (M-154), judge model identity, dataset
+    sub-split labels, etc. The runner merges it into the manifest's
+    ``engram_config`` so the SCOREBOARD column can refer to it.
     """
 
     name: str
@@ -23,6 +29,7 @@ class SuiteResult:
     confidence_intervals: dict[str, tuple[float, float]] = field(default_factory=dict)
     per_question: list[dict[str, Any]] = field(default_factory=list)
     latency_ms: dict[str, list[float]] = field(default_factory=dict)
+    suite_metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @runtime_checkable

@@ -50,35 +50,18 @@ from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Any
 
-_REPO_ROOT = Path(__file__).resolve().parent.parent
-if str(_REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(_REPO_ROOT))
-_SRC = _REPO_ROOT / "src"
-if _SRC.exists() and str(_SRC) not in sys.path:
-    sys.path.insert(0, str(_SRC))
+# M-122 / M-210: shared helpers in scripts/_common.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _common import (  # noqa: E402
+    build_embedder as _build_embedder_common,
+    build_reranker as _build_reranker_common,
+    ensure_repo_on_path,
+    load_env_file,
+    split_config,
+)
 
-
-def _load_env(path: Path = Path(".env")) -> None:
-    if not path.exists():
-        return
-    try:
-        from dotenv import load_dotenv
-
-        load_dotenv(path, override=False)
-    except ImportError:
-        with path.open("r", encoding="utf-8") as f:
-            for raw in f:
-                line = raw.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                key, _, value = line.partition("=")
-                key = key.strip()
-                value = value.strip().strip('"').strip("'")
-                if key and key not in os.environ:
-                    os.environ[key] = value
-
-
-_load_env()
+ensure_repo_on_path()
+load_env_file()
 
 from engram import Memory, SqliteStorage  # noqa: E402
 from engram.providers._fake import FakeChat  # noqa: E402
@@ -150,28 +133,15 @@ class _RunRow:
     metrics: _Metrics
 
 
-def _build_embedder(model: str, device: str | None, dtype: str) -> Any:
-    from engram.providers.local import LocalEmbedder
+# M-122: thin shims around _common builders.
 
-    dtype_map: dict[str, str] = {"auto": "auto", "fp16": "float16", "fp32": "float32"}
-    return LocalEmbedder(
-        model=model,
-        device=device,
-        dtype=dtype_map.get(dtype, "auto"),  # type: ignore[arg-type]
-    )
+
+def _build_embedder(model: str, device: str | None, dtype: str) -> Any:
+    return _build_embedder_common(model, device, dtype)
 
 
 def _build_reranker(model: str | None, device: str | None, dtype: str) -> Any:
-    if model is None or model.lower() == "none":
-        return None
-    from engram.retrieve._bge_reranker import BGEReranker
-
-    dtype_map: dict[str, str] = {"auto": "auto", "fp16": "float16", "fp32": "float32"}
-    return BGEReranker(
-        model=model,
-        device=device,
-        dtype=dtype_map.get(dtype, "auto"),  # type: ignore[arg-type]
-    )
+    return _build_reranker_common(model, device, dtype)
 
 
 def _result_to_event_session_pair(
@@ -284,8 +254,10 @@ def _evaluate_one(
     eval_k: int,
     k_cutoffs: Sequence[int],
 ) -> _RunRow:
-    auto_temporal = bool(config.get("_auto_temporal", False))
-    param_overrides = {kk: vv for kk, vv in config.items() if not kk.startswith("_")}
+    # M-210: route through scripts/_common.split_config so the
+    # underscore-prefix-is-a-bench-flag convention is in one place.
+    param_overrides, bench_flags = split_config(config)
+    auto_temporal = bench_flags.get("_auto_temporal", False)
     base_params = RetrieveParams(k=eval_k, **param_overrides)
     memory = Memory(
         storage=storage,
@@ -298,10 +270,13 @@ def _evaluate_one(
     t0 = time.perf_counter()
     try:
         retrieve_kwargs: dict[str, Any] = {"k": eval_k, "reinforce": False}
-        if config.get("recency_lambda", 0) and config["recency_lambda"] > 0:
-            question_dt = _parse_haystack_date(q.question_date)
-            if question_dt is not None:
-                retrieve_kwargs["as_of"] = question_dt
+        # H-86: always pass as_of when the question has a parseable
+        # date. Pre-fix the as_of gate was conditional on
+        # `recency_lambda > 0`, so paired-difference sweeps over
+        # recency_lambda differed in two ways.
+        question_dt = _parse_haystack_date(q.question_date)
+        if question_dt is not None:
+            retrieve_kwargs["as_of"] = question_dt
         if auto_temporal:
             filt = _build_auto_temporal_filter(q.question)
             if filt:

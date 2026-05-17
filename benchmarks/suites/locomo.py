@@ -121,6 +121,81 @@ def _checksum(split: str) -> str:
     return f"locomo/{split}/{h.hexdigest()}"
 
 
+def _bootstrap_mean_ci(
+    values: Sequence[float],
+    *,
+    n_iters: int = 2000,
+    alpha: float = 0.05,
+    seed: int = 1337,
+) -> tuple[float, float]:
+    """Return percentile-bootstrap 95% CI on the mean of ``values``.
+
+    Inlined into the suite (rather than importing from ``scripts/``) so
+    the benchmark module has no dependency on the ``scripts/`` package
+    at import time -- the same harness is used in test runs that don't
+    have the ``scripts/`` tree available.
+
+    Empty input collapses to (0, 0); single-element to the trivial
+    interval. ``n_iters=2000`` is a conservative tradeoff between
+    interval accuracy and runtime for the typical LoCoMo split
+    (~10 ms per ~200-sample bootstrap).
+    """
+    import random as _random  # local import; suite-level random untouched
+
+    n = len(values)
+    if n == 0:
+        return (0.0, 0.0)
+    vs = list(values)
+    if n == 1:
+        v = float(vs[0])
+        return (v, v)
+    rng = _random.Random(seed)
+    means: list[float] = []
+    for _ in range(n_iters):
+        s = 0.0
+        for _ in range(n):
+            s += vs[rng.randrange(n)]
+        means.append(s / n)
+    means.sort()
+    lo_idx = max(0, int(alpha / 2 * n_iters))
+    hi_idx = min(n_iters - 1, int((1 - alpha / 2) * n_iters))
+    return (means[lo_idx], means[hi_idx])
+
+
+# Metric names whose CI is "real" (computed via bootstrap on per-question
+# scores). Other metric names (counts, error totals) are reported with
+# the degenerate (v, v) width-zero CI -- bootstrapping a count would
+# be meaningless.
+_LOCOMO_PROPORTION_METRICS: frozenset[str] = frozenset({"accuracy"})
+
+
+def _real_locomo_cis(
+    metrics: dict[str, float],
+    per_type_scores: dict[str, list[float]],
+    flat_scores: list[float],
+) -> dict[str, tuple[float, float]]:
+    """Compute confidence intervals for the LoCoMo aggregate metrics.
+
+    M-160: pre-fix the suite returned ``(v, v)`` for every metric --
+    a zero-width interval that broadcasts certainty we don't have.
+    Now: bootstrap CIs for the proportion-style metrics (accuracy,
+    per-qtype accuracy), degenerate ``(v, v)`` for counts.
+    """
+    out: dict[str, tuple[float, float]] = {}
+    for name, value in metrics.items():
+        if name == "accuracy":
+            out[name] = _bootstrap_mean_ci(flat_scores)
+        elif name.startswith("accuracy_"):
+            qtype = name.removeprefix("accuracy_")
+            scores = per_type_scores.get(qtype, [])
+            out[name] = _bootstrap_mean_ci(scores)
+        elif name in _LOCOMO_PROPORTION_METRICS:  # future-proof
+            out[name] = _bootstrap_mean_ci(flat_scores)
+        else:
+            out[name] = (value, value)
+    return out
+
+
 _TOKEN_RE = __import__("re").compile(r"\w+")
 # Subset of NLTK's English stopwords — small enough to be obvious, large
 # enough to make token-F1 behave like the official LoCoMo scorer on
@@ -197,6 +272,33 @@ class LoCoMoSuite:
         self.dataset_version = f"locomo-{split}-v1"
         self.dataset_checksum: str = _checksum(split)
         self._provider: Provider | None = None
+        self._max_questions: int | None = None
+        self._seed: int | None = None
+
+    def configure(
+        self,
+        *,
+        max_questions: int | None = None,
+        seed: int | None = None,
+        **_ignored: Any,
+    ) -> None:
+        """Per-run knobs from the CLI's ``suite_config``.
+
+        H-74: ``--limit`` is plumbed via ``suite_config`` instead of
+        mutating ``os.environ``. Pre-fix, ``--limit`` set
+        ``LOCOMO_MAX_QUESTIONS`` but the suite never read that env
+        var, so the cap was silently ignored on LoCoMo.
+
+        Other Phase E knobs are accepted but ignored -- LoCoMo's
+        scoring path is intentionally simple (raw retrieval + token-F1)
+        and doesn't currently use the BM25/MMR/recency machinery.
+        Keeping ``**_ignored`` lets the same CLI flags be passed
+        without errors.
+        """
+        if max_questions is not None and max_questions < 0:
+            raise ValueError(f"max_questions must be >= 0, got {max_questions}")
+        self._max_questions = max_questions
+        self._seed = seed
 
     def setup(self, provider: Provider) -> None:
         self._provider = provider
@@ -220,8 +322,15 @@ class LoCoMoSuite:
         # (e.g. qtype 'single_hop_v2' lived alongside an empty
         # 'single_hop' bucket).
         per_type_scores: dict[str, list[float]] = {}
+        # M-159: count per-question errors separately from "wrong
+        # answer" so an infra blip (network, parse error) doesn't
+        # inflate the headline failure rate. The number is reported
+        # as a separate metric.
+        n_errored = 0
 
         any_data = False
+        questions_seen = 0
+        cap = self._max_questions  # H-74; None = uncapped.
         for split in splits_to_run:
             for conversation in _load_split(split):
                 any_data = True
@@ -265,22 +374,48 @@ class LoCoMoSuite:
                             )
                     memory = Memory(storage=storage, embedder=embedder)
                     for q in conversation.questions:
-                        t0 = time.perf_counter()
-                        results = memory.retrieve(q.text, k=K, reinforce=False)
-                        retrieve_ms.append((time.perf_counter() - t0) * 1000.0)
-                        score = _exact_match(q.answer, [r.content for r in results])
+                        if cap is not None and questions_seen >= cap:
+                            break
+                        questions_seen += 1
+                        # M-159 fix: per-question try/except. One
+                        # bad question (parse error, retrieve
+                        # raising on a malformed embedding row,
+                        # etc.) used to abort the entire split.
+                        error_msg: str | None = None
+                        score = 0.0
+                        try:
+                            t0 = time.perf_counter()
+                            results = memory.retrieve(q.text, k=K, reinforce=False)
+                            retrieve_ms.append((time.perf_counter() - t0) * 1000.0)
+                            score = _exact_match(q.answer, [r.content for r in results])
+                        except (KeyboardInterrupt, SystemExit):
+                            raise
+                        except Exception as exc:
+                            error_msg = f"{type(exc).__name__}: {exc}"
+                            n_errored += 1
+                            _LOG.warning(
+                                "locomo: q %s in conversation %s -> %s",
+                                q.id,
+                                conversation.id,
+                                error_msg,
+                            )
                         per_type_scores.setdefault(q.qtype, []).append(score)
-                        per_question.append(
-                            {
-                                "conversation_id": conversation.id,
-                                "question_id": q.id,
-                                "qtype": q.qtype,
-                                "score": score,
-                                "k": K,
-                            }
-                        )
+                        entry: dict[str, Any] = {
+                            "conversation_id": conversation.id,
+                            "question_id": q.id,
+                            "qtype": q.qtype,
+                            "score": score,
+                            "k": K,
+                        }
+                        if error_msg is not None:
+                            entry["error"] = error_msg
+                        per_question.append(entry)
                 finally:
                     storage.close()
+                if cap is not None and questions_seen >= cap:
+                    break
+            if cap is not None and questions_seen >= cap:
+                break
 
         if not any_data:
             _LOG.warning(
@@ -303,10 +438,17 @@ class LoCoMoSuite:
         metrics: dict[str, float] = {
             "accuracy": overall,
             "n_questions": float(len(flat_scores)),
+            "n_errored": float(n_errored),
         }
         for qtype, acc in per_type_acc.items():
             metrics[f"accuracy_{qtype}"] = acc
-        cis: dict[str, tuple[float, float]] = {k: (v, v) for k, v in metrics.items()}
+        # M-160: real bootstrap CIs over the per-question score list
+        # for proportion-style metrics; non-proportion metrics
+        # (n_questions, n_errored) get the degenerate width-zero CI
+        # they deserve.
+        cis: dict[str, tuple[float, float]] = _real_locomo_cis(
+            metrics, per_type_scores, flat_scores
+        )
         return SuiteResult(
             name=self.name,
             aggregate_metrics=metrics,

@@ -290,12 +290,26 @@ def _retrieve_ids(
 
 def _contradiction_scores(
     memory: Memory, storage: SqliteStorage
-) -> tuple[float, float, float, int, int]:
-    """Returns:
-      (baseline_score, engram_score, lift, n_observed_open, n_resolved)
+) -> tuple[float, float, float, int, bool, int]:
+    """Compute before-reconcile and after-reconcile pair-survivor rates.
+
+    M-164: the pre-fix returned ``(baseline_score, engram_score, lift,
+    n_observed_open, n_resolved)`` which implied an apples-to-apples
+    comparison against a third-party baseline. There is none here --
+    both numbers are produced by the same Engram engine, one BEFORE
+    reconcile fires and one AFTER. The pair is now ``(before_score,
+    after_score, lift, n_observed_open, n_observed_truncated,
+    n_resolved)`` so M-165 (silent cap at 1000) can also surface
+    truncation in the manifest.
+
+    Returns:
+      (before_reconcile_score, after_reconcile_score, lift,
+       n_observed_open, n_observed_truncated, n_resolved)
     """
     # Seed every pair: A first (older), B second (newer). Record the
-    # CONTRADICT. Baseline measurement happens before any reconcile.
+    # CONTRADICT. The "before" measurement happens before any
+    # reconcile so we can pin the lift attributable to Engram's
+    # invalidation pass.
     pair_records: list[tuple[_Pair, MemoryItem, MemoryItem, Conflict]] = []
     for i, pair in enumerate(CONTRADICTION_PAIRS):
         a_when = _utc(2026, 1, 1, i % 24)
@@ -327,21 +341,28 @@ def _contradiction_scores(
     # Observability check: every seeded conflict shows up as OPEN.
     from engram import ConflictStatus
 
-    open_rows = storage.list_conflicts(status=ConflictStatus.OPEN, limit=1000)
-    n_observed_open = len(open_rows)
+    # M-165: surface the truncation explicitly. The hardcoded
+    # `limit=1000` was a silent cap -- a synthetic dataset with more
+    # than 1000 pairs would underreport `n_observed_open` and the
+    # manifest reader had no way to know. Now we ask for one row
+    # past the limit; if we get it, the truncation flag is set.
+    _CAP = 1000
+    open_rows = storage.list_conflicts(status=ConflictStatus.OPEN, limit=_CAP + 1)
+    n_observed_truncated = len(open_rows) > _CAP
+    n_observed_open = min(len(open_rows), _CAP)
 
-    # Baseline (no reconcile): score is "retrieve surfaces ONLY the
-    # winner" -- i.e. the loser is excluded. With no reconcile, both
-    # items are visible at retrieve(k=10), so this is 0. Same metric
-    # as the engram score below to keep them apples-to-apples.
-    baseline_hits = 0
+    # Before-reconcile: score is "retrieve surfaces ONLY the winner".
+    # With no reconcile both items are visible at retrieve(k=10), so
+    # the score is 0. Same metric as the after-reconcile score below
+    # to keep them apples-to-apples (within the same engine).
+    before_hits = 0
     for pair, a, b, _ in pair_records:
         ids = _retrieve_ids(memory, pair.cluster_text, k=10)
         expected_winner = b.id if pair.winner_is_b else a.id
         expected_loser = a.id if pair.winner_is_b else b.id
         if expected_winner in ids and expected_loser not in ids:
-            baseline_hits += 1
-    baseline_score = baseline_hits / len(pair_records)
+            before_hits += 1
+    before_score = before_hits / len(pair_records)
 
     # Reconcile everything: PREFER_RECENT means B wins (we seeded B at
     # 2026-04 vs A at 2026-01).
@@ -355,18 +376,25 @@ def _contradiction_scores(
         )
         resolved += 1
 
-    # Engram measurement: post-reconcile, retrieve should surface only
-    # the winner. Score = "loser is gone AND winner is on top" rate.
-    engram_hits = 0
+    # After-reconcile measurement: retrieve should surface only the
+    # winner. Score = "loser is gone AND winner is on top" rate.
+    after_hits = 0
     for pair, a, b, _ in pair_records:
         ids = _retrieve_ids(memory, pair.cluster_text, k=10)
         expected_winner = b.id if pair.winner_is_b else a.id
         expected_loser = a.id if pair.winner_is_b else b.id
         if expected_winner in ids and expected_loser not in ids:
-            engram_hits += 1
-    engram_score = engram_hits / len(pair_records)
+            after_hits += 1
+    after_score = after_hits / len(pair_records)
 
-    return baseline_score, engram_score, engram_score - baseline_score, n_observed_open, resolved
+    return (
+        before_score,
+        after_score,
+        after_score - before_score,
+        n_observed_open,
+        n_observed_truncated,
+        resolved,
+    )
 
 
 def _temporal_score(memory: Memory, storage: SqliteStorage) -> float:
@@ -460,10 +488,11 @@ class ContradictionTemporalSuite:
             memory_c = Memory(storage=storage_c, embedder=embedder)
             t0 = time.perf_counter()
             (
-                baseline,
-                engram,
+                before_reconcile,
+                after_reconcile,
                 lift,
                 n_open,
+                n_open_truncated,
                 n_resolved,
             ) = _contradiction_scores(memory_c, storage_c)
             contradiction_ms = (time.perf_counter() - t0) * 1000.0
@@ -482,12 +511,28 @@ class ContradictionTemporalSuite:
             storage_t.close()
 
         metrics: dict[str, float] = {
-            "baseline_score": baseline,
-            "engram_score": engram,
+            # M-164: renamed from `baseline_score` / `engram_score`
+            # to clarify these are pre- vs post-reconcile measurements
+            # on the SAME Engram engine. Pre-fix the names implied a
+            # third-party baseline (Chroma, raw vector index), which
+            # there isn't -- BOTH numbers are produced by the same
+            # engine, before and after invalidation. The old keys
+            # remain as aliases for any SCOREBOARD row that still
+            # references them.
+            "before_reconcile_score": before_reconcile,
+            "after_reconcile_score": after_reconcile,
+            "baseline_score": before_reconcile,  # alias, kept for compat
+            "engram_score": after_reconcile,  # alias, kept for compat
             "lift": lift,
             "temporal_accuracy": temporal,
             "n_pairs": float(len(CONTRADICTION_PAIRS)),
             "n_observed_open_conflicts": float(n_open),
+            # M-165: 1.0 iff the count was clipped at the 1000-row cap.
+            # A manifest reader can flag truncated counts as suspect
+            # without re-running the suite.
+            "n_observed_open_conflicts_truncated": (
+                1.0 if n_open_truncated else 0.0
+            ),
             "n_resolved_conflicts": float(n_resolved),
             "n_temporal_triples": float(len(TEMPORAL_TRIPLES)),
         }

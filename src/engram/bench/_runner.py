@@ -88,6 +88,8 @@ def run(
     provider: Provider,
     runs_dir: Path,
     suite_config: dict[str, Any] | None = None,
+    provider_hash: str | None = None,
+    engram_config: dict[str, Any] | None = None,
 ) -> Path:
     """Run `suite_name` against `provider`, writing a manifest to `runs_dir`.
 
@@ -95,6 +97,18 @@ def run(
     `configure(**cfg)` method before `setup`. Suites that don't expose
     `configure` silently ignore it; suites that do (e.g. longmemeval)
     pick up the Phase E knobs without the loader knowing about them.
+
+    `provider_hash`, when supplied, overrides the value derived from
+    `provider.manifest_hash()`. The CLI captures the hash BEFORE the
+    disk-cache wrapper layers itself onto the embedder/chat (H-73);
+    that pre-wrap hash is forwarded here so cached and uncached runs
+    of the same configured provider produce comparable manifests.
+
+    `engram_config`, when supplied, lands in the manifest verbatim --
+    the CLI uses this slot to record the per-run retrieval knobs
+    (BM25 weight, MMR lambda, reranker pool, etc.) so reproducing a
+    SCOREBOARD row doesn't require correlating with git log or
+    SCOREBOARD prose (H-76).
 
     Returns the manifest path.
     """
@@ -128,15 +142,23 @@ def run(
     finally:
         suite.teardown()
 
+    # Base engram_config from suite_config (capture chat/embedder/etc).
     engram_config = (
         {str(k): _serialize_for_manifest(v) for k, v in suite_config.items()}
         if suite_config
         else {}
     )
+    # M-154: merge suite-supplied metadata (e.g. judge prompt version)
+    # into the manifest's `engram_config`. The suite's value wins on
+    # a key collision so structural facts the suite measures itself
+    # aren't overridden by stale CLI-side captures.
+    suite_metadata = getattr(result, "suite_metadata", None) or {}
+    if suite_metadata:
+        engram_config.update(suite_metadata)
     manifest: Manifest = manifest_from_run(
         suite_name=result.name,
         provider_name=provider.name,
-        provider_hash=provider.manifest_hash(),
+        provider_hash=provider_hash if provider_hash is not None else provider.manifest_hash(),
         dataset_version=suite.dataset_version,
         dataset_checksum=suite.dataset_checksum,
         aggregate_metrics=result.aggregate_metrics,

@@ -39,15 +39,20 @@ class ChromaRetriever:
         # Each retriever instance gets its own ephemeral client + uniquely-
         # named collection so multiple instances within one process (e.g. one
         # test per Retriever) don't collide.
-        client = chromadb.EphemeralClient()
+        # M-166: keep a handle on the client so callers can `close()`
+        # it later. EphemeralClient holds a sqlite file open in the
+        # background; tests / suites that build many retrievers and
+        # never let them be garbage-collected leak file handles
+        # (visible as "too many open files" on long CI runs).
+        self._client = chromadb.EphemeralClient()
         name = collection_name or f"engram-bench-{uuid.uuid4().hex[:8]}"
         if embedder is None:
-            self._collection: Any = client.create_collection(
+            self._collection: Any = self._client.create_collection(
                 name=name,
                 metadata={"hnsw:space": "cosine"},
             )
         else:
-            self._collection = client.create_collection(
+            self._collection = self._client.create_collection(
                 name=name,
                 embedding_function=_EmbeddingFunctionAdapter(embedder),
                 metadata={"hnsw:space": "cosine"},
@@ -74,6 +79,26 @@ class ChromaRetriever:
             # is `1 - distance`).
             out.append(Hit(id=str(doc_id), content=str(content), score=1.0 - float(distance)))
         return out
+
+    def close(self) -> None:
+        """Release the underlying EphemeralClient + collection handle.
+
+        M-166: chromadb's ``EphemeralClient`` holds an in-process
+        sqlite handle plus an HNSW segment in memory; tests / suites
+        that built many ``ChromaRetriever`` instances without ever
+        releasing them leaked both. Calling ``close()`` deletes the
+        collection (best-effort -- some chromadb versions don't
+        expose the API) and drops our references so the GC can
+        reclaim the handles immediately.
+        """
+        try:
+            self._client.delete_collection(self._collection.name)
+        except Exception:  # noqa: BLE001 - best-effort cleanup
+            pass
+        # Drop the references so any next-line `del retriever` collapses
+        # to a pure refcount drop with no live cycle.
+        self._collection = None  # type: ignore[assignment]
+        self._client = None  # type: ignore[assignment]
 
 
 class _EmbeddingFunctionAdapter:

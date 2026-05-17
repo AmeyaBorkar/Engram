@@ -56,35 +56,17 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-_REPO_ROOT = Path(__file__).resolve().parent.parent
-if str(_REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(_REPO_ROOT))
-_SRC = _REPO_ROOT / "src"
-if _SRC.exists() and str(_SRC) not in sys.path:
-    sys.path.insert(0, str(_SRC))
+# M-122: shared helpers in scripts/_common.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _common import (  # noqa: E402
+    build_embedder as _build_embedder_common,
+    build_reranker as _build_reranker_common,
+    ensure_repo_on_path,
+    load_env_file,
+)
 
-
-def _load_env(path: Path = Path(".env")) -> None:
-    if not path.exists():
-        return
-    try:
-        from dotenv import load_dotenv
-
-        load_dotenv(path, override=False)
-    except ImportError:
-        with path.open("r", encoding="utf-8") as f:
-            for raw in f:
-                line = raw.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                key, _, value = line.partition("=")
-                key = key.strip()
-                value = value.strip().strip('"').strip("'")
-                if key and key not in os.environ:
-                    os.environ[key] = value
-
-
-_load_env()
+ensure_repo_on_path()
+load_env_file()
 
 from engram import Memory, SqliteStorage  # noqa: E402
 from engram.providers._fake import FakeChat  # noqa: E402
@@ -408,28 +390,15 @@ def phase1_component_tests(out_dir: Path) -> dict[str, Any]:
 # ============================================================================
 
 
-def _build_embedder(model: str, device: str | None, dtype: str) -> Any:
-    from engram.providers.local import LocalEmbedder
+# M-122: thin shims around _common builders.
 
-    dtype_map: dict[str, str] = {"auto": "auto", "fp16": "float16", "fp32": "float32"}
-    return LocalEmbedder(
-        model=model,
-        device=device,
-        dtype=dtype_map.get(dtype, "auto"),  # type: ignore[arg-type]
-    )
+
+def _build_embedder(model: str, device: str | None, dtype: str) -> Any:
+    return _build_embedder_common(model, device, dtype)
 
 
 def _build_reranker(model: str | None, device: str | None, dtype: str) -> Any:
-    if model is None or model.lower() == "none":
-        return None
-    from engram.retrieve._bge_reranker import BGEReranker
-
-    dtype_map: dict[str, str] = {"auto": "auto", "fp16": "float16", "fp32": "float32"}
-    return BGEReranker(
-        model=model,
-        device=device,
-        dtype=dtype_map.get(dtype, "auto"),  # type: ignore[arg-type]
-    )
+    return _build_reranker_common(model, device, dtype)
 
 
 # ============================================================================
@@ -1032,7 +1001,35 @@ def main(argv: list[str] | None = None) -> int:
         "resume": args.resume,
         "started_at": time.strftime("%Y-%m-%d %H:%M:%S %Z"),
     }
-    (out_dir / "config.json").write_text(json.dumps(config_args, indent=2), encoding="utf-8")
+    # H-84: on resume, append to a `resume_history` list rather than
+    # overwriting `config.json`. Pre-fix the resume run rewrote the
+    # file with the resume invocation's args (which may differ from
+    # the original -- different --limit, different skip-phase set,
+    # different dtype, etc.) so the original config was lost. Now
+    # the original config stays put and the resume run is recorded
+    # alongside it.
+    config_path = out_dir / "config.json"
+    if args.resume and config_path.exists():
+        try:
+            existing = json.loads(config_path.read_text(encoding="utf-8"))
+            if not isinstance(existing, dict):
+                existing = {"original": existing}
+        except (OSError, json.JSONDecodeError):
+            existing = {}
+        history = existing.get("resume_history")
+        if not isinstance(history, list):
+            history = []
+        history.append({
+            "resumed_at": time.strftime("%Y-%m-%d %H:%M:%S %Z"),
+            "args": config_args,
+        })
+        existing["resume_history"] = history
+        config_path.write_text(json.dumps(existing, indent=2), encoding="utf-8")
+    else:
+        # Fresh run: write the config and start a fresh resume_history.
+        payload = dict(config_args)
+        payload["resume_history"] = []
+        config_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
     t_start = time.perf_counter()
 

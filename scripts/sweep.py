@@ -35,34 +35,17 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-_REPO_ROOT = Path(__file__).resolve().parent.parent
-if str(_REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(_REPO_ROOT))
-_SRC = _REPO_ROOT / "src"
-if _SRC.exists() and str(_SRC) not in sys.path:
-    sys.path.insert(0, str(_SRC))
+# M-122: shared helpers in scripts/_common.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _common import (  # noqa: E402
+    build_embedder as _build_embedder_common,
+    build_reranker as _build_reranker_common,
+    ensure_repo_on_path,
+    load_env_file,
+)
 
-
-def _load_env(path: Path = Path(".env")) -> None:
-    if not path.exists():
-        return
-    try:
-        from dotenv import load_dotenv
-        load_dotenv(path, override=False)
-    except ImportError:
-        with path.open("r", encoding="utf-8") as f:
-            for raw in f:
-                line = raw.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                key, _, value = line.partition("=")
-                key = key.strip()
-                value = value.strip().strip('"').strip("'")
-                if key and key not in os.environ:
-                    os.environ[key] = value
-
-
-_load_env()
+ensure_repo_on_path()
+load_env_file()
 
 from engram import Memory, SqliteStorage  # noqa: E402
 from engram.providers._fake import FakeChat  # noqa: E402
@@ -106,28 +89,15 @@ SWEEPS: dict[str, list[Any]] = {
 }
 
 
-def _build_embedder(model: str, device: str | None, dtype: str) -> Any:
-    from engram.providers.local import LocalEmbedder
+# M-122: thin shims around _common builders.
 
-    dtype_map: dict[str, str] = {"auto": "auto", "fp16": "float16", "fp32": "float32"}
-    return LocalEmbedder(
-        model=model,
-        device=device,
-        dtype=dtype_map.get(dtype, "auto"),  # type: ignore[arg-type]
-    )
+
+def _build_embedder(model: str, device: str | None, dtype: str) -> Any:
+    return _build_embedder_common(model, device, dtype)
 
 
 def _build_reranker(model: str | None, device: str | None, dtype: str) -> Any:
-    if model is None or model.lower() == "none":
-        return None
-    from engram.retrieve._bge_reranker import BGEReranker
-
-    dtype_map: dict[str, str] = {"auto": "auto", "fp16": "float16", "fp32": "float32"}
-    return BGEReranker(
-        model=model,
-        device=device,
-        dtype=dtype_map.get(dtype, "auto"),  # type: ignore[arg-type]
-    )
+    return _build_reranker_common(model, device, dtype)
 
 
 def _retrieved_session_ids(memory: Memory, results: Sequence[Any]) -> set[str]:
@@ -181,10 +151,14 @@ def _evaluate_one(
         reranker=reranker,
     )
     retrieve_kwargs: dict[str, Any] = {"k": rp_kwargs["k"], "reinforce": False}
-    if knob == "recency_lambda" and value and value > 0:
-        question_dt = _parse_haystack_date(q.question_date)
-        if question_dt is not None:
-            retrieve_kwargs["as_of"] = question_dt
+    # H-86: always pass as_of when the question has a parseable date.
+    # Pre-fix the as_of was only set when sweeping recency_lambda, so
+    # paired-difference comparisons between recency_lambda=0 and
+    # recency_lambda=0.1 differed in TWO ways (the boost AND whether
+    # as_of was set), confounding the "did this knob help?" signal.
+    question_dt = _parse_haystack_date(q.question_date)
+    if question_dt is not None:
+        retrieve_kwargs["as_of"] = question_dt
     t0 = time.perf_counter()
     try:
         results = memory.retrieve(q.question, **retrieve_kwargs)
@@ -416,6 +390,19 @@ def main(argv: list[str] | None = None) -> int:
         help="Comma-separated value override (otherwise uses the standard grid).",
     )
     parser.add_argument(
+        "--values-type",
+        default=None,
+        choices=("int", "float", "bool", "str"),
+        help=(
+            "Explicit type for --values entries. Pre-fix (M-168) the "
+            "values were coerced based on `type(standard_grid[0])`, "
+            "which broke on type-mixed standard grids (e.g. "
+            "drill_k's [0, 3, 5, 10] coerced to int even though "
+            "0 is also a no-op marker). Pass --values-type to "
+            "override the type detection."
+        ),
+    )
+    parser.add_argument(
         "--baseline-value",
         default=None,
         help="Value to use as baseline for lift comparisons. Default: first in grid.",
@@ -449,17 +436,35 @@ def main(argv: list[str] | None = None) -> int:
 
     # Coerce values to the right type. The standard grids are typed
     # correctly; CLI overrides come in as strings.
+    # M-168: --values-type lets the operator pin int / float / bool /
+    # str explicitly. Pre-fix the type was inferred from the first
+    # element of the standard grid, which mishandled type-mixed
+    # standards (e.g. drill_k's [0, 3, ...] where 0 also acted as a
+    # disable marker) and never produced a float when the standard
+    # was all-int.
     if args.values is not None:
         raw_values = [s.strip() for s in args.values.split(",") if s.strip()]
-        # Coerce to int/float based on the knob's standard grid.
-        standard = SWEEPS[args.knob]
-        sample = standard[0]
-        if isinstance(sample, int):
-            values: list[Any] = [int(v) for v in raw_values]
-        elif isinstance(sample, float):
-            values = [float(v) for v in raw_values]
+        if args.values_type is not None:
+            type_name = args.values_type
         else:
-            values = list(raw_values)
+            standard = SWEEPS[args.knob]
+            sample = standard[0]
+            if isinstance(sample, bool):
+                type_name = "bool"
+            elif isinstance(sample, int):
+                type_name = "int"
+            elif isinstance(sample, float):
+                type_name = "float"
+            else:
+                type_name = "str"
+        coercers: dict[str, Any] = {
+            "int": int,
+            "float": float,
+            "bool": lambda s: s.lower() in ("true", "1", "yes", "on"),
+            "str": str,
+        }
+        coerce = coercers[type_name]
+        values: list[Any] = [coerce(v) for v in raw_values]
     else:
         values = list(SWEEPS[args.knob])
 

@@ -41,35 +41,17 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-_REPO_ROOT = Path(__file__).resolve().parent.parent
-if str(_REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(_REPO_ROOT))
-_SRC = _REPO_ROOT / "src"
-if _SRC.exists() and str(_SRC) not in sys.path:
-    sys.path.insert(0, str(_SRC))
+# M-122: shared helpers in scripts/_common.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _common import (  # noqa: E402
+    build_embedder as _build_embedder_common,
+    build_reranker as _build_reranker_common,
+    ensure_repo_on_path,
+    load_env_file,
+)
 
-
-def _load_env(path: Path = Path(".env")) -> None:
-    if not path.exists():
-        return
-    try:
-        from dotenv import load_dotenv
-
-        load_dotenv(path, override=False)
-    except ImportError:
-        with path.open("r", encoding="utf-8") as f:
-            for raw in f:
-                line = raw.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                key, _, value = line.partition("=")
-                key = key.strip()
-                value = value.strip().strip('"').strip("'")
-                if key and key not in os.environ:
-                    os.environ[key] = value
-
-
-_load_env()
+ensure_repo_on_path()
+load_env_file()
 
 from engram import Memory, SqliteStorage  # noqa: E402
 from engram.providers._fake import FakeChat  # noqa: E402
@@ -89,28 +71,15 @@ from scripts.ablate_longmemeval import CONFIGS  # noqa: E402
 _LOG = logging.getLogger("engram.trace")
 
 
-def _build_embedder(model: str, device: str | None, dtype: str) -> Any:
-    from engram.providers.local import LocalEmbedder
+# M-122: thin shims around _common builders.
 
-    dtype_map: dict[str, str] = {"auto": "auto", "fp16": "float16", "fp32": "float32"}
-    return LocalEmbedder(
-        model=model,
-        device=device,
-        dtype=dtype_map.get(dtype, "auto"),  # type: ignore[arg-type]
-    )
+
+def _build_embedder(model: str, device: str | None, dtype: str) -> Any:
+    return _build_embedder_common(model, device, dtype)
 
 
 def _build_reranker(model: str | None, device: str | None, dtype: str) -> Any:
-    if model is None or model.lower() == "none":
-        return None
-    from engram.retrieve._bge_reranker import BGEReranker
-
-    dtype_map: dict[str, str] = {"auto": "auto", "fp16": "float16", "fp32": "float32"}
-    return BGEReranker(
-        model=model,
-        device=device,
-        dtype=dtype_map.get(dtype, "auto"),  # type: ignore[arg-type]
-    )
+    return _build_reranker_common(model, device, dtype)
 
 
 def _normalize(vec: Sequence[float]) -> list[float]:
@@ -316,7 +285,25 @@ def _trace_question(
     """Trace one full question through every stage and config."""
     answer_sessions = set(q.answer_session_ids)
     n_haystack_events = sum(len(s) for s in q.haystack_sessions)
+    # M-170: emit a `<trace-meta>` JSON tag at the top of every trace
+    # so machine readers (e.g. analyze_zero_recall_traces.py) can
+    # parse fields like qid/qtype/answer_session_ids from the
+    # structured payload rather than scraping the regex-fragile
+    # header lines. The plain-text header below stays unchanged for
+    # human readability.
+    import json as _json
+    meta_payload = _json.dumps({
+        "qid": q.qid,
+        "qtype": q.qtype,
+        "question_date": q.question_date,
+        "question": q.question,
+        "gold": q.gold,
+        "answer_session_ids": sorted(answer_sessions),
+        "n_haystack_sessions": len(q.haystack_sessions),
+        "n_haystack_events": n_haystack_events,
+    })
     header = [
+        f"<trace-meta>{meta_payload}</trace-meta>",
         "=" * 80,
         f"qid={q.qid}  [{q.qtype}]",
         f"question_date={q.question_date}",

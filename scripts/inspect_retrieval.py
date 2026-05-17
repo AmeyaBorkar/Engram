@@ -45,34 +45,17 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-_REPO_ROOT = Path(__file__).resolve().parent.parent
-if str(_REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(_REPO_ROOT))
-_SRC = _REPO_ROOT / "src"
-if _SRC.exists() and str(_SRC) not in sys.path:
-    sys.path.insert(0, str(_SRC))
+# M-122: shared helpers in scripts/_common.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _common import (  # noqa: E402
+    build_embedder as _build_embedder_common,
+    build_reranker as _build_reranker_common,
+    ensure_repo_on_path,
+    load_env_file,
+)
 
-
-def _load_env(path: Path = Path(".env")) -> None:
-    if not path.exists():
-        return
-    try:
-        from dotenv import load_dotenv
-        load_dotenv(path, override=False)
-    except ImportError:
-        with path.open("r", encoding="utf-8") as f:
-            for raw in f:
-                line = raw.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                key, _, value = line.partition("=")
-                key = key.strip()
-                value = value.strip().strip('"').strip("'")
-                if key and key not in os.environ:
-                    os.environ[key] = value
-
-
-_load_env()
+ensure_repo_on_path()
+load_env_file()
 
 from engram import Memory, SqliteStorage  # noqa: E402
 from engram.providers._fake import FakeChat  # noqa: E402
@@ -91,28 +74,15 @@ from scripts.ablate_longmemeval import CONFIGS  # noqa: E402
 _LOG = logging.getLogger("engram.inspect")
 
 
-def _build_embedder(model: str, device: str | None, dtype: str) -> Any:
-    from engram.providers.local import LocalEmbedder
+# M-122: thin shims around _common builders.
 
-    dtype_map: dict[str, str] = {"auto": "auto", "fp16": "float16", "fp32": "float32"}
-    return LocalEmbedder(
-        model=model,
-        device=device,
-        dtype=dtype_map.get(dtype, "auto"),  # type: ignore[arg-type]
-    )
+
+def _build_embedder(model: str, device: str | None, dtype: str) -> Any:
+    return _build_embedder_common(model, device, dtype)
 
 
 def _build_reranker(model: str | None, device: str | None, dtype: str) -> Any:
-    if model is None or model.lower() == "none":
-        return None
-    from engram.retrieve._bge_reranker import BGEReranker
-
-    dtype_map: dict[str, str] = {"auto": "auto", "fp16": "float16", "fp32": "float32"}
-    return BGEReranker(
-        model=model,
-        device=device,
-        dtype=dtype_map.get(dtype, "auto"),  # type: ignore[arg-type]
-    )
+    return _build_reranker_common(model, device, dtype)
 
 
 def _preview(content: str, width: int) -> str:
@@ -175,7 +145,17 @@ def _dump_answer_sessions(q: _Question, width: int) -> list[str]:
 
 
 def _result_to_event_meta(memory: Memory, result: Any) -> dict[str, Any]:
-    """Pull session_id + has_answer + content + level for one retrieved item."""
+    """Pull session_id + has_answer + content + level for one retrieved item.
+
+    M-171: for memory-item (consolidated abstraction) results, walk
+    ALL supporting events and union their session_ids / has_answer
+    flags rather than returning the FIRST hit. Multi-session
+    abstractions used to be tagged by whichever event happened to
+    sort first under whatever ordering ``get_supporting_events``
+    returned, which biased the "session-level recall" computation
+    toward whichever single source we sampled. The unioned form
+    accurately reflects "this abstraction is from sessions {X, Y}".
+    """
     try:
         event = memory.storage.get_event(result.item_id)
     except (KeyError, RuntimeError):
@@ -184,26 +164,44 @@ def _result_to_event_meta(memory: Memory, result: Any) -> dict[str, Any]:
         return {
             "kind": "event",
             "session_id": event.metadata.get("session_id"),
+            "session_ids": [event.metadata.get("session_id")]
+            if event.metadata.get("session_id")
+            else [],
             "has_answer": event.metadata.get("has_answer"),
             "content": event.content,
         }
-    # Memory item: walk provenance.
+    # Memory item: walk ALL provenance, not just the first hit.
     try:
         supports = memory.storage.get_supporting_events(result.item_id)
     except (KeyError, RuntimeError):
         supports = []
+    sids: list[str] = []
+    has_answer_any = False
+    has_answer_seen = False
     for ev in supports:
         sid = ev.metadata.get("session_id")
         if isinstance(sid, str):
-            return {
-                "kind": "memory_item",
-                "session_id": sid,
-                "has_answer": ev.metadata.get("has_answer"),
-                "content": result.content,
-            }
+            sids.append(sid)
+        ha = ev.metadata.get("has_answer")
+        if ha is not None:
+            has_answer_seen = True
+            if ha is True:
+                has_answer_any = True
+    if sids:
+        # Surface the FIRST hit on the legacy `session_id` key for
+        # backwards compat with the visual marker code; the unioned
+        # list of all hits is on `session_ids`.
+        return {
+            "kind": "memory_item",
+            "session_id": sids[0],
+            "session_ids": sids,
+            "has_answer": has_answer_any if has_answer_seen else None,
+            "content": result.content,
+        }
     return {
         "kind": "unknown",
         "session_id": None,
+        "session_ids": [],
         "has_answer": None,
         "content": result.content,
     }
@@ -224,20 +222,31 @@ def _inspect_question(
     """Run retrieve, compute both recall flavors, and (unless stats_only)
     print the per-question dump.
     """
-    # All has_answer=True event ids in this haystack
+    # M-172: count gold events post-filter. The ingest path
+    # (`_ingest_haystack`) silently drops turns with empty content,
+    # but pre-fix the counter scanned the raw haystack and reported
+    # a denominator that included those filtered turns. The event-
+    # level recall thus understated the actual reach of the retrieve
+    # path. Match the ingest filter exactly so the metric is fair.
     gold_event_count = 0
     for idx, sid in enumerate(q.haystack_session_ids):
         if sid not in answer_session_ids:
             continue
         for t in q.haystack_sessions[idx]:
+            content = t.get("content")
+            if not content:
+                # Same filter `_ingest_haystack` applies: empty
+                # content -> not ingested -> not eligible to count
+                # as a gold event for recall purposes.
+                continue
             if t.get("has_answer") is True:
                 gold_event_count += 1
 
     retrieve_kwargs: dict[str, Any] = {"k": k, "reinforce": False}
-    if config.get("recency_lambda", 0) and config["recency_lambda"] > 0:
-        question_dt = _parse_haystack_date(q.question_date)
-        if question_dt is not None:
-            retrieve_kwargs["as_of"] = question_dt
+    # H-86: always pass as_of when the question has a parseable date.
+    question_dt = _parse_haystack_date(q.question_date)
+    if question_dt is not None:
+        retrieve_kwargs["as_of"] = question_dt
     results = memory.retrieve(q.question, **retrieve_kwargs)
 
     annotated: list[dict[str, Any]] = []
@@ -247,12 +256,23 @@ def _inspect_question(
             "rank": len(annotated) + 1,
             "score": float(r.score),
             "session_id": meta["session_id"],
+            # M-171: keep the unioned list of all supporting session_ids
+            # so multi-session abstractions can be scored fairly.
+            "session_ids": meta.get("session_ids", []),
             "has_answer": meta["has_answer"],
             "content": meta["content"],
         })
 
     # Metrics
-    retrieved_sessions = {a["session_id"] for a in annotated if a["session_id"] is not None}
+    # M-171: build the retrieved-sessions set from the union of every
+    # supporting event's session_id, not just the first one.
+    retrieved_sessions: set[str] = set()
+    for a in annotated:
+        for sid in a.get("session_ids") or []:
+            if isinstance(sid, str):
+                retrieved_sessions.add(sid)
+        if a["session_id"] is not None and a["session_id"] not in retrieved_sessions:
+            retrieved_sessions.add(a["session_id"])
     session_hit = bool(retrieved_sessions & answer_session_ids)
     session_recall = (
         len(retrieved_sessions & answer_session_ids) / len(answer_session_ids)

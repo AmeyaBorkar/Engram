@@ -67,3 +67,13 @@ class ChromaBM25Retriever:
 
         ranked = sorted(rrf.items(), key=lambda kv: kv[1], reverse=True)[:k]
         return [Hit(id=doc_id, content=self._docs[doc_id], score=score) for doc_id, score in ranked]
+
+    def close(self) -> None:
+        """Release the underlying Chroma client / collection.
+
+        M-166: defers to ``ChromaRetriever.close()`` so the
+        EphemeralClient handle and HNSW segment are released. The
+        BM25 side is in-memory python; no cleanup needed there.
+        """
+        if hasattr(self._chroma, "close"):
+            self._chroma.close()

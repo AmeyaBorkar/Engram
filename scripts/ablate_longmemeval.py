@@ -33,6 +33,7 @@ Examples:
 from __future__ import annotations
 
 import argparse
+import datetime as _dt
 import hashlib
 import json
 import logging
@@ -45,39 +46,22 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-# Add repo root to sys.path so `from engram import ...` and
-# `from benchmarks.suites.longmemeval import ...` work when running this
-# script via `python scripts/ablate_longmemeval.py`.
-_REPO_ROOT = Path(__file__).resolve().parent.parent
-if str(_REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(_REPO_ROOT))
-_SRC = _REPO_ROOT / "src"
-if _SRC.exists() and str(_SRC) not in sys.path:
-    sys.path.insert(0, str(_SRC))
+# M-122: shared helpers (sys.path setup, .env loading, builder
+# functions, knob mapping) live in scripts/_common. Pre-fix each of
+# the 7 scripts had its own near-identical copies and a security
+# fix had to land 7 times.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _common import (  # noqa: E402
+    build_chat as _build_chat_common,
+    build_embedder as _build_embedder_common,
+    build_reranker as _build_reranker_common,
+    ensure_repo_on_path,
+    load_env_file,
+    split_config,
+)
 
-
-def _load_env(path: Path = Path(".env")) -> None:
-    """Best-effort `.env` loader. Existing env vars take precedence."""
-    if not path.exists():
-        return
-    try:
-        from dotenv import load_dotenv
-
-        load_dotenv(path, override=False)
-    except ImportError:
-        with path.open("r", encoding="utf-8") as f:
-            for raw in f:
-                line = raw.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                key, _, value = line.partition("=")
-                key = key.strip()
-                value = value.strip().strip('"').strip("'")
-                if key and key not in os.environ:
-                    os.environ[key] = value
-
-
-_load_env()
+ensure_repo_on_path()
+load_env_file()
 
 from engram import Memory, SqliteStorage  # noqa: E402
 from engram.providers._message import Message  # noqa: E402
@@ -146,34 +130,22 @@ class _RunResult:
     latency_ms: float
 
 
-def _build_chat(chat_name: str, chat_model: str | None) -> ChatProvider:
-    """Construct a chat provider via the bench's standard catalog."""
-    from engram.bench._real_provider import build_chat
+# M-122: thin shims around _common builders so callers below don't
+# need to know about the shared module. The bodies were each ~5-7
+# lines of identical dtype-map + factory call; centralising them
+# means a future dtype shorthand (e.g. "bf16") lands once.
 
-    return build_chat(chat_name, chat_model)
+
+def _build_chat(chat_name: str, chat_model: str | None) -> ChatProvider:
+    return _build_chat_common(chat_name, chat_model)
 
 
 def _build_embedder(model: str, device: str | None, dtype: str) -> Any:
-    """Construct a LocalEmbedder once and share across the whole run."""
-    from engram.providers.local import LocalEmbedder
-
-    dtype_map: dict[str, str] = {"auto": "auto", "fp16": "float16", "fp32": "float32"}
-    return LocalEmbedder(
-        model=model,
-        device=device,
-        dtype=dtype_map.get(dtype, "auto"),  # type: ignore[arg-type]
-    )
+    return _build_embedder_common(model, device, dtype)
 
 
 def _build_reranker(model: str, device: str | None, dtype: str) -> Any:
-    from engram.retrieve._bge_reranker import BGEReranker
-
-    dtype_map: dict[str, str] = {"auto": "auto", "fp16": "float16", "fp32": "float32"}
-    return BGEReranker(
-        model=model,
-        device=device,
-        dtype=dtype_map.get(dtype, "auto"),  # type: ignore[arg-type]
-    )
+    return _build_reranker_common(model, device, dtype)
 
 
 def _retrieved_session_ids(
@@ -223,8 +195,11 @@ def _run_one(
     retrieval_only: bool,
 ) -> _RunResult:
     """Run one (question, config) pair against an already-ingested storage."""
-    auto_temporal = bool(config.get("_auto_temporal", False))
-    param_overrides = {kk: vv for kk, vv in config.items() if not kk.startswith("_")}
+    # M-122 / M-210: route through scripts/_common.split_config so the
+    # knob-mapping convention (underscore-prefix = bench flag) is in
+    # one place and a knob rename can't drift between 3 scripts.
+    param_overrides, bench_flags = split_config(config)
+    auto_temporal = bench_flags.get("_auto_temporal", False)
     base_params = RetrieveParams(k=k, **param_overrides)
     memory = Memory(
         storage=storage,
@@ -240,10 +215,13 @@ def _run_one(
     t_start = time.perf_counter()
     try:
         retrieve_kwargs: dict[str, Any] = {"k": k, "reinforce": False}
-        if config.get("recency_lambda", 0) and config["recency_lambda"] > 0:
-            question_dt = _parse_haystack_date(q.question_date)
-            if question_dt is not None:
-                retrieve_kwargs["as_of"] = question_dt
+        # H-86: always pass as_of when the question has a parseable
+        # date, regardless of recency_lambda. Mirror of the bench
+        # suite fix; pre-fix the sweep over recency_lambda confounded
+        # the boost with whether as_of was set at all.
+        question_dt = _parse_haystack_date(q.question_date)
+        if question_dt is not None:
+            retrieve_kwargs["as_of"] = question_dt
         if auto_temporal:
             filt = _build_auto_temporal_filter(q.question)
             if filt:
@@ -427,8 +405,23 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("benchmarks/runs/ablation.json"),
-        help="JSON manifest output path.",
+        default=None,
+        help=(
+            "JSON manifest output path. Default: "
+            "benchmarks/runs/ablation_<UTC-timestamp>.json (H-83) so "
+            "consecutive ablation runs don't clobber each other. "
+            "Pass an explicit path to override; existing files are "
+            "refused unless --force is set."
+        ),
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help=(
+            "Overwrite --output if it already exists. Default behaviour "
+            "(H-83 fix) is to refuse: rename your old manifest or use "
+            "a different --output before re-running."
+        ),
     )
     parser.add_argument(
         "--log-level",
@@ -525,6 +518,18 @@ def main(argv: list[str] | None = None) -> int:
                 )
         finally:
             storage.close()
+
+    # H-83: pick the output path with collision protection.
+    if args.output is None:
+        timestamp = _dt.datetime.now(_dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        args.output = Path(f"benchmarks/runs/ablation_{timestamp}.json")
+    if args.output.exists() and not args.force:
+        print(
+            f"error: --output already exists: {args.output}\n"
+            "  Pass --force to overwrite, or pick a different --output.",
+            file=sys.stderr,
+        )
+        return 2
 
     # Persist + print summary.
     args.output.parent.mkdir(parents=True, exist_ok=True)

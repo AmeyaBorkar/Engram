@@ -1,9 +1,15 @@
-"""Recall smoke benchmark.
+"""Recall smoke benchmark — trivial-recall harness wiring check.
 
 Tiny synthetic corpus; every query is exact text of one indexed document.
-Every retriever should score recall@10 = 1.0 here - the suite exists to
+Every retriever should score recall@10 = 1.0 here -- the suite exists to
 validate the harness wiring (suite loading, retriever protocol, baseline
-adapters, manifest writing), NOT embedding quality.
+adapters, manifest writing), NOT embedding quality and NOT held-out recall.
+
+M-167: the queries are literally the first ``K`` documents in
+``_DOCS``. That makes the recall metric trivially saturated (any
+retriever that returns its own added rows passes), which is fine for
+a wiring smoke but should never be interpreted as a quality
+measurement. Use ``longmemeval`` or ``locomo`` for that.
 
 Stage 6 plugs in real datasets (LongMemEval, LoCoMo) against real
 providers; until then this is what runs in CI when SOTA infrastructure
@@ -70,6 +76,11 @@ def _build_retrievers(provider: Provider) -> dict[str, tuple[Retriever, Any]]:
     """Return name -> (retriever, cleanup) for every system we know how to construct.
 
     Skips Chroma-based retrievers if `chromadb` is not installed.
+
+    The `cleanup` slot used to carry only the engram storage handle.
+    M-166: it now also carries the chroma retrievers themselves so the
+    suite cleanup loop can `close()` them and release the
+    EphemeralClient + HNSW segment they own.
     """
     embedder = getattr(provider, "embedder", None)
     if embedder is None:
@@ -91,8 +102,12 @@ def _build_retrievers(provider: Provider) -> dict[str, tuple[Retriever, Any]]:
     except ImportError:
         return retrievers
 
-    retrievers["chroma"] = (ChromaRetriever(embedder=embedder), None)
-    retrievers["chroma_bm25"] = (ChromaBM25Retriever(embedder=embedder), None)
+    chroma = ChromaRetriever(embedder=embedder)
+    chroma_bm25 = ChromaBM25Retriever(embedder=embedder)
+    # Stash the retriever itself in the cleanup slot so the suite
+    # post-loop can call `.close()` on it (M-166).
+    retrievers["chroma"] = (chroma, chroma)
+    retrievers["chroma_bm25"] = (chroma_bm25, chroma_bm25)
     return retrievers
 
 
