@@ -65,6 +65,42 @@ class ProvenanceProtectedError(RuntimeError):
     """
 
 
+def _validate_path(path: str | Path) -> str:
+    """Normalize and validate a storage path string.
+
+    ``:memory:`` is accepted verbatim as the canonical in-memory marker.
+    Everything else must look like a filesystem path: the SQLite C API
+    accepts magic URI forms (``file:foo?mode=memory``, ``file::memory:``,
+    ``file:foo.db?mode=ro&cache=shared``) when ``uri=True`` is passed to
+    ``sqlite3.connect``, but they short-circuit our durability assumptions
+    (WAL, foreign_keys, the path-on-disk that the bench / inspector
+    prints).  Reject them at construction so the caller gets a clear
+    error instead of a `:memory:` database masquerading as a file path.
+    """
+    raw = str(path)
+    if raw == ":memory:":
+        return raw
+    # Anything starting with `file:` is an explicit URI; SQLite parses it
+    # only when uri=True is passed to connect, but we never opt in, so
+    # this would silently produce a relative-path file named ``file:foo``
+    # on disk.  That's user-hostile; reject up front.
+    lowered = raw.lower()
+    if lowered.startswith("file:"):
+        raise ValueError(
+            f"SqliteStorage path may not be a URI ({raw!r}); pass a filesystem "
+            "path or ':memory:' instead"
+        )
+    # Likewise, embedded ':memory:' segments outside the canonical sentinel
+    # are almost certainly a user mistake — they want either the literal
+    # filesystem path or the bare ':memory:' marker.
+    if ":memory:" in raw:
+        raise ValueError(
+            f"SqliteStorage path contains ':memory:' fragment ({raw!r}); "
+            "pass exactly ':memory:' for an in-memory store or a filesystem path"
+        )
+    return raw
+
+
 def _row_to_event(row: sqlite3.Row) -> Event:
     keys = row.keys()
     tenant_id = row["tenant_id"] if "tenant_id" in keys else None
@@ -335,7 +371,7 @@ class SqliteStorage:
     """SQLite-backed `Storage` implementation."""
 
     def __init__(self, path: str | Path = ":memory:") -> None:
-        self._path = str(path)
+        self._path = _validate_path(path)
         self._lock = threading.Lock()
         # `_local` holds the per-thread sqlite3.Connection.  Using a
         # threading.local instead of a tid-keyed dict means a recycled

@@ -359,3 +359,41 @@ def test_get_embedding_missing_returns_none(storage: SqliteStorage) -> None:
 
 def test_get_memory_item_missing_returns_none(storage: SqliteStorage) -> None:
     assert storage.get_memory_item(new_id()) is None
+
+
+# --- path validation ------------------------------------------------------
+
+
+def test_path_accepts_memory_sentinel() -> None:
+    # The canonical in-memory marker is preserved verbatim.
+    s = SqliteStorage(":memory:")
+    assert s.path == ":memory:"
+
+
+def test_path_accepts_filesystem_path(tmp_path: object) -> None:
+    from pathlib import Path as _Path
+
+    p = _Path(str(tmp_path)) / "ok.db"
+    s = SqliteStorage(p)
+    assert s.path == str(p)
+
+
+def test_path_rejects_uri_form() -> None:
+    # `file:foo?mode=memory` would short-circuit our WAL / fs assumptions
+    # if sqlite3 ever parsed it as a URI.  We reject up front.
+    with pytest.raises(ValueError, match="may not be a URI"):
+        SqliteStorage("file:test.db?mode=memory")
+
+
+def test_path_rejects_embedded_memory_fragment() -> None:
+    # Anything containing ':memory:' that isn't exactly the sentinel is
+    # almost certainly a user mistake — they probably want either the
+    # real file path or the bare marker.
+    with pytest.raises(ValueError, match="contains ':memory:'"):
+        SqliteStorage("/tmp/:memory:")
+
+
+def test_path_rejects_uri_with_caps() -> None:
+    # The `file:` check is case-insensitive — `FILE:foo` is still a URI.
+    with pytest.raises(ValueError, match="may not be a URI"):
+        SqliteStorage("FILE:foo.db")
