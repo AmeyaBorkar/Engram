@@ -218,6 +218,20 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     run.add_argument(
+        "--prompt-version",
+        default="v1",
+        choices=("v1", "v2"),
+        help=(
+            "Answer-prompt template version (longmemeval only). v1 is "
+            "the original prompt. v2 adds explicit abstain anchoring "
+            "(state related context before saying IDK) and per-qtype "
+            "hints (preference synthesis, multi-session aggregation "
+            "scratchpad, temporal date-math scratchpad, latest-value "
+            "for knowledge-update). Targets the failure patterns in "
+            "JOURNEY section 23. Predicted lift +5-7 pts. Default v1."
+        ),
+    )
+    run.add_argument(
         "--k",
         type=int,
         default=None,
@@ -607,6 +621,8 @@ def _resolve_suite_config(args: argparse.Namespace) -> dict[str, Any]:
         cfg["parallel"] = args.parallel
     if args.gpu_concurrency != 1:
         cfg["gpu_concurrency"] = args.gpu_concurrency
+    if args.prompt_version != "v1":
+        cfg["prompt_version"] = args.prompt_version
     return cfg
 
 

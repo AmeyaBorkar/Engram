@@ -84,6 +84,60 @@ PROMPT_VERSIONS: dict[str, str] = {
     "judge": "v1",
 }
 
+# v2 answer-prompt qtype hints. Activated only when `prompt_version="v2"`.
+# Each hint is appended to the v2 prompt template via the {qtype_hint} slot.
+# Designed to address specific Sonnet-vs-Kimi judge disagreements seen in
+# JOURNEY §23: synthesis on preference / multi-session, date-math scratchpad
+# on temporal, latest-value resolution on knowledge-update, abstain anchoring
+# on sss-user. The base v2 prompt already carries the abstain pattern; these
+# hints layer per-qtype expectations on top.
+_V2_QTYPE_HINTS: dict[str, str] = {
+    "single-session-user": (
+        "This question asks about something the user mentioned in a single "
+        "session. Locate the most specific mention in the retrieved memory "
+        "and answer directly. If the specific fact is not present, anchor "
+        "your answer with the closest related thing the user DID mention."
+    ),
+    "single-session-assistant": (
+        "This question asks about something the assistant said in a single "
+        "session. Quote or paraphrase the assistant's recommendation "
+        "faithfully -- match the form and specifics."
+    ),
+    "single-session-preference": (
+        "This is a PREFERENCE question. The expected answer format is "
+        "'The user would prefer [X]' or an equivalent synthesis. Identify "
+        "the user's preferences from patterns + explicit statements in the "
+        "memory, then synthesize them into a single preference statement. "
+        "Partial coverage of the user's preferences is acceptable as long "
+        "as your synthesis is consistent with the evidence."
+    ),
+    "multi-session": (
+        "This is a MULTI-SESSION aggregation question. The answer requires "
+        "combining information from multiple separate sessions.\n"
+        "Steps (show briefly, then state final answer):\n"
+        "  (1) Identify each relevant value/event from each session.\n"
+        "  (2) Aggregate as the question asks (sum, count, total, "
+        "average, difference).\n"
+        "  (3) Final answer: a single concrete value, not a CoT preamble."
+    ),
+    "temporal-reasoning": (
+        "This is a TEMPORAL question. Compute durations / intervals "
+        "explicitly.\n"
+        "Steps (show briefly, then state final answer):\n"
+        "  (1) Identify the relevant dates / durations in the memory.\n"
+        "  (2) Compute the difference (days, weeks, months) explicitly.\n"
+        "  (3) Final answer: a single concrete duration or date.\n"
+        "Off-by-one errors on days are tolerated; off-by-many is not."
+    ),
+    "knowledge-update": (
+        "This is a KNOWLEDGE-UPDATE question. Multiple values may be "
+        "mentioned over time for the same fact. Pick the MOST RECENT one. "
+        "If both the previous and updated value are visible in memory, "
+        "stating both with the updated one clearly marked as current is "
+        "acceptable; stating only the latest value is also acceptable."
+    ),
+}
+
 # Question-type-specific hints for the judge, taken verbatim from the
 # official `evaluate_qa.py`.
 _JUDGE_INSTRUCTIONS: dict[str, str] = {
@@ -304,8 +358,15 @@ def _checksum(path: Path) -> str:
     return f"longmemeval/{path.name}/{h.hexdigest()}"
 
 
-def _read_prompt(name: str) -> str:
-    return (PROMPTS_DIR / f"longmemeval_{name}_v1.txt").read_text(encoding="utf-8")
+def _read_prompt(name: str, version: str = "v1") -> str:
+    """Load a versioned prompt template from PROMPTS_DIR.
+
+    `version` defaults to "v1" so callers that don't specify it get the
+    original behavior (zero risk to in-flight benches reading from the
+    same module). The bench's `prompt_version` configure() field
+    controls which template the answer step reads.
+    """
+    return (PROMPTS_DIR / f"longmemeval_{name}_{version}.txt").read_text(encoding="utf-8")
 
 
 def _format_memory(results: Sequence[Any]) -> str:
@@ -603,6 +664,13 @@ class LongMemEvalSuite:
         # The actual enforcement lives in engram._gpu_lock; this just
         # mirrors the value into the manifest.
         self._gpu_concurrency: int = 1
+        # Answer-prompt version. "v1" is the original prompt that says
+        # "if you don't know, say I don't know"; "v2" adds explicit
+        # abstain anchoring (state related context before saying IDK)
+        # and per-qtype hints (preference synthesis, multi-session
+        # aggregation scratchpad, temporal date-math, latest-value).
+        # See JOURNEY §23 for the design rationale.
+        self._prompt_version: str = "v1"
         # Phase F retrieve knobs (BM25 + MMR + recency + drill / pool).
         self._bm25_weight: float = 0.0
         self._mmr_lambda: float = 0.0
@@ -639,6 +707,7 @@ class LongMemEvalSuite:
         sample_n: int | None = None,
         parallel: int = 1,
         gpu_concurrency: int = 1,
+        prompt_version: str = "v1",
         bm25_weight: float = 0.0,
         mmr_lambda: float = 0.0,
         recency_lambda: float = 0.0,
@@ -705,6 +774,11 @@ class LongMemEvalSuite:
         if gpu_concurrency < 1:
             raise ValueError(f"gpu_concurrency must be >= 1, got {gpu_concurrency}")
         self._gpu_concurrency = gpu_concurrency
+        if prompt_version not in ("v1", "v2"):
+            raise ValueError(
+                f"prompt_version must be 'v1' or 'v2', got {prompt_version!r}"
+            )
+        self._prompt_version = prompt_version
         self._bm25_weight = bm25_weight
         self._mmr_lambda = mmr_lambda
         self._recency_lambda = recency_lambda
@@ -1075,6 +1149,7 @@ class LongMemEvalSuite:
                     memory_text=memory_text,
                     question=q.question,
                     question_date=q.question_date,
+                    qtype=q.qtype,
                 )
                 answer_ms_v = (time.perf_counter() - t0) * 1000.0
 
@@ -1129,13 +1204,20 @@ class LongMemEvalSuite:
         memory_text: str,
         question: str,
         question_date: str,
+        qtype: str = "",
     ) -> str:
         """Answer step with optional CoT / self-consistency / verify.
 
-        When every Phase E agent flag is at its default, this collapses
-        to a single `_generate_answer` call -- bit-identical to the
-        v0.1.0 path. Each opt-in adds work in this fixed order:
+        When every Phase E agent flag is at its default and
+        prompt_version="v1", this collapses to a single `_generate_answer`
+        call -- bit-identical to the v0.1.0 path. Each opt-in adds work
+        in this fixed order:
 
+          * `prompt_version="v2"`: switch to the abstain-anchored
+            template and append per-qtype hints from `_V2_QTYPE_HINTS`.
+            Targets the failure patterns identified in JOURNEY §23
+            (abstain form, preference synthesis, temporal date-math,
+            multi-session aggregation, knowledge-update latest-value).
           * `cot`: append a CoT instruction to the answer prompt and
             strip the reasoning prefix from the reply.
           * `self_consistency_n>=2`: take N samples and majority-vote
@@ -1143,10 +1225,16 @@ class LongMemEvalSuite:
           * `verify`: re-run the verifier; on unsupported, re-retrieve
             and re-answer up to `verify_max_retries` times.
         """
-        base_prompt = _read_prompt("answer").format(
+        qtype_hint = (
+            _V2_QTYPE_HINTS.get(qtype, "")
+            if self._prompt_version == "v2"
+            else ""
+        )
+        base_prompt = _read_prompt("answer", version=self._prompt_version).format(
             memory=memory_text,
             question=question,
             question_date=question_date or "(date unknown)",
+            qtype_hint=qtype_hint,
         )
         cot_suffix = (
             "\n\nFirst think step-by-step about which memories are "
@@ -1180,15 +1268,18 @@ class LongMemEvalSuite:
                 if verdict.supported or attempt == self._verify_max_retries:
                     break
                 # Re-retrieve (Memory may have updated state between
-                # turns) and re-answer. Same retrieve config as the
-                # first attempt; ReAct-style refinement is the
-                # `retrieve_iterative` job, not the verifier's.
+                # turns) and re-answer. Same retrieve config + prompt
+                # version as the first attempt; ReAct-style refinement
+                # is the `retrieve_iterative` job, not the verifier's.
                 fresh = memory.retrieve(question, k=self._k, reinforce=False)
                 current_memory_text = _format_memory(fresh)
-                fresh_prompt = _read_prompt("answer").format(
+                fresh_prompt = _read_prompt(
+                    "answer", version=self._prompt_version
+                ).format(
                     memory=current_memory_text,
                     question=question,
                     question_date=question_date or "(date unknown)",
+                    qtype_hint=qtype_hint,
                 ) + cot_suffix
                 response = _one_call(fresh_prompt)
 

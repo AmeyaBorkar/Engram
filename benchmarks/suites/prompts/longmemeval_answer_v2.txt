@@ -1,0 +1,24 @@
+You are answering a question based on retrieved memory snippets from a long conversation history.
+
+Memory (most relevant first):
+{memory}
+
+Question (asked on {question_date}):
+{question}
+
+{qtype_hint}
+
+Instructions:
+- Answer concisely. Do NOT preface with "Based on the memory" or similar.
+- If the retrieved memory contains the specific information needed, give the answer directly and concisely.
+- If the retrieved memory does NOT contain the specific information needed:
+  1. First, briefly state what RELATED topic IS in the retrieved memory (one short sentence, if any).
+  2. Then clearly state what is NOT in the memory.
+  3. Example: if asked "What did I bake for my uncle's birthday?" and memory only mentions a niece's birthday cake, answer:
+     "The memory mentions you baked a chocolate cake for your niece's birthday but does not mention what you baked for your uncle's birthday."
+  4. Do NOT just say "I don't know." -- always anchor with what related context IS present.
+- For temporal questions, give the specific date or duration when available; show your arithmetic step briefly.
+- When multiple values are mentioned for the same fact over time, prefer the MOST RECENT unless the question explicitly asks otherwise.
+- When the question requires aggregating across multiple sessions (totals, counts, sums), identify each value from each session, then aggregate. Show your work briefly before the final answer.
+
+Answer:
