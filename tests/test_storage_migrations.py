@@ -58,6 +58,53 @@ def test_reopened_storage_skips_already_applied_migrations(tmp_path: Path) -> No
         s2.close()
 
 
+def test_apply_migrations_rejects_outer_transaction(tmp_path: Path) -> None:
+    """Regression for H-43: `apply_migrations` MUST refuse to run inside an
+    outer transaction.
+
+    `conn.executescript()` issues an unconditional `COMMIT;` before each
+    script — a caller that opened a transaction would have it silently
+    committed mid-flight.  The runner asserts the precondition rather
+    than letting the subtle partial-commit go undetected.
+    """
+    db = tmp_path / "outer_tx.db"
+    conn = sqlite3.connect(db)
+    conn.isolation_level = None  # autocommit; we drive BEGIN manually
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        assert conn.in_transaction is True
+        with pytest.raises(RuntimeError, match="inside an outer transaction"):
+            apply_migrations(conn)
+        # Tidy up so close() doesn't fail.
+        conn.execute("ROLLBACK")
+    finally:
+        conn.close()
+
+
+def test_applied_versions_uses_immediate_transaction(tmp_path: Path) -> None:
+    """Regression for H-42: bootstrapping schema_migrations + reading the
+    applied versions runs under BEGIN IMMEDIATE so two parallel openers
+    can't both observe the table as empty and both proceed to apply v1.
+
+    We can't easily race two real connections at this layer, so verify
+    the contract: `applied_versions` leaves the connection in autocommit
+    state (i.e. it COMMITted its own transaction before returning).
+    """
+    db = tmp_path / "ave.db"
+    conn = sqlite3.connect(db)
+    conn.isolation_level = None
+    try:
+        out = applied_versions(conn)
+        # Fresh db -> no versions applied yet.
+        assert out == set()
+        # The bootstrap transaction must have COMMITted before we got
+        # control back — apply_migrations would otherwise raise on the
+        # in-transaction precondition above.
+        assert conn.in_transaction is False
+    finally:
+        conn.close()
+
+
 def test_missing_version_record_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A migration that fails to record its own version is a runner error."""
     from engram.storage import migrations as mig

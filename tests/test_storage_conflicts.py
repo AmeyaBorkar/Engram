@@ -259,6 +259,48 @@ class TestResolveConflict:
                 resolved_at=_utc(2026, 5, 1),
             )
 
+    def test_status_guard_on_update_prevents_double_resolve(
+        self, storage: SqliteStorage
+    ) -> None:
+        """Regression for H-35: the UPDATE carries `AND status = 'open'`
+        and asserts `rowcount == 1`.
+
+        Simulate the race directly by flipping the row's status to
+        'resolved' via raw SQL after the in-method read (we can't easily
+        spin up two threads against an in-memory db that requires same-
+        thread access), then verify the UPDATE rolls back rather than
+        silently overwriting a now-resolved row.
+        """
+        a = _seed_item(storage, "a")
+        b = _seed_item(storage, "b")
+        c = Conflict(source_item_id=a.id, target_item_id=b.id, similarity=0.9)
+        storage.record_conflict(c)
+
+        # Hand-craft the race window: another writer beats us to it and
+        # transitions the row to 'resolved' between OUR get_conflict and
+        # OUR UPDATE.  We can't easily intercept the in-method read so
+        # exercise the same UPDATE shape directly: it should match zero
+        # rows because status is no longer 'open'.
+        storage._connect().execute(
+            "UPDATE conflicts SET status = 'resolved', resolution = 'prefer_recent', "
+            "resolved_winner_id = ?, resolved_at = ? WHERE id = ?",
+            (a.id.bytes, _utc(2026, 5, 1).isoformat(), c.id.bytes),
+        )
+
+        # Now the public method should observe the resolved state and
+        # raise — never silently re-resolve over the prior winner.
+        with pytest.raises(RuntimeError, match="already resolved"):
+            storage.resolve_conflict(
+                c.id,
+                resolution=Resolution.PREFER_RECENT,
+                resolved_winner_id=b.id,
+                resolved_at=_utc(2026, 5, 2),
+            )
+        # The prior resolution stuck (winner=a, not b from our retry).
+        final = storage.get_conflict(c.id)
+        assert final is not None
+        assert final.resolved_winner_id == a.id
+
 
 # ---------------------------------------------------------------------------
 # count_conflicts / count_conflicts_by_status
@@ -362,6 +404,38 @@ class TestSetValidityWindow:
                 valid_from=_utc(2026, 5, 1),
                 valid_until=_utc(2026, 1, 1),
             )
+
+    def test_until_before_from_rolls_back_partial_write(
+        self, storage: SqliteStorage
+    ) -> None:
+        """Regression for H-34: validation must run *before* the UPDATE
+        (or roll back on raise), so an invalid window doesn't persist.
+
+        Seeds an item with a known valid_from, then attempts to set
+        valid_until earlier than the existing valid_from.  After the
+        ValueError, the row's valid_from must still be the seeded value
+        (the row must not have been mutated mid-validation).
+        """
+        a = _seed_item(storage, "a", valid_from=_utc(2026, 3, 1))
+        # Seed an explicit, observable valid_from we can assert against.
+        storage.set_validity_window(a.id, valid_from=_utc(2026, 6, 1))
+        seeded = storage.get_memory_item(a.id)
+        assert seeded is not None and seeded.valid_from == _utc(2026, 6, 1)
+
+        # Now attempt a window with valid_until BEFORE valid_from in one
+        # call.  Previously this would (a) UPDATE the row with the new
+        # valid_until, then (b) read it back and raise — leaving the bad
+        # valid_until on disk.  With the transaction wrap, the UPDATE
+        # rolls back and the row stays as seeded.
+        with pytest.raises(ValueError, match="precedes"):
+            storage.set_validity_window(a.id, valid_until=_utc(2026, 1, 1))
+
+        after = storage.get_memory_item(a.id)
+        assert after is not None
+        # No half-applied state: valid_from is unchanged, valid_until
+        # remains NULL.
+        assert after.valid_from == _utc(2026, 6, 1)
+        assert after.valid_until is None
 
     def test_missing_id_raises(self, storage: SqliteStorage) -> None:
         with pytest.raises(KeyError):

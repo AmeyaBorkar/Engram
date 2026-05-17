@@ -1510,19 +1510,22 @@ class Memory:
         return matches[0]
 
     def _delete_memory_item(self, item_id: UUID) -> None:
-        """Hard-delete a memory item + its embedding.
+        """Hard-delete a memory item + its embedding + provenance, atomically.
 
-        Used only for the user-state replace path. Provenance links
-        cascade through `ON DELETE CASCADE`. Cold sweep handles
-        decay-pruned items via a separate path; this one is for the
-        explicit "replace this item now" semantic.
+        Used only for the user-state replace path.  Delegates to the
+        Storage protocol's `delete_memory_item` so the embedding row
+        and any provenance links are removed in the same transaction
+        as the memory_item row.
+
+        Previously this used `_storage._connect()` directly and only
+        deleted the memory_item row.  The orphan embedding survived
+        and was returned by `search_memory_item_embeddings_as_of`
+        keyed to a now-nonexistent id, surfacing stale content in
+        every retrieve until the next embedding-rebuild trigger.
+        Going through the protocol method also makes the call work
+        against any future Storage backend, not just SqliteStorage.
         """
-        conn = getattr(self._storage, "_connect", None)
-        if conn is None:  # pragma: no cover - non-sqlite backend
-            raise NotImplementedError(
-                "user-state replace requires a backend exposing _connect()"
-            )
-        conn().execute("DELETE FROM memory_items WHERE id = ?", (item_id.bytes,))
+        self._storage.delete_memory_item(item_id)
 
     # --- topic layer -------------------------------------------------------
 

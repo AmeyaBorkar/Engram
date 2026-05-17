@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from engram.storage._serialize import (
+    dumps_metadata,
     loads_metadata,
     pack_vector,
     unpack_vector,
@@ -32,3 +33,23 @@ def test_loads_metadata_rejects_non_object() -> None:
 
 def test_loads_metadata_accepts_object() -> None:
     assert loads_metadata('{"k": "v"}') == {"k": "v"}
+
+
+def test_dumps_metadata_roundtrips_serializable() -> None:
+    payload = {"k": "v", "n": 1, "f": 0.5, "bool": True, "null": None, "list": [1, 2]}
+    encoded = dumps_metadata(payload)
+    assert loads_metadata(encoded) == payload
+
+
+def test_dumps_metadata_rejects_non_serializable() -> None:
+    """Regression for M-14: helper validates serializability up-front.
+
+    Previously a non-JSON-serializable value (e.g. a `set`, a Pydantic
+    model, a dataclass) raised a bare `TypeError` deep inside `json.dumps`
+    at the storage boundary — losing any context about which row/key
+    caused the failure.  The helper now wraps the raise as `ValueError`
+    with a clear message.
+    """
+    with pytest.raises(ValueError, match="metadata not JSON-serializable"):
+        # Sets aren't JSON-serializable.
+        dumps_metadata({"bad": {1, 2, 3}})

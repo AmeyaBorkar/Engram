@@ -39,8 +39,21 @@ class Storage(Protocol):
     """Pluggable storage backend.
 
     All methods raise on integrity violations (duplicate ids, dangling
-    foreign keys, CHECK failures). Backends MUST guarantee that a successful
-    return means the row is durable on disk before returning.
+    foreign keys, CHECK failures). Backends MUST guarantee that a
+    successful return means the row is durable against the backend's
+    configured durability model.
+
+    Durability note (SQLite/WAL backend): the shipped SqliteStorage
+    runs with `PRAGMA synchronous = NORMAL`, which fsyncs the WAL on
+    every commit but defers the WAL→main-db checkpoint.  A power loss
+    or kernel panic in the sub-second window between commit and the
+    next checkpoint can lose the most recent transaction; the WAL is
+    replayed on the next open so prior committed rows are recovered.
+    For stricter durability (no replay window, every commit reaches
+    the main db before returning), subclass and override the PRAGMA to
+    `synchronous = FULL` — at a ~2-3x write-latency cost.  Future
+    Postgres backends will match the durability of their server-side
+    `synchronous_commit` setting.
     """
 
     def initialize(self) -> None:
@@ -86,6 +99,23 @@ class Storage(Protocol):
         Used by the consolidation engine's promotion pass: a stable,
         frequently-corroborated `Level.SUMMARY` rises to `Level.ABSTRACTION`.
         Raises `KeyError` if the item is missing.
+        """
+
+    def delete_memory_item(self, item_id: UUID) -> None:
+        """Hard-delete a memory item along with its embedding and any
+        provenance links, atomically.
+
+        Used by the user-state replace path (`Memory.set_user_state`):
+        a fresh GLOBAL item is being written in the same transaction,
+        and any stale embedding for the prior item must NOT survive
+        (the vector index would keep returning it from
+        `search_memory_item_embeddings_as_of` until the next rebuild).
+
+        All deletes (memory_item row, every embedding row keyed to it,
+        every provenance link keyed to it) happen in one transaction.
+        Idempotent: no error if `item_id` does not exist — the caller
+        already filtered to the known-existing item, and any double-call
+        from a retry path should be a no-op rather than a KeyError.
         """
 
     def iter_memory_items(

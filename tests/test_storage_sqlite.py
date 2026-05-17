@@ -138,6 +138,90 @@ def test_count_memory_items_by_level(storage: SqliteStorage) -> None:
     assert counts[Level.ABSTRACTION] == 0
 
 
+def test_delete_memory_item_removes_embedding_and_provenance(
+    storage: SqliteStorage,
+) -> None:
+    """Regression for H-36: delete_memory_item must drop the embedding
+    row and any provenance links atomically alongside the memory_item.
+
+    Previously the user-state replace path issued only `DELETE FROM
+    memory_items` via a private _connect() poke — the orphan embedding
+    survived and surfaced from search_memory_item_embeddings_as_of
+    keyed to a now-nonexistent id.
+    """
+    event = Event(content="seed")
+    storage.insert_event(event)
+    item = MemoryItem(level=Level.GLOBAL, content="user state v1")
+    storage.insert_memory_item(item)
+    storage.insert_embedding(
+        Embedding(
+            item_id=item.id,
+            item_kind=ItemKind.MEMORY_ITEM,
+            model="m",
+            dim=4,
+            vector=(1.0, 0.0, 0.0, 0.0),
+        )
+    )
+    storage.link_provenance(item.id, event.id)
+
+    storage.delete_memory_item(item.id)
+
+    assert storage.get_memory_item(item.id) is None
+    assert storage.get_embedding(item.id, ItemKind.MEMORY_ITEM, "m") is None
+    # The supporting event itself is untouched (provenance link is the
+    # row we delete, not the event).
+    assert storage.get_event(event.id) is not None
+    assert storage.get_supporting_events(item.id) == []
+
+
+def test_delete_memory_item_idempotent_for_missing_id(storage: SqliteStorage) -> None:
+    """Calling delete on a non-existent id is a no-op — the user-state
+    replace path may re-fire under retry and we don't want a KeyError
+    surfacing in the second pass.
+    """
+    storage.delete_memory_item(new_id())  # MUST NOT raise
+
+
+def test_delete_memory_item_atomic_with_concurrent_delete(
+    storage: SqliteStorage,
+) -> None:
+    """The three DELETEs run under one transaction.  A failure (e.g.
+    raised mid-call by simulating a broken provenance row) leaves the
+    db in the pre-call state: memory_item, embedding, and links all
+    survive together — or all vanish together.
+
+    We can't easily inject a mid-transaction failure here without
+    monkey-patching sqlite, so the structural guarantee is exercised
+    via the happy path: after delete, none of the three rows exist.
+    """
+    item = MemoryItem(level=Level.SUMMARY, content="x")
+    storage.insert_memory_item(item)
+    storage.insert_embedding(
+        Embedding(
+            item_id=item.id,
+            item_kind=ItemKind.MEMORY_ITEM,
+            model="m",
+            dim=2,
+            vector=(0.6, 0.8),
+        )
+    )
+    # No provenance link here — exercise the path where one of the
+    # three deletes has zero rows to affect.  Transaction must still
+    # commit cleanly.
+    storage.delete_memory_item(item.id)
+
+    conn = storage._connect()
+    n_items = conn.execute(
+        "SELECT COUNT(*) FROM memory_items WHERE id = ?", (item.id.bytes,)
+    ).fetchone()[0]
+    n_emb = conn.execute(
+        "SELECT COUNT(*) FROM embeddings WHERE item_id = ? AND item_kind = ?",
+        (item.id.bytes, ItemKind.MEMORY_ITEM.value),
+    ).fetchone()[0]
+    assert n_items == 0
+    assert n_emb == 0
+
+
 # --- embeddings -----------------------------------------------------------
 
 

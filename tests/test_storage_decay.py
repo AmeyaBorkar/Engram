@@ -53,7 +53,12 @@ class TestGetDecayState:
             assert state is not None
             assert state.item_kind is ItemKind.MEMORY_ITEM
             assert state.weight == 0.4
-            assert state.last_decayed_at == item.updated_at
+            # `last_decayed_at` mirrors `created_at` on insert (same as
+            # events) so the first decay tick computes dt from creation,
+            # not from `updated_at` (which can lead `created_at` even for
+            # a freshly-minted item because pydantic stamps each default
+            # at a slightly different microsecond).
+            assert state.last_decayed_at == item.created_at
 
 
 # --- update_decay_state -----------------------------------------------------

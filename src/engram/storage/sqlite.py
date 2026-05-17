@@ -65,6 +65,35 @@ class ProvenanceProtectedError(RuntimeError):
     """
 
 
+# SQLite's compiled-in default for `SQLITE_MAX_VARIABLE_NUMBER` is 32766
+# in 3.32+ and 999 in older builds.  Pure-Python distributors that ship
+# their own SQLite (manylinux wheels, Windows builds) sit at the lower
+# limit.  `k * candidate_multiplier` on the dense-search path can climb
+# above 999 once `k >= 250` (default `candidate_multiplier = 4`, plus up
+# to 4 doublings under `search_memory_item_embeddings_as_of`), so the
+# IN-list helper batches at a conservative 500 to stay clear of every
+# platform's ceiling while still amortizing round-trip cost.
+_IN_CHUNK_SIZE = 500
+
+
+def _chunked(seq: Sequence[Any], chunk_size: int = _IN_CHUNK_SIZE) -> Iterator[Sequence[Any]]:
+    """Yield `seq` in successive slices of at most `chunk_size`.
+
+    Used wherever a caller-provided list flows into an `IN (?, ?, ...)`
+    binder — without chunking, a large `event_ids` / `exclude_ids` /
+    over-fetched candidate set can blow past SQLite's
+    `SQLITE_MAX_VARIABLE_NUMBER` and surface as a bare
+    `OperationalError: too many SQL variables`.
+    """
+    if not seq:
+        return
+    if len(seq) <= chunk_size:
+        yield seq
+        return
+    for i in range(0, len(seq), chunk_size):
+        yield seq[i : i + chunk_size]
+
+
 def _row_to_event(row: sqlite3.Row) -> Event:
     keys = row.keys()
     tenant_id = row["tenant_id"] if "tenant_id" in keys else None
@@ -108,6 +137,15 @@ def _memory_item_insert_row(item: MemoryItem) -> tuple[Any, ...]:
 
     `valid_from` is guaranteed non-None by the Pydantic model validator;
     the fallback here is defensive only.
+
+    `last_decayed_at` mirrors `created_at` (NOT `updated_at`).  The decay
+    engine reads `last_decayed_at` to compute `dt = now - last_decayed_at`
+    for the next tick — anchoring it to `updated_at` would silently
+    extend the decay window for any item whose `updated_at` advanced
+    after creation (e.g., an item that was re-inserted with a later
+    updated_at would skip every accumulated tick between creation and
+    re-insert).  The events insert path uses `created_at` for both
+    columns; this brings memory_items into agreement.
     """
     valid_from = item.valid_from if item.valid_from is not None else item.created_at
     return (
@@ -119,7 +157,7 @@ def _memory_item_insert_row(item: MemoryItem) -> tuple[Any, ...]:
         dumps_metadata(item.metadata),
         iso(item.created_at),
         iso(item.updated_at),
-        iso(item.updated_at),
+        iso(item.created_at),
         iso(valid_from),
         iso(item.valid_until) if item.valid_until else None,
         iso(item.invalidated_at) if item.invalidated_at else None,
@@ -225,12 +263,17 @@ _GET_DECAY_STATE_SQL: dict[ItemKind, str] = {
     kind: f"SELECT {_DECAY_COLS} FROM {table} WHERE id = ?"  # noqa: S608
     for kind, table in _DECAY_TABLES.items()
 }
+# `id` is the table's PRIMARY KEY so a SELECT with no ORDER BY already
+# scans in id order under SQLite's PK rowid alias — the explicit `ORDER BY
+# id` previously forced a redundant sort step (and a `USE TEMP B-TREE FOR
+# ORDER BY` line on a 100k-row decay-tick scan).  Drop it; the protocol
+# docstring already says order is unspecified for iter_decay_states.
 _ITER_DECAY_STATES_HOT_SQL: dict[ItemKind, str] = {
-    kind: f"SELECT {_DECAY_COLS} FROM {table} WHERE cold_at IS NULL ORDER BY id"  # noqa: S608
+    kind: f"SELECT {_DECAY_COLS} FROM {table} WHERE cold_at IS NULL"  # noqa: S608
     for kind, table in _DECAY_TABLES.items()
 }
 _ITER_DECAY_STATES_ALL_SQL: dict[ItemKind, str] = {
-    kind: f"SELECT {_DECAY_COLS} FROM {table} ORDER BY id"  # noqa: S608
+    kind: f"SELECT {_DECAY_COLS} FROM {table}"  # noqa: S608
     for kind, table in _DECAY_TABLES.items()
 }
 def _build_update_decay_sql(kind: ItemKind, table: str) -> str:
@@ -360,6 +403,15 @@ class SqliteStorage:
         # k1 / b hyperparameters than the cached index has. BM25 is
         # independent of the embedding model, so one index covers every
         # retrieve call regardless of which embedder is plugged in.
+        #
+        # `_bm25_lock` guards every read/write of the cached index plus
+        # the dirty/k1/b/include_cold flags.  Without it, a writer that
+        # flips `_bm25_events_dirty = True` after a delete races against
+        # a reader that just observed `dirty=False` and is mid-search —
+        # the reader could then sort against a stale corpus and return
+        # ids that no longer exist.  RLock so a nested call from the
+        # rebuild path (which itself acquires) doesn't deadlock.
+        self._bm25_lock = threading.RLock()
         self._bm25_events: BM25Index[UUID] | None = None
         self._bm25_events_dirty: bool = True
         self._bm25_k1: float = 1.5
@@ -552,7 +604,8 @@ class SqliteStorage:
                 event.tenant_id,
             ),
         )
-        self._bm25_events_dirty = True
+        with self._bm25_lock:
+            self._bm25_events_dirty = True
 
     def insert_events(self, events: Iterable[Event]) -> int:
         rows = [
@@ -576,7 +629,8 @@ class SqliteStorage:
             "VALUES (?, ?, ?, ?, ?, ?, ?)",
             rows,
         )
-        self._bm25_events_dirty = True
+        with self._bm25_lock:
+            self._bm25_events_dirty = True
         return len(rows)
 
     def get_event(self, event_id: UUID) -> Event | None:
@@ -691,6 +745,39 @@ class SqliteStorage:
             raise KeyError(f"memory_item {item_id} not found")
         self._vector_index.mark_dirty(kind=ItemKind.MEMORY_ITEM.value)
 
+    def delete_memory_item(self, item_id: UUID) -> None:
+        """Atomic delete of a memory_item row + its embeddings + provenance.
+
+        Wraps the three DELETEs in one transaction so a crash mid-call
+        can't leave an embedding row pointing at a missing memory_item
+        (which the vector index would keep returning from
+        `search_memory_item_embeddings_as_of` until its next rebuild).
+
+        Idempotent — if `item_id` does not exist we silently return
+        without raising.  The user-state replace path that drives this
+        already filters to a known-existing item; any retry-induced
+        double-call should be a no-op.
+        """
+        with self.transaction():
+            conn = self._connect()
+            conn.execute(
+                "DELETE FROM provenance_links WHERE memory_item_id = ?",
+                (item_id.bytes,),
+            )
+            conn.execute(
+                "DELETE FROM embeddings WHERE item_id = ? AND item_kind = ?",
+                (item_id.bytes, ItemKind.MEMORY_ITEM.value),
+            )
+            conn.execute(
+                "DELETE FROM memory_items WHERE id = ?",
+                (item_id.bytes,),
+            )
+        # Mark the in-memory vector shard dirty: even if no embedding
+        # was deleted (e.g. an item that never had one), the
+        # memory_items row is gone and a future search shouldn't surface
+        # its content.  Cheap to over-invalidate.
+        self._vector_index.mark_dirty(kind=ItemKind.MEMORY_ITEM.value)
+
     def iter_memory_items(
         self,
         *,
@@ -784,23 +871,38 @@ class SqliteStorage:
         params.append(iso(datetime.now(tz=timezone.utc)))
         params.append(item_id.bytes)
         sql = f"UPDATE memory_items SET {', '.join(sets)} WHERE id = ?"  # noqa: S608
-        cursor = self._connect().execute(sql, params)
-        if cursor.rowcount == 0:
-            raise KeyError(f"memory_item {item_id} not found")
-        # If the new window would put valid_until before valid_from, the
-        # DB has no CHECK to catch it (CHECK across nullable columns is
-        # awkward); validate via a read-back.
-        row = self._connect().execute(
-            "SELECT valid_from, valid_until FROM memory_items WHERE id = ?",
-            (item_id.bytes,),
-        ).fetchone()
-        if row is not None and row["valid_from"] and row["valid_until"]:
-            vf = parse_iso(row["valid_from"])
-            vu = parse_iso(row["valid_until"])
-            if vu < vf:
+        # Wrap read-validate-write in a transaction so a ValueError raised
+        # after a partial UPDATE rolls back instead of leaving the row in
+        # the invalid state.  Pre-fetch the *current* valid_from /
+        # valid_until and resolve the prospective new window in Python,
+        # then validate, then UPDATE — the previous order (write → read
+        # back → raise) committed the bad row before the check.
+        with self.transaction():
+            conn = self._connect()
+            existing = conn.execute(
+                "SELECT valid_from, valid_until FROM memory_items WHERE id = ?",
+                (item_id.bytes,),
+            ).fetchone()
+            if existing is None:
+                raise KeyError(f"memory_item {item_id} not found")
+            new_vf = (
+                valid_from
+                if valid_from is not None
+                else parse_iso(existing["valid_from"]) if existing["valid_from"] else None
+            )
+            new_vu = (
+                valid_until
+                if valid_until is not None
+                else parse_iso(existing["valid_until"]) if existing["valid_until"] else None
+            )
+            if new_vf is not None and new_vu is not None and new_vu < new_vf:
                 raise ValueError(
-                    f"valid_until {vu.isoformat()} precedes valid_from {vf.isoformat()}"
+                    f"valid_until {new_vu.isoformat()} precedes "
+                    f"valid_from {new_vf.isoformat()}"
                 )
+            cursor = conn.execute(sql, params)
+            if cursor.rowcount == 0:
+                raise KeyError(f"memory_item {item_id} not found")
         self._vector_index.mark_dirty(kind=ItemKind.MEMORY_ITEM.value)
 
     def set_source_trust(self, item_id: UUID, trust: float | None) -> None:
@@ -857,28 +959,35 @@ class SqliteStorage:
             if not hits:
                 return []
             ids = [u for u, _, _ in hits]
-            placeholders = ",".join("?" for _ in ids)
-            if as_of is None:
-                # Default: current-state. Exclude any row that has been
-                # invalidated, regardless of when.
-                sql = (
-                    "SELECT id, content FROM memory_items "  # noqa: S608
-                    f"WHERE id IN ({placeholders}) "
-                    "AND invalidated_at IS NULL"
-                )
-                params: list[Any] = [u.bytes for u in ids]
-            else:
-                # As-of mode: surface items whose validity covers `as_of`.
-                sql = (
-                    "SELECT id, content FROM memory_items "  # noqa: S608
-                    f"WHERE id IN ({placeholders}) "
-                    "  AND (valid_from IS NULL OR valid_from <= ?) "
-                    "  AND (valid_until IS NULL OR valid_until > ?) "
-                    "  AND (invalidated_at IS NULL OR invalidated_at > ?)"
-                )
-                params = [*(u.bytes for u in ids), as_of_iso, as_of_iso, as_of_iso]
-            rows = self._connect().execute(sql, params).fetchall()
-            content: dict[bytes, str] = {bytes(r["id"]): r["content"] for r in rows}
+            # The over-fetched candidate list grows with `k * fetch_multiplier`
+            # (default 4, doubled up to four times → 64x).  At k=20 that's
+            # already 1280 ids — past SQLite's 999-variable ceiling on
+            # older builds.  Chunk so we never hit `too many SQL variables`.
+            id_bytes_all = [u.bytes for u in ids]
+            content: dict[bytes, str] = {}
+            for chunk in _chunked(id_bytes_all):
+                placeholders = ",".join("?" for _ in chunk)
+                if as_of is None:
+                    # Default: current-state. Exclude any row that has been
+                    # invalidated, regardless of when.
+                    sql = (
+                        "SELECT id, content FROM memory_items "  # noqa: S608
+                        f"WHERE id IN ({placeholders}) "
+                        "AND invalidated_at IS NULL"
+                    )
+                    params: list[Any] = list(chunk)
+                else:
+                    # As-of mode: surface items whose validity covers `as_of`.
+                    sql = (
+                        "SELECT id, content FROM memory_items "  # noqa: S608
+                        f"WHERE id IN ({placeholders}) "
+                        "  AND (valid_from IS NULL OR valid_from <= ?) "
+                        "  AND (valid_until IS NULL OR valid_until > ?) "
+                        "  AND (invalidated_at IS NULL OR invalidated_at > ?)"
+                    )
+                    params = [*chunk, as_of_iso, as_of_iso, as_of_iso]
+                for r in self._connect().execute(sql, params).fetchall():
+                    content[bytes(r["id"])] = r["content"]
             # Preserve vector-search ordering for items that passed the filter.
             filtered = [
                 (u, content[u.bytes], score)
@@ -1012,42 +1121,60 @@ class SqliteStorage:
         resolved_winner_id: UUID | None,
         resolved_at: datetime,
     ) -> Conflict:
-        # Read first so we can validate winner-vs-source/target and the
-        # status precondition without racing the UPDATE.
-        existing = self.get_conflict(conflict_id)
-        if existing is None:
-            raise KeyError(f"conflict {conflict_id} not found")
-        if existing.status is ConflictStatus.RESOLVED:
-            raise RuntimeError(
-                f"conflict {conflict_id} is already resolved "
-                f"(resolution={existing.resolution})"
+        # Wrap the read-validate-update sequence in one transaction with
+        # an `AND status = 'open'` guard on the UPDATE so two reconcilers
+        # racing the same conflict can't both pass the status check and
+        # both UPDATE; only one row will match and the other observes
+        # `rowcount == 0` → RuntimeError.  Without this guard, the second
+        # writer silently overwrote the first's resolution.
+        with self.transaction():
+            existing = self.get_conflict(conflict_id)
+            if existing is None:
+                raise KeyError(f"conflict {conflict_id} not found")
+            if existing.status is ConflictStatus.RESOLVED:
+                raise RuntimeError(
+                    f"conflict {conflict_id} is already resolved "
+                    f"(resolution={existing.resolution})"
+                )
+            # KEEP_BOTH and MERGE legitimately leave the winner field NULL.
+            if (
+                resolution not in (Resolution.KEEP_BOTH, Resolution.MERGE)
+                and resolved_winner_id is None
+            ):
+                raise ValueError(
+                    f"resolution={resolution.value} requires resolved_winner_id"
+                )
+            if resolved_winner_id is not None and resolved_winner_id not in (
+                existing.source_item_id,
+                existing.target_item_id,
+            ):
+                raise ValueError(
+                    "resolved_winner_id must equal source_item_id or target_item_id"
+                )
+            cursor = self._connect().execute(
+                "UPDATE conflicts SET status = 'resolved', resolution = ?, "
+                "resolved_winner_id = ?, resolved_at = ? "
+                "WHERE id = ? AND status = 'open'",
+                (
+                    resolution.value,
+                    resolved_winner_id.bytes if resolved_winner_id is not None else None,
+                    iso(resolved_at),
+                    conflict_id.bytes,
+                ),
             )
-        # KEEP_BOTH and MERGE legitimately leave the winner field NULL.
-        if (
-            resolution not in (Resolution.KEEP_BOTH, Resolution.MERGE)
-            and resolved_winner_id is None
-        ):
-            raise ValueError(
-                f"resolution={resolution.value} requires resolved_winner_id"
-            )
-        if resolved_winner_id is not None and resolved_winner_id not in (
-            existing.source_item_id,
-            existing.target_item_id,
-        ):
-            raise ValueError(
-                "resolved_winner_id must equal source_item_id or target_item_id"
-            )
-        self._connect().execute(
-            "UPDATE conflicts SET status = 'resolved', resolution = ?, "
-            "resolved_winner_id = ?, resolved_at = ? WHERE id = ?",
-            (
-                resolution.value,
-                resolved_winner_id.bytes if resolved_winner_id is not None else None,
-                iso(resolved_at),
-                conflict_id.bytes,
-            ),
-        )
-        result = self.get_conflict(conflict_id)
+            if cursor.rowcount != 1:
+                # Either the row vanished mid-transaction or another writer
+                # already resolved it between our read and our UPDATE
+                # (only possible across multiple connections; within one
+                # transaction the read is consistent).  Re-fetch so the
+                # error message reflects the observed state.
+                refetched = self.get_conflict(conflict_id)
+                raise RuntimeError(
+                    f"conflict {conflict_id} could not be resolved atomically "
+                    f"(rowcount={cursor.rowcount}, current_status="
+                    f"{refetched.status.value if refetched else 'missing'})"
+                )
+            result = self.get_conflict(conflict_id)
         if result is None:  # pragma: no cover - raced delete
             raise KeyError(conflict_id)
         return result
@@ -1311,16 +1438,19 @@ class SqliteStorage:
         if not hits:
             return []
         ids = [u for u, _, _ in hits]
-        placeholders = ",".join("?" for _ in ids)
-        rows = (
-            self._connect()
-            .execute(
-                f"SELECT id, content FROM events WHERE id IN ({placeholders})",  # noqa: S608
-                [u.bytes for u in ids],
+        content: dict[bytes, str] = {}
+        for chunk in _chunked([u.bytes for u in ids]):
+            placeholders = ",".join("?" for _ in chunk)
+            rows = (
+                self._connect()
+                .execute(
+                    f"SELECT id, content FROM events WHERE id IN ({placeholders})",  # noqa: S608
+                    list(chunk),
+                )
+                .fetchall()
             )
-            .fetchall()
-        )
-        content: dict[bytes, str] = {bytes(r["id"]): r["content"] for r in rows}
+            for r in rows:
+                content[bytes(r["id"])] = r["content"]
         return [(u, content[u.bytes], score) for u, _, score in hits if u.bytes in content]
 
     def _fetch_memory_item_content(
@@ -1329,22 +1459,25 @@ class SqliteStorage:
         if not hits:
             return []
         ids = [u for u, _, _ in hits]
-        placeholders = ",".join("?" for _ in ids)
         # Filter invalidated rows here.  The in-memory vector shard keeps
         # them (so search_memory_item_embeddings_as_of can look them up
         # historically) and the non-as_of caller drops them at content-
         # fetch time.  Without this, the non-as_of search variant would
         # surface items that have already been retired by reconciliation.
-        rows = (
-            self._connect()
-            .execute(
-                f"SELECT id, content FROM memory_items "  # noqa: S608
-                f"WHERE invalidated_at IS NULL AND id IN ({placeholders})",
-                [u.bytes for u in ids],
+        content: dict[bytes, str] = {}
+        for chunk in _chunked([u.bytes for u in ids]):
+            placeholders = ",".join("?" for _ in chunk)
+            rows = (
+                self._connect()
+                .execute(
+                    f"SELECT id, content FROM memory_items "  # noqa: S608
+                    f"WHERE invalidated_at IS NULL AND id IN ({placeholders})",
+                    list(chunk),
+                )
+                .fetchall()
             )
-            .fetchall()
-        )
-        content: dict[bytes, str] = {bytes(r["id"]): r["content"] for r in rows}
+            for r in rows:
+                content[bytes(r["id"])] = r["content"]
         return [(u, content[u.bytes], score) for u, _, score in hits if u.bytes in content]
 
     def search_procedure_embeddings(
@@ -1385,16 +1518,19 @@ class SqliteStorage:
         if not hits:
             return []
         ids = [u for u, _, _ in hits]
-        placeholders = ",".join("?" for _ in ids)
-        rows = (
-            self._connect()
-            .execute(
-                f"SELECT id, situation FROM procedures WHERE id IN ({placeholders})",  # noqa: S608
-                [u.bytes for u in ids],
+        content: dict[bytes, str] = {}
+        for chunk in _chunked([u.bytes for u in ids]):
+            placeholders = ",".join("?" for _ in chunk)
+            rows = (
+                self._connect()
+                .execute(
+                    f"SELECT id, situation FROM procedures WHERE id IN ({placeholders})",  # noqa: S608
+                    list(chunk),
+                )
+                .fetchall()
             )
-            .fetchall()
-        )
-        content: dict[bytes, str] = {bytes(r["id"]): r["situation"] for r in rows}
+            for r in rows:
+                content[bytes(r["id"])] = r["situation"]
         return [(u, content[u.bytes], score) for u, _, score in hits if u.bytes in content]
 
     def bm25_search_events(
@@ -1422,34 +1558,47 @@ class SqliteStorage:
         """
         if k < 1:
             raise ValueError(f"k must be >= 1, got {k}")
-        rebuild = (
-            self._bm25_events is None
-            or self._bm25_events_dirty
-            or self._bm25_k1 != k1
-            or self._bm25_b != b
-            or self._bm25_include_cold != include_cold
-        )
-        if rebuild:
-            self._rebuild_bm25_events(k1=k1, b=b, include_cold=include_cold)
-        assert self._bm25_events is not None
-        if not query.strip() or len(self._bm25_events) == 0:
-            return []
-        hits = self._bm25_events.search(query, k=k)
+        # Acquire the BM25 lock for the read+possibly-rebuild path.
+        # Two concurrent searchers would otherwise both observe dirty=True,
+        # both rebuild from the SAME corpus (wasted work — fine), but more
+        # importantly a writer flipping the dirty bit between the
+        # `_bm25_events_dirty` read and the `_bm25_events.search` call
+        # could leave the searcher scoring against a stale corpus while
+        # the cache was being swapped under it.  The RLock both serializes
+        # the rebuild and protects the `search` itself.
+        with self._bm25_lock:
+            rebuild = (
+                self._bm25_events is None
+                or self._bm25_events_dirty
+                or self._bm25_k1 != k1
+                or self._bm25_b != b
+                or self._bm25_include_cold != include_cold
+            )
+            if rebuild:
+                self._rebuild_bm25_events(k1=k1, b=b, include_cold=include_cold)
+            assert self._bm25_events is not None
+            if not query.strip() or len(self._bm25_events) == 0:
+                return []
+            hits = self._bm25_events.search(query, k=k)
         if not hits:
             return []
-        # Fetch content for the returned ids in a single SQL round-trip,
-        # then preserve BM25 ordering when assembling the response.
+        # Fetch content for the returned ids; chunk the IN-list so a
+        # caller asking for k > _IN_CHUNK_SIZE doesn't trip
+        # SQLITE_MAX_VARIABLE_NUMBER on older SQLite builds.
         ids = [doc_id for doc_id, _ in hits]
-        placeholders = ",".join("?" for _ in ids)
-        rows = (
-            self._connect()
-            .execute(
-                f"SELECT id, content FROM events WHERE id IN ({placeholders})",  # noqa: S608
-                [u.bytes for u in ids],
+        content: dict[bytes, str] = {}
+        for chunk in _chunked([u.bytes for u in ids]):
+            placeholders = ",".join("?" for _ in chunk)
+            rows = (
+                self._connect()
+                .execute(
+                    f"SELECT id, content FROM events WHERE id IN ({placeholders})",  # noqa: S608
+                    list(chunk),
+                )
+                .fetchall()
             )
-            .fetchall()
-        )
-        content: dict[bytes, str] = {bytes(r["id"]): r["content"] for r in rows}
+            for r in rows:
+                content[bytes(r["id"])] = r["content"]
         return [
             (doc_id, content[doc_id.bytes], score)
             for doc_id, score in hits
@@ -1470,6 +1619,9 @@ class SqliteStorage:
         the dense path: cold events are excluded by default so a
         single-flag retrieve call sees a consistent surface across
         lexical and dense rankings.
+
+        Caller MUST hold `self._bm25_lock`; the field writes at the end
+        are not atomic and would otherwise race a concurrent searcher.
         """
         sql = "SELECT id, content FROM events"
         if not include_cold:
@@ -1511,17 +1663,23 @@ class SqliteStorage:
             by_kind.setdefault(kind, []).append(item_id.bytes)
         out: dict[UUID, list[float]] = {}
         for kind, id_bytes_list in by_kind.items():
-            placeholders = ",".join("?" for _ in id_bytes_list)
-            sql = (
-                f"SELECT item_id, vector, dim FROM embeddings "  # noqa: S608
-                f"WHERE model = ? AND item_kind = ? AND item_id IN ({placeholders})"
-            )
-            rows = self._connect().execute(
-                sql, (model, kind.value, *id_bytes_list)
-            ).fetchall()
-            for row in rows:
-                uid = UUID(bytes=row["item_id"])
-                out[uid] = list(unpack_vector(row["vector"], int(row["dim"])))
+            # Chunk the IN-list — a single call with several thousand ids
+            # would trip `SQLITE_MAX_VARIABLE_NUMBER` (999 on the lower-
+            # limit builds shipped with older Python).  At our 500-id
+            # chunk size we stay comfortably within both ceilings while
+            # still amortizing round-trip cost.
+            for chunk in _chunked(id_bytes_list):
+                placeholders = ",".join("?" for _ in chunk)
+                sql = (
+                    f"SELECT item_id, vector, dim FROM embeddings "  # noqa: S608
+                    f"WHERE model = ? AND item_kind = ? AND item_id IN ({placeholders})"
+                )
+                rows = self._connect().execute(
+                    sql, (model, kind.value, *chunk)
+                ).fetchall()
+                for row in rows:
+                    uid = UUID(bytes=row["item_id"])
+                    out[uid] = list(unpack_vector(row["vector"], int(row["dim"])))
         return out
 
     def get_created_at_batch(
@@ -1545,14 +1703,16 @@ class SqliteStorage:
             table = _DECAY_TABLES.get(kind)
             if table is None:
                 continue
-            placeholders = ",".join("?" for _ in id_bytes_list)
-            sql = (
-                f"SELECT id, created_at FROM {table} "  # noqa: S608
-                f"WHERE id IN ({placeholders})"
-            )
-            rows = self._connect().execute(sql, id_bytes_list).fetchall()
-            for row in rows:
-                out[UUID(bytes=row["id"])] = parse_iso(row["created_at"])
+            # Chunk to keep the IN-list under SQLite's variable ceiling.
+            for chunk in _chunked(id_bytes_list):
+                placeholders = ",".join("?" for _ in chunk)
+                sql = (
+                    f"SELECT id, created_at FROM {table} "  # noqa: S608
+                    f"WHERE id IN ({placeholders})"
+                )
+                rows = self._connect().execute(sql, list(chunk)).fetchall()
+                for row in rows:
+                    out[UUID(bytes=row["id"])] = parse_iso(row["created_at"])
         return out
 
     def list_recent_events(
@@ -1586,26 +1746,40 @@ class SqliteStorage:
         ids_list = list(event_ids)
         if not ids_list:
             return []
-        # `id IN (...)` with up to ~1000 ids fits within sqlite's default
-        # 32k variable limit; the drill path emits at most a few hundred,
-        # so we stay well clear. This path is small enough to bypass the
-        # vector index cache and just read its candidates inline.
-        placeholders = ",".join("?" for _ in ids_list)
-        sql = (
-            "SELECT e.id AS event_id, e.content AS content, "
-            "       emb.vector AS vector, emb.dim AS dim "
-            "FROM embeddings emb "
-            "JOIN events e ON emb.item_id = e.id "
-            "WHERE emb.item_kind = 'event' AND emb.model = ?"
-        )
-        sql += f" AND e.id IN ({placeholders})"
-        if not include_cold:
-            sql += " AND e.cold_at IS NULL"
-        params: list[Any] = [model, *(eid.bytes for eid in ids_list)]
-        rows = self._connect().execute(sql, params).fetchall()
+        # Chunk the IN-list at `_IN_CHUNK_SIZE` so a caller passing
+        # several thousand ids doesn't trip `SQLITE_MAX_VARIABLE_NUMBER`
+        # on the lower-limit builds (the drill path normally emits a few
+        # hundred but `score_events_by_ids` is a Storage-protocol method
+        # and other callers may legitimately pass more).
+        rows: list[sqlite3.Row] = []
+        for chunk in _chunked([eid.bytes for eid in ids_list]):
+            placeholders = ",".join("?" for _ in chunk)
+            sql = (
+                "SELECT e.id AS event_id, e.content AS content, "
+                "       emb.vector AS vector, emb.dim AS dim "
+                "FROM embeddings emb "
+                "JOIN events e ON emb.item_id = e.id "
+                f"WHERE emb.item_kind = 'event' AND emb.model = ? "  # noqa: S608
+                f"  AND e.id IN ({placeholders})"
+            )
+            if not include_cold:
+                sql += " AND e.cold_at IS NULL"
+            rows.extend(self._connect().execute(sql, [model, *chunk]).fetchall())
         if not rows:
             return []
+        # Verify every returned row shares the same embedding dim — a
+        # mixed-dim corpus (model A at 768, model B accidentally indexed
+        # under the same model string at 384) would silently reshape
+        # into a torn matrix and corrupt scores.  Cheap to check; rare to
+        # see in practice but catastrophic when it happens.
         dim = int(rows[0]["dim"])
+        for row in rows:
+            row_dim = int(row["dim"])
+            if row_dim != dim:
+                raise ValueError(
+                    f"mixed-dim embeddings under model={model!r}: row dim {row_dim} "
+                    f"!= first-row dim {dim}; refusing to score against a torn matrix"
+                )
         if len(query_vec) != dim:
             raise ValueError(
                 f"query_vec dim {len(query_vec)} does not match stored embedding dim {dim}"
@@ -1679,7 +1853,8 @@ class SqliteStorage:
             raise KeyError(f"{kind.value} {item_id} not found")
         self._vector_index.mark_dirty(kind=kind.value)
         if kind is ItemKind.EVENT:
-            self._bm25_events_dirty = True
+            with self._bm25_lock:
+                self._bm25_events_dirty = True
 
     def unmark_cold(self, item_id: UUID, kind: ItemKind) -> None:
         sql = _UNMARK_COLD_SQL[kind]
@@ -1688,34 +1863,40 @@ class SqliteStorage:
             raise KeyError(f"{kind.value} {item_id} not found")
         self._vector_index.mark_dirty(kind=kind.value)
         if kind is ItemKind.EVENT:
-            self._bm25_events_dirty = True
+            with self._bm25_lock:
+                self._bm25_events_dirty = True
 
     def count_cold(self, kind: ItemKind) -> int:
         sql = _COUNT_COLD_SQL[kind]
         return int(self._connect().execute(sql).fetchone()[0])
 
     def delete_cold_items(self, kind: ItemKind) -> int:
-        # For events, refuse to delete rows that participate in provenance
-        # links - a foreign key with ON DELETE RESTRICT would raise a generic
-        # IntegrityError; we'd rather give the caller an actionable message.
-        if kind is ItemKind.EVENT:
-            blockers = (
-                self._connect()
-                .execute(
+        # Wrap the blocker SELECT and the DELETE in one BEGIN IMMEDIATE
+        # transaction so a concurrent thread can't insert a provenance
+        # link to a cold event between our count and our delete (which
+        # would surface as IntegrityError mid-DELETE and leave the corpus
+        # half-pruned).  For non-EVENT kinds the blocker check is skipped
+        # but the transaction wrap is still cheap insurance against
+        # half-completed bulk deletes.
+        sql = _DELETE_COLD_SQL[kind]
+        with self.transaction():
+            conn = self._connect()
+            # For events, refuse to delete rows that participate in provenance
+            # links - a foreign key with ON DELETE RESTRICT would raise a generic
+            # IntegrityError; we'd rather give the caller an actionable message.
+            if kind is ItemKind.EVENT:
+                blockers = conn.execute(
                     "SELECT COUNT(*) FROM events e "
                     "JOIN provenance_links p ON p.event_id = e.id "
                     "WHERE e.cold_at IS NOT NULL"
-                )
-                .fetchone()[0]
-            )
-            if blockers:
-                raise ProvenanceProtectedError(
-                    f"cannot delete {blockers} cold event(s) with provenance links; "
-                    "use the 'cold' prune policy instead"
-                )
-        sql = _DELETE_COLD_SQL[kind]
-        cursor = self._connect().execute(sql)
-        deleted = int(cursor.rowcount)
+                ).fetchone()[0]
+                if blockers:
+                    raise ProvenanceProtectedError(
+                        f"cannot delete {blockers} cold event(s) with provenance links; "
+                        "use the 'cold' prune policy instead"
+                    )
+            cursor = conn.execute(sql)
+            deleted = int(cursor.rowcount)
         if deleted:
             self._vector_index.mark_dirty(kind=kind.value)
             # BM25 covers events only; if we just dropped cold event rows
@@ -1724,7 +1905,8 @@ class SqliteStorage:
             # hits with no error to the caller.  Invalidate so the next
             # search rebuilds against the surviving corpus.
             if kind is ItemKind.EVENT:
-                self._bm25_events_dirty = True
+                with self._bm25_lock:
+                    self._bm25_events_dirty = True
         return deleted
 
     def decay_totals(self, kind: ItemKind) -> dict[str, int]:

@@ -22,7 +22,7 @@ def list_migrations() -> list[tuple[int, str]]:
     """Return `[(version, filename), ...]` sorted by version.
 
     Raises if two migration files share the same numeric prefix
-    (e.g. \`0005_a.sql\` + \`0005_b.sql\`) — the runner would treat one
+    (e.g. ``0005_a.sql`` + ``0005_b.sql``) — the runner would treat one
     as the canonical 'v5' and silently skip the other, which has
     silently lost real DDL in tooling-mistake scenarios.
     """
@@ -51,14 +51,43 @@ def applied_versions(conn: sqlite3.Connection) -> set[int]:
     """Return the set of migration versions already applied in `conn`.
 
     Bootstraps the `schema_migrations` table if absent.
+
+    Bootstrapping the table and reading from it must be atomic relative
+    to other writers — without that, two processes opening the same
+    on-disk db could both observe an empty `schema_migrations` and both
+    proceed to apply v1, racing on the UNIQUE PK and corrupting the
+    DDL state.  We acquire `BEGIN IMMEDIATE` for the CREATE + SELECT
+    so a second arriver waits for the first to finish bootstrapping
+    (and either sees the prior versions, or — if the first failed
+    mid-bootstrap — picks up where the rolled-back transaction left
+    off).  The caller is expected to NOT be inside an outer transaction;
+    we COMMIT before returning so the apply loop has a clean slate.
+
+    The same connection's `apply_migrations` then runs its per-script
+    `executescript` outside any outer transaction (executescript would
+    silently `COMMIT;` an outer one anyway — see `apply_migrations`).
     """
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS schema_migrations ("
-        "  version    INTEGER PRIMARY KEY,"
-        "  applied_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP)"
-        ")"
-    )
-    rows = conn.execute("SELECT version FROM schema_migrations").fetchall()
+    in_outer_tx = conn.in_transaction
+    if not in_outer_tx:
+        conn.execute("BEGIN IMMEDIATE")
+    try:
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS schema_migrations ("
+            "  version    INTEGER PRIMARY KEY,"
+            "  applied_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP)"
+            ")"
+        )
+        rows = conn.execute("SELECT version FROM schema_migrations").fetchall()
+    except BaseException:
+        if not in_outer_tx:
+            try:
+                conn.execute("ROLLBACK")
+            except sqlite3.Error:
+                pass
+        raise
+    else:
+        if not in_outer_tx:
+            conn.execute("COMMIT")
     versions = {int(row[0]) for row in rows}
     # Sanity-check: applied versions must be a contiguous prefix [1..N].
     # A gap (1, 3 without 2) signals manual db surgery or a partial-
@@ -79,6 +108,23 @@ def applied_versions(conn: sqlite3.Connection) -> set[int]:
 def apply_migrations(conn: sqlite3.Connection) -> list[int]:
     """Apply every pending migration in order. Return the versions applied.
 
+    IMPORTANT — the caller MUST NOT pass a connection inside an outer
+    transaction.  `apply_migrations` invokes `conn.executescript()` per
+    migration file, and Python's sqlite3 driver semantics for
+    `executescript` are: *issue an unconditional `COMMIT;` before running
+    the script*.  Any outer transaction the caller had open would silently
+    commit mid-flight, breaking the caller's atomicity assumptions.
+    We assert this contract on entry rather than let the caller observe
+    a subtle partial-commit at the next ROLLBACK.
+
+    Each migration file is independently atomic via its own
+    `BEGIN ... COMMIT;` wrapper — cross-file atomicity (rollback of
+    migration N because migration N+1 failed) is intentionally NOT
+    provided; each migration is a forward-only step.  If migration N+1
+    fails after N completed, N's schema change stays committed and the
+    operator investigates with N's version recorded in
+    `schema_migrations`.
+
     Some migrations (0007, 0008) toggle `PRAGMA foreign_keys = OFF` to
     rebuild a table.  If the migration body raises before reaching the
     trailing `PRAGMA foreign_keys = ON`, the connection inherits an
@@ -87,6 +133,13 @@ def apply_migrations(conn: sqlite3.Connection) -> list[int]:
     pre-migration setting so a partial failure can't poison the
     connection's FK enforcement.
     """
+    if conn.in_transaction:
+        raise RuntimeError(
+            "apply_migrations cannot run inside an outer transaction: "
+            "conn.executescript() issues an unconditional COMMIT before each "
+            "script, which would silently commit the caller's transaction. "
+            "Close any open transaction before calling apply_migrations."
+        )
     applied = applied_versions(conn)
     pending = [
         (version, filename) for version, filename in list_migrations() if version not in applied

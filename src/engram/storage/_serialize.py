@@ -31,7 +31,17 @@ def parse_iso(value: str) -> datetime:
 
 
 def dumps_metadata(metadata: dict[str, object]) -> str:
-    return json.dumps(metadata, separators=(",", ":"), sort_keys=True)
+    """Serialize metadata to a compact JSON string.
+
+    Validates serializability up-front and re-raises as `ValueError`
+    with the offending key path so the storage write doesn't fail later
+    with a bare `TypeError: Object of type X is not JSON serializable`
+    that has no context about which metadata field caused the issue.
+    """
+    try:
+        return json.dumps(metadata, separators=(",", ":"), sort_keys=True)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"metadata not JSON-serializable: {exc}") from exc
 
 
 def loads_metadata(value: str) -> dict[str, object]:

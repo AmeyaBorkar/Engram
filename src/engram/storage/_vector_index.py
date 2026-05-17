@@ -21,9 +21,22 @@ would swap this for `pgvector`, and `sqlite-vec` is a natural upgrade
 once the extension is widely deployable — both are roadmap items, not
 shipped.
 
-NOT thread-safe by itself; `SqliteStorage` already serializes per-thread
-connection usage and only one rebuild happens per dirty cycle (subsequent
-threads wait on the lock and find a fresh cache).
+Locking model:
+
+  * `VectorIndex._lock` is the index-wide lock — held ONLY to find-or-
+    create a shard reference and to walk the shard dict on `mark_dirty`.
+    Released immediately after.  A slow shard rebuild does NOT block
+    searches against other shards.
+  * `_IndexShard.lock` is the per-shard RLock — held during rebuild and
+    during the snapshot that `search` reads.  Concurrent searches against
+    DIFFERENT shards proceed in parallel; concurrent searches against
+    the SAME shard serialize on rebuild but the matmul itself runs
+    outside the lock against an immutable numpy view (the snapshot).
+
+Without per-shard locks, a 100k-row, dim=768 rebuild (~250-500ms) would
+block every concurrent searcher across every shard — `mark_dirty(kind=
+"event")` would still freeze a `search(kind="memory_item")` for the
+duration of the next event-shard rebuild that follows it.
 """
 
 from __future__ import annotations
@@ -58,6 +71,14 @@ class _IndexShard:
     # `levels` — O(n) Python ops per call on a 100k-row shard.
     level_masks: dict[str, npt.NDArray[np.bool_]] = field(default_factory=dict)
     id_to_idx: dict[bytes, int] = field(default_factory=dict)
+    # Per-shard RLock so rebuilds against ONE shard don't block searches
+    # against OTHERS.  Reentrant so a nested call inside the rebuild
+    # path doesn't deadlock.  Initialized lazily because the dataclass
+    # default would share one lock across shards under the standard
+    # `field(default=threading.RLock())` evaluation rules — use
+    # `field(default_factory=threading.RLock)` to give each shard its
+    # own.
+    lock: threading.RLock = field(default_factory=threading.RLock)
 
 
 class VectorIndex:
@@ -71,9 +92,13 @@ class VectorIndex:
 
     def __init__(self) -> None:
         self._shards: dict[tuple[str, str], _IndexShard] = {}
+        # Index-wide lock guards only the `_shards` dict (find-or-create,
+        # walk on mark_dirty).  Held briefly; the slow per-shard rebuild
+        # runs under the SHARD's lock, not this one.
         self._lock = threading.Lock()
 
     def _shard(self, kind: str, model: str) -> _IndexShard:
+        """Get-or-create the shard for `(kind, model)`. Caller MUST hold `_lock`."""
         key = (kind, model)
         shard = self._shards.get(key)
         if shard is None:
@@ -82,13 +107,24 @@ class VectorIndex:
         return shard
 
     def mark_dirty(self, kind: str | None = None, model: str | None = None) -> None:
-        """Invalidate matching shards. Both args None -> mark every shard."""
+        """Invalidate matching shards. Both args None -> mark every shard.
+
+        Sets the dirty flag UNDER each shard's lock so a concurrent
+        search either (a) sees dirty=True and rebuilds, or (b) has
+        already snapshotted matrix/ids/cold/levels and runs to
+        completion against the old corpus — never a torn view.
+        """
         with self._lock:
-            for (k, m), shard in self._shards.items():
-                if kind is not None and k != kind:
-                    continue
-                if model is not None and m != model:
-                    continue
+            # Snapshot the shard list under the index-wide lock so we
+            # can release it before reaching for per-shard locks (which
+            # might be held by a long-running rebuild).
+            targets = [
+                shard
+                for (k, m), shard in self._shards.items()
+                if (kind is None or k == kind) and (model is None or m == model)
+            ]
+        for shard in targets:
+            with shard.lock:
                 shard.dirty = True
 
     def search(
@@ -121,27 +157,50 @@ class VectorIndex:
         """
         if k < 1:
             raise ValueError(f"k must be >= 1, got {k}")
+        # Find-or-create the shard reference under the index-wide lock,
+        # then release it immediately.  A concurrent search against a
+        # DIFFERENT (kind, model) shard can now proceed without waiting
+        # for THIS shard's rebuild.
         with self._lock:
             shard = self._shard(kind, model)
+
+        # Snapshot the shard's authoritative state INSIDE the per-shard
+        # lock so the matmul reads a consistent (matrix, ids, cold,
+        # levels, dim) tuple.  Without the snapshot, a concurrent
+        # _rebuild_shard could swap shard.matrix between the read on
+        # this line and the read of `shard.ids` further down, yielding
+        # an old-matrix paired with a new-ids list — silent corruption
+        # (i.e. score index N referring to a different UUID than the
+        # caller would expect).
+        with shard.lock:
             if shard.dirty or shard.matrix is None:
                 _rebuild_shard(shard, conn, rebuild_sql, model)
+            matrix = shard.matrix
+            ids = shard.ids
+            cold = shard.cold
+            levels_arr = shard.levels
+            dim = shard.dim
+            # Snapshot the cached level/exclude masks alongside so the
+            # matmul-side helpers read a stable view; they're keyed off
+            # `shard` itself so the lock continues to protect them
+            # during the helper calls below.
 
-        if shard.matrix is None or shard.matrix.shape[0] == 0:
+        if matrix is None or matrix.shape[0] == 0:
             return []
 
-        if len(query_vec) != shard.dim:
-            raise ValueError(f"query_vec dim {len(query_vec)} does not match shard dim {shard.dim}")
+        if len(query_vec) != dim:
+            raise ValueError(f"query_vec dim {len(query_vec)} does not match shard dim {dim}")
         q = np.asarray(query_vec, dtype=np.float32)
-        scores = shard.matrix @ q
+        scores = matrix @ q
 
         # Mask out filtered rows by setting their score to -inf.
-        if not include_cold and shard.cold is not None:
-            scores = np.where(shard.cold, -np.inf, scores)
+        if not include_cold and cold is not None:
+            scores = np.where(cold, -np.inf, scores)
         if levels is not None:
-            level_mask = _level_mask(shard, levels)
+            level_mask = _level_mask(shard, levels, levels_arr)
             scores = np.where(level_mask, scores, -np.inf)
         if exclude_ids:
-            id_mask = _exclude_mask(shard, exclude_ids)
+            id_mask = _exclude_mask(shard, exclude_ids, ids)
             scores = np.where(id_mask, -np.inf, scores)
 
         n = scores.shape[0]
@@ -156,7 +215,7 @@ class VectorIndex:
             score = float(scores[i])
             if not np.isfinite(score):
                 continue
-            out.append((UUID(bytes=shard.ids[i]), int(i), score))
+            out.append((UUID(bytes=ids[i]), int(i), score))
         return out
 
 
@@ -166,7 +225,11 @@ def _rebuild_shard(
     sql: str,
     model: str,
 ) -> None:
-    """One full materialization. Holds the shard lock; safe to call repeatedly."""
+    """One full materialization.
+
+    Caller MUST hold `shard.lock`; we re-assign every cached field at
+    the end and a concurrent reader would otherwise see a torn shard.
+    """
     rows = conn.execute(sql, (model,)).fetchall()
     # Invalidate any cached masks regardless of whether we rebuild
     # from rows or end empty; the next search will rebuild on demand.
@@ -201,35 +264,68 @@ def _rebuild_shard(
     shard.dirty = False
 
 
-def _level_mask(shard: _IndexShard, levels: list[str]) -> npt.NDArray[np.bool_]:
+def _level_mask(
+    shard: _IndexShard,
+    levels: Sequence[str],
+    snapshot_levels: list[str],
+) -> npt.NDArray[np.bool_]:
     """Boolean mask over shard rows whose level is in `levels`.
 
     Per-level masks are memoized on the shard so a search with
     `levels=['summary']` doesn't rebuild the boolean from a Python list
     comprehension on every call.  For a 100k-row shard that previously
     cost 1-3ms per search; now it's a vectorized OR.
+
+    `snapshot_levels` is the caller-snapshotted parallel level list (the
+    same array referenced by `shard.levels` at lock-release time).  We
+    pass it explicitly so a concurrent rebuild that swaps `shard.levels`
+    underneath us still produces a mask of the right shape for the
+    caller's snapshotted matrix.
     """
-    out = np.zeros(len(shard.levels), dtype=np.bool_)
-    for level in levels:
-        cached = shard.level_masks.get(level)
-        if cached is None:
-            cached = np.asarray(
-                [lv == level for lv in shard.levels], dtype=np.bool_
-            )
-            shard.level_masks[level] = cached
-        out |= cached
+    with shard.lock:
+        out = np.zeros(len(snapshot_levels), dtype=np.bool_)
+        for level in levels:
+            cached = shard.level_masks.get(level)
+            # If the cache was invalidated mid-search (a rebuild between
+            # our outer snapshot and now), `cached` length may not match
+            # `snapshot_levels` — refresh against the snapshot.
+            if cached is None or len(cached) != len(snapshot_levels):
+                cached = np.asarray(
+                    [lv == level for lv in snapshot_levels], dtype=np.bool_
+                )
+                # Only memoize when the cache matches the live shard so
+                # we don't poison a fresh rebuild's mask cache with a
+                # snapshot-sized array.
+                if snapshot_levels is shard.levels:
+                    shard.level_masks[level] = cached
+            out |= cached
     return out
 
 
 def _exclude_mask(
-    shard: _IndexShard, exclude_ids: list[bytes]
+    shard: _IndexShard,
+    exclude_ids: Sequence[bytes],
+    snapshot_ids: list[bytes],
 ) -> npt.NDArray[np.bool_]:
-    """Boolean mask True at rows whose id is in `exclude_ids`."""
-    if not shard.id_to_idx:
-        shard.id_to_idx = {iid: i for i, iid in enumerate(shard.ids)}
-    out = np.zeros(len(shard.ids), dtype=np.bool_)
+    """Boolean mask True at rows whose id is in `exclude_ids`.
+
+    `snapshot_ids` is the caller-snapshotted id list; same rationale as
+    `_level_mask` above — keeps the mask shape aligned with the matmul.
+    """
+    with shard.lock:
+        # Build / refresh the lookup table against the live ids if the
+        # snapshot still matches; otherwise build a one-shot lookup
+        # against the snapshot.  Either way the lookup is by id-bytes →
+        # row-index against the snapshot list.
+        if snapshot_ids is shard.ids:
+            if not shard.id_to_idx:
+                shard.id_to_idx = {iid: i for i, iid in enumerate(shard.ids)}
+            lookup = shard.id_to_idx
+        else:
+            lookup = {iid: i for i, iid in enumerate(snapshot_ids)}
+    out = np.zeros(len(snapshot_ids), dtype=np.bool_)
     for iid in exclude_ids:
-        idx = shard.id_to_idx.get(iid)
+        idx = lookup.get(iid)
         if idx is not None:
             out[idx] = True
     return out
