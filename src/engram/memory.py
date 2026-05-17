@@ -859,12 +859,18 @@ class Memory:
         storage seam: each worker gets its own connection lazily.
 
         Falls back to a serial loop when there's only one query (the
-        thread-pool overhead would dominate) or when the embedder
+        thread-pool overhead would dominate), when the embedder
         explicitly opts out via `_disable_thread_parallelism = True`
-        (the fake embedder in tests sets this to keep ordering stable).
+        (the fake embedder in tests sets this to keep ordering stable),
+        or when the storage is `:memory:` — each thread would open its
+        own SQLite connection and see an empty database, defeating the
+        whole point of the parallel scan (audit M-25).
         """
-        if len(queries) <= 1 or getattr(
-            self._embedder, "_disable_thread_parallelism", False
+        storage_path = getattr(self._storage, "path", None)
+        if (
+            len(queries) <= 1
+            or getattr(self._embedder, "_disable_thread_parallelism", False)
+            or storage_path == ":memory:"
         ):
             return [
                 self._retriever.retrieve(q, params=leaf_params, reranker=None)
