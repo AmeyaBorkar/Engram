@@ -417,3 +417,225 @@ def test_uuid_round_trip(storage: SqliteStorage) -> None:
     a_fresh = storage.get_memory_item(a.id)
     assert a_fresh is not None
     assert isinstance(a_fresh.invalidated_by, UUID)
+
+
+# ---------------------------------------------------------------------------
+# M-194: merge_fallback metadata pin
+# ---------------------------------------------------------------------------
+
+
+class TestMergeFallbackMetadata:
+    def test_synthesized_merge_pins_fallback_false(
+        self, storage: SqliteStorage
+    ) -> None:
+        embedder = FakeEmbedder(dim=8)
+        older = _seed_with_provenance(
+            storage, embedder, content="x", created_at=_utc(2026, 1, 1)
+        )
+        newer = _seed_with_provenance(
+            storage, embedder, content="y", created_at=_utc(2026, 4, 1)
+        )
+        conflict = Conflict(
+            source_item_id=newer.id, target_item_id=older.id, similarity=0.95
+        )
+        storage.record_conflict(conflict)
+        prompt = render_merge_prompt(a="x", b="y")
+        chat = FakeChat(
+            scripts={content_hash(prompt): json.dumps({"merged": "synthesized"})}
+        )
+        reconciler = Reconciler(storage, embedder=embedder, chat=chat)
+        reconciler.reconcile(
+            conflict.id, resolution=Resolution.MERGE, now=_utc(2026, 5, 1)
+        )
+        older_fresh = storage.get_memory_item(older.id)
+        assert older_fresh is not None
+        assert older_fresh.invalidated_by is not None
+        merged = storage.get_memory_item(older_fresh.invalidated_by)
+        assert merged is not None
+        assert merged.metadata["reconcile"]["merge_fallback"] is False
+
+    def test_fallback_merge_pins_fallback_true(
+        self, storage: SqliteStorage
+    ) -> None:
+        embedder = FakeEmbedder(dim=8)
+        older = _seed_with_provenance(
+            storage, embedder, content="x", created_at=_utc(2026, 1, 1)
+        )
+        newer = _seed_with_provenance(
+            storage, embedder, content="y", created_at=_utc(2026, 4, 1)
+        )
+        conflict = Conflict(
+            source_item_id=newer.id, target_item_id=older.id, similarity=0.95
+        )
+        storage.record_conflict(conflict)
+        # FakeChat returns un-parseable content for every prompt -- the
+        # merge falls back to `b` verbatim and pins fallback=True.
+        chat = FakeChat(default="not json")
+        reconciler = Reconciler(storage, embedder=embedder, chat=chat)
+        reconciler.reconcile(
+            conflict.id, resolution=Resolution.MERGE, now=_utc(2026, 5, 1)
+        )
+        older_fresh = storage.get_memory_item(older.id)
+        assert older_fresh is not None
+        assert older_fresh.invalidated_by is not None
+        merged = storage.get_memory_item(older_fresh.invalidated_by)
+        assert merged is not None
+        assert merged.metadata["reconcile"]["merge_fallback"] is True
+        # And the content is the newer text verbatim.
+        assert merged.content == "y"
+
+
+# ---------------------------------------------------------------------------
+# M-61 / M-62: tenant alignment + singleton invariant
+# ---------------------------------------------------------------------------
+
+
+class TestMergeTenantInvariants:
+    def test_merge_rejects_two_global_parents(
+        self, storage: SqliteStorage
+    ) -> None:
+        """A merge of two GLOBALs is rejected: the GLOBAL level is
+        a singleton per tenant by storage convention; two existing
+        GLOBALs means the DB already broke the invariant before
+        reconciliation got involved."""
+        embedder = FakeEmbedder(dim=8)
+        a = MemoryItem(
+            level=Level.GLOBAL,
+            content="global-a",
+            created_at=_utc(2026, 1, 1),
+            valid_from=_utc(2026, 1, 1),
+        )
+        b = MemoryItem(
+            level=Level.GLOBAL,
+            content="global-b",
+            created_at=_utc(2026, 4, 1),
+            valid_from=_utc(2026, 4, 1),
+        )
+        storage.insert_memory_item(a)
+        storage.insert_memory_item(b)
+        conflict = Conflict(source_item_id=a.id, target_item_id=b.id, similarity=0.95)
+        storage.record_conflict(conflict)
+        reconciler = Reconciler(
+            storage,
+            embedder=embedder,
+            chat=FakeChat(default=json.dumps({"merged": "z"})),
+        )
+        with pytest.raises(ValueError, match="GLOBAL"):
+            reconciler.reconcile(
+                conflict.id, resolution=Resolution.MERGE, now=_utc(2026, 5, 1)
+            )
+
+    def test_merge_rejects_tenant_mismatch(self, storage: SqliteStorage) -> None:
+        """Merging across tenants would leak data across the
+        multi-tenancy boundary or strip the tenant_id off the merged
+        row; reject explicitly."""
+        embedder = FakeEmbedder(dim=8)
+        a = _seed_with_provenance(
+            storage, embedder, content="a", created_at=_utc(2026, 1, 1)
+        )
+        b = _seed_with_provenance(
+            storage, embedder, content="b", created_at=_utc(2026, 4, 1)
+        )
+        # Stamp tenant_id on the rows post-hoc: easier than threading
+        # through the seed helper. The storage layer accepts tenant_id
+        # at insert time but we don't have a setter on the protocol,
+        # so use the raw SQL.
+        storage._connect().execute(
+            "UPDATE memory_items SET tenant_id = ? WHERE id = ?",
+            ("tenant-A", a.id.bytes),
+        )
+        storage._connect().execute(
+            "UPDATE memory_items SET tenant_id = ? WHERE id = ?",
+            ("tenant-B", b.id.bytes),
+        )
+        conflict = Conflict(source_item_id=a.id, target_item_id=b.id, similarity=0.95)
+        storage.record_conflict(conflict)
+        reconciler = Reconciler(
+            storage,
+            embedder=embedder,
+            chat=FakeChat(default=json.dumps({"merged": "z"})),
+        )
+        with pytest.raises(ValueError, match="tenant_id"):
+            reconciler.reconcile(
+                conflict.id, resolution=Resolution.MERGE, now=_utc(2026, 5, 1)
+            )
+
+    def test_merge_propagates_aligned_tenant(self, storage: SqliteStorage) -> None:
+        """Aligned tenants flow through to the merged row."""
+        embedder = FakeEmbedder(dim=8)
+        a = _seed_with_provenance(
+            storage, embedder, content="a", created_at=_utc(2026, 1, 1)
+        )
+        b = _seed_with_provenance(
+            storage, embedder, content="b", created_at=_utc(2026, 4, 1)
+        )
+        storage._connect().execute(
+            "UPDATE memory_items SET tenant_id = ? WHERE id IN (?, ?)",
+            ("tenant-shared", a.id.bytes, b.id.bytes),
+        )
+        conflict = Conflict(source_item_id=a.id, target_item_id=b.id, similarity=0.95)
+        storage.record_conflict(conflict)
+        prompt = render_merge_prompt(a="a", b="b")
+        chat = FakeChat(
+            scripts={content_hash(prompt): json.dumps({"merged": "ab"})}
+        )
+        reconciler = Reconciler(storage, embedder=embedder, chat=chat)
+        reconciler.reconcile(
+            conflict.id, resolution=Resolution.MERGE, now=_utc(2026, 5, 1)
+        )
+        a_fresh = storage.get_memory_item(a.id)
+        assert a_fresh is not None
+        merged_id = a_fresh.invalidated_by
+        assert merged_id is not None
+        merged = storage.get_memory_item(merged_id)
+        assert merged is not None
+        assert merged.tenant_id == "tenant-shared"
+
+
+# ---------------------------------------------------------------------------
+# M-193: provenance pre-check elides the LLM call
+# ---------------------------------------------------------------------------
+
+
+def test_provenance_check_runs_before_llm(storage: SqliteStorage) -> None:
+    """M-193: parents-without-provenance abort the merge BEFORE the
+    chat provider is invoked. Wire a FakeChat that records its call
+    count and assert it stayed at zero."""
+    embedder = FakeEmbedder(dim=8)
+    older = MemoryItem(
+        level=Level.SUMMARY,
+        content="x",
+        created_at=_utc(2026, 1, 1),
+        valid_from=_utc(2026, 1, 1),
+    )
+    newer = MemoryItem(
+        level=Level.SUMMARY,
+        content="y",
+        created_at=_utc(2026, 4, 1),
+        valid_from=_utc(2026, 4, 1),
+    )
+    storage.insert_memory_item(older)
+    storage.insert_memory_item(newer)
+    conflict = Conflict(
+        source_item_id=newer.id, target_item_id=older.id, similarity=0.95
+    )
+    storage.record_conflict(conflict)
+
+    class CountingChat(FakeChat):
+        def __init__(self) -> None:
+            super().__init__(default=json.dumps({"merged": "z"}))
+            self.call_count = 0
+
+        def chat(self, messages: list) -> str:  # type: ignore[override]
+            self.call_count += 1
+            return super().chat(messages)
+
+    chat = CountingChat()
+    reconciler = Reconciler(storage, embedder=embedder, chat=chat)
+    with pytest.raises(ValueError, match="provenance"):
+        reconciler.reconcile(
+            conflict.id, resolution=Resolution.MERGE, now=_utc(2026, 5, 1)
+        )
+    assert chat.call_count == 0, (
+        "the LLM merge call must NOT run when parents have no provenance"
+    )

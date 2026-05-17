@@ -37,7 +37,7 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 from engram.providers._protocols import ChatProvider, EmbeddingProvider
-from engram.reconcile._merge import merge as run_merge
+from engram.reconcile._merge import merge_with_status
 from engram.schemas import (
     Conflict,
     ConflictStatus,
@@ -98,7 +98,11 @@ class Reconciler:
             one of the referenced memory items was deleted).
           RuntimeError: the conflict is already resolved. Callers
             should filter on `status=OPEN` first if they want skip
-            semantics instead.
+            semantics instead.  Two reconcile workers racing on the
+            same conflict (M-183): the storage `resolve_conflict`
+            re-reads status before its UPDATE, so the second worker
+            here raises cleanly with the same RuntimeError; callers
+            wrap in `try/except RuntimeError`.
           ValueError: invalid `manual_winner_id` for `Resolution.MANUAL`,
             or an unsupported `resolution` value.
         """
@@ -116,18 +120,27 @@ class Reconciler:
         if resolution is Resolution.MERGE:
             return self._reconcile_merge(conflict, when)
 
+        # M-63: wrap invalidate + resolve in one storage transaction so
+        # a crash between the two leaves the system either fully
+        # reconciled or unchanged.  Previously a process death after
+        # `invalidate_memory_item` but before `resolve_conflict` left
+        # the loser invalidated against a still-OPEN conflict row;
+        # the next reconcile would re-fire, pick the SAME loser, and
+        # try to invalidate-twice (idempotent, but the audit shows
+        # the state as inconsistent until the second pass).
         winner_id = self._pick_winner(
             conflict, resolution, manual_winner_id=manual_winner_id
         )
         loser_id = self._loser(conflict, winner_id) if winner_id is not None else None
-        if loser_id is not None and winner_id is not None:
-            self._storage.invalidate_memory_item(loser_id, at=when, by=winner_id)
-        return self._storage.resolve_conflict(
-            conflict_id,
-            resolution=resolution,
-            resolved_winner_id=winner_id,
-            resolved_at=when,
-        )
+        with self._storage.transaction():
+            if loser_id is not None and winner_id is not None:
+                self._storage.invalidate_memory_item(loser_id, at=when, by=winner_id)
+            return self._storage.resolve_conflict(
+                conflict_id,
+                resolution=resolution,
+                resolved_winner_id=winner_id,
+                resolved_at=when,
+            )
 
     def _reconcile_merge(self, conflict: Conflict, when: datetime) -> Conflict:
         """Resolve via `Resolution.MERGE`.
@@ -146,57 +159,126 @@ class Reconciler:
             raise ValueError(
                 "Resolution.MERGE requires the Reconciler to have an embedder"
             )
-        source = self._fetch_or_raise(conflict.source_item_id)
-        target = self._fetch_or_raise(conflict.target_item_id)
-        # Order so `b` is the newer side (the safe fallback when the
-        # LLM fails to produce parseable output is the newer text).
-        if source.created_at <= target.created_at:
-            a_item, b_item = source, target
-        else:
-            a_item, b_item = target, source
-        merged_content = run_merge(
-            a=a_item.content,
-            b=b_item.content,
-            chat=self._chat,
-            max_retries=1,
-        )
-        # Gather provenance from both parents and union the event ids.
-        event_ids: list[UUID] = []
-        seen: set[UUID] = set()
-        for parent in (source, target):
-            for ev in self._storage.get_supporting_events(parent.id):
-                if ev.id not in seen:
-                    seen.add(ev.id)
-                    event_ids.append(ev.id)
-        if not event_ids:
-            raise ValueError(
-                "Resolution.MERGE requires at least one parent with provenance; "
-                "neither parent has any supporting events"
-            )
-        merged_level = _merge_level(source.level, target.level)
-        merged_item = MemoryItem(
-            level=merged_level,
-            content=merged_content,
-            created_at=when,
-            valid_from=when,
-            metadata={
-                "reconcile": {
-                    "merged_from": [str(source.id), str(target.id)],
-                    "merged_at": when.isoformat(),
-                    "merge_prompt_version": "v1",
-                }
-            },
-        )
-        vec = self._embedder.embed([merged_content])[0]
-        normalized = _normalize(vec)
-        embedding = Embedding(
-            item_id=merged_item.id,
-            item_kind=ItemKind.MEMORY_ITEM,
-            model=self._embedder.model,
-            dim=self._embedder.dim,
-            vector=tuple(normalized),
-        )
+
+        # M-195: open the storage transaction now so the fetch+insert
+        # operations see a consistent snapshot.  Without this, a
+        # concurrent reconcile/invalidate between our `get_memory_item`
+        # reads and the `insert_memory_item_with_provenance` write
+        # could splice in a fresh tombstone for one of our parents and
+        # produce a merged item that references an already-invalidated
+        # row.
         with self._storage.transaction():
+            source = self._fetch_or_raise(conflict.source_item_id)
+            target = self._fetch_or_raise(conflict.target_item_id)
+
+            # M-61: singleton invariant.  Two GLOBALs cannot legally
+            # coexist (one-GLOBAL-per-tenant rule); a MERGE that
+            # produces a fresh GLOBAL is fine, but TWO GLOBAL parents
+            # means the database already broke the invariant before
+            # we got here -- refuse to compound the damage.
+            if source.level is Level.GLOBAL and target.level is Level.GLOBAL:
+                raise ValueError(
+                    "Resolution.MERGE rejected: both parents are Level.GLOBAL "
+                    "(singleton invariant: one GLOBAL per tenant)"
+                )
+
+            # M-61/M-62: tenant alignment.  A merge across tenants
+            # would either silently pick one tenant (data leak across
+            # the multi-tenancy boundary) or strip the tenant_id
+            # (orphan row).  Refuse explicitly; callers must reconcile
+            # at the tenant level first.
+            if source.tenant_id != target.tenant_id:
+                raise ValueError(
+                    f"Resolution.MERGE rejected: tenant_id mismatch "
+                    f"({source.tenant_id!r} vs {target.tenant_id!r})"
+                )
+            merged_tenant_id: str | None = source.tenant_id
+
+            # M-193: gather provenance FIRST so an unbounded provenance
+            # gap aborts the merge before we burn a chat round-trip.
+            # The previous order called `run_merge` (one LLM call,
+            # ~1-3s + tokens) and only THEN checked that at least one
+            # parent had supporting events; any caller that hit this
+            # path with provenance-free parents paid for the LLM call
+            # to nothing.  Worse, a buggy retry loop above this method
+            # could re-invoke and bill repeatedly.
+            #
+            # M-100 TODO: this issues two `get_supporting_events`
+            # calls; a future
+            # `storage.get_supporting_events_for([a.id, b.id])` would
+            # collapse to one round-trip.  Coordinate with Cluster B1
+            # for the seam.
+            event_ids: list[UUID] = []
+            seen: set[UUID] = set()
+            for parent in (source, target):
+                for ev in self._storage.get_supporting_events(parent.id):
+                    if ev.id not in seen:
+                        seen.add(ev.id)
+                        event_ids.append(ev.id)
+            if not event_ids:
+                raise ValueError(
+                    "Resolution.MERGE requires at least one parent with "
+                    "provenance; neither parent has any supporting events"
+                )
+
+            # Order so `b` is the newer side (the safe fallback when
+            # the LLM fails to produce parseable output is the newer
+            # text).
+            if source.created_at <= target.created_at:
+                a_item, b_item = source, target
+            else:
+                a_item, b_item = target, source
+
+            outcome = merge_with_status(
+                a=a_item.content,
+                b=b_item.content,
+                chat=self._chat,
+                max_retries=1,
+            )
+            merged_content = outcome.content
+
+            merged_level = _merge_level(source.level, target.level)
+            merged_item = MemoryItem(
+                level=merged_level,
+                content=merged_content,
+                created_at=when,
+                valid_from=when,
+                tenant_id=merged_tenant_id,
+                metadata={
+                    "reconcile": {
+                        "merged_from": [str(source.id), str(target.id)],
+                        "merged_at": when.isoformat(),
+                        "merge_prompt_version": "v1",
+                        # M-194: pin whether the merged content came
+                        # from a parseable LLM response or the safe
+                        # fallback (newer-text-verbatim).  Operators
+                        # auditing merged rows for quality need to
+                        # distinguish these.
+                        "merge_fallback": outcome.is_fallback,
+                    }
+                },
+            )
+            vec = self._embedder.embed([merged_content])[0]
+            normalized = _normalize(vec)
+            # M-66: assert the embedder produced the dim it advertised.
+            # A misconfigured embedder (model + dim drift) would write
+            # a half-sized vector to storage and silently break cosine
+            # similarity downstream.  The schema's Embedding(dim=...)
+            # constructor accepts the value as-is; the cheap check is
+            # here, where we still have the embedder handle.
+            if len(normalized) != self._embedder.dim:
+                raise RuntimeError(
+                    f"embedder returned vector of length {len(normalized)} "
+                    f"but advertised dim={self._embedder.dim}; refusing to "
+                    "persist a dimensionally-mismatched embedding"
+                )
+            embedding = Embedding(
+                item_id=merged_item.id,
+                item_kind=ItemKind.MEMORY_ITEM,
+                model=self._embedder.model,
+                dim=self._embedder.dim,
+                vector=tuple(normalized),
+            )
             self._storage.insert_memory_item_with_provenance(
                 merged_item,
                 event_ids,
@@ -246,12 +328,20 @@ class Reconciler:
         if resolution is Resolution.PREFER_TRUSTED:
             ts = source.source_trust if source.source_trust is not None else 0.0
             tt = target.source_trust if target.source_trust is not None else 0.0
-            if ts != tt:
+            # M-64: trust values can come from float arithmetic upstream
+            # (decay updates, weighted averages of multiple sources);
+            # `!=` would treat 0.7000000001 vs 0.7 as distinct and
+            # silently lock in the wrong winner.  `math.isclose` uses
+            # the default rel_tol=1e-9 + abs_tol=0 which is sub-bit for
+            # any plausibly-meaningful trust gap.
+            if not math.isclose(ts, tt):
                 return source.id if ts > tt else target.id
             return _pick_by_recency(source, target)
         if resolution is Resolution.PREFER_FREQUENT:
             cs = self._corroboration(source.id)
             ct = self._corroboration(target.id)
+            # Corroboration counts are integers from the decay engine;
+            # exact compare is safe here.
             if cs != ct:
                 return source.id if cs > ct else target.id
             return _pick_by_recency(source, target)

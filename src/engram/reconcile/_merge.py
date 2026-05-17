@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import re
+from dataclasses import dataclass
 from importlib import resources
 
 from pydantic import BaseModel, ConfigDict, ValidationError
@@ -62,6 +63,63 @@ def parse_merge_response(text: str) -> MergeResponse:
         raise AbstractionParseError(f"merge schema mismatch: {exc}") from exc
 
 
+@dataclass(frozen=True, slots=True)
+class MergeOutcome:
+    """Result of one `merge_with_status` call.
+
+    `is_fallback` is True iff every retry's response failed parsing
+    and the function returned the configured fallback (or `b`) verbatim.
+    The reconciler pins this into the merged item's metadata
+    (`reconcile.merge_fallback`) so operators can audit which merged
+    rows came from a working judge call versus a defensive default.
+    """
+
+    content: str
+    is_fallback: bool
+
+
+def merge_with_status(
+    *,
+    a: str,
+    b: str,
+    chat: ChatProvider,
+    max_retries: int = 1,
+    fallback: str | None = None,
+) -> MergeOutcome:
+    """Run the LLM merge and signal whether the result is the fallback.
+
+    Same fallback semantics as `merge()` (returns `fallback` if given,
+    else `b`), but also exposes an `is_fallback` flag so callers can
+    distinguish a synthesized merge from a defensive default.
+    """
+    prompt = render_merge_prompt(a=a, b=b)
+    messages: list[Message] = [Message(role="user", content=prompt)]
+    last_response = ""
+    for _ in range(max_retries + 1):
+        last_response = chat.chat(messages)
+        try:
+            return MergeOutcome(
+                content=parse_merge_response(last_response).merged.strip(),
+                is_fallback=False,
+            )
+        except AbstractionParseError:
+            messages = [
+                *messages,
+                Message(role="assistant", content=last_response),
+                Message(
+                    role="user",
+                    content=(
+                        "Your previous response was not valid JSON matching the schema. "
+                        "Respond only with the JSON object, no surrounding prose."
+                    ),
+                ),
+            ]
+    return MergeOutcome(
+        content=fallback if fallback is not None else b,
+        is_fallback=True,
+    )
+
+
 def merge(
     *,
     a: str,
@@ -76,27 +134,14 @@ def merge(
     newer statement) -- mirroring the prompt's "if irreconcilable,
     output B" guidance. Stage 8's reconciler always passes `b` as the
     newer-created item so the fallback is conservatively sane.
+
+    Thin wrapper over `merge_with_status` that drops the fallback
+    signal; preserved for callers (none in the engine after M-194)
+    that only need the content string.
     """
-    prompt = render_merge_prompt(a=a, b=b)
-    messages: list[Message] = [Message(role="user", content=prompt)]
-    last_response = ""
-    for _ in range(max_retries + 1):
-        last_response = chat.chat(messages)
-        try:
-            return parse_merge_response(last_response).merged.strip()
-        except AbstractionParseError:
-            messages = [
-                *messages,
-                Message(role="assistant", content=last_response),
-                Message(
-                    role="user",
-                    content=(
-                        "Your previous response was not valid JSON matching the schema. "
-                        "Respond only with the JSON object, no surrounding prose."
-                    ),
-                ),
-            ]
-    return fallback if fallback is not None else b
+    return merge_with_status(
+        a=a, b=b, chat=chat, max_retries=max_retries, fallback=fallback
+    ).content
 
 
 _FENCE_RE = re.compile(
@@ -116,9 +161,11 @@ def _inline(content: str) -> str:
 
 __all__ = [
     "MERGE_PROMPT_VERSION",
+    "MergeOutcome",
     "MergeResponse",
     "load_merge_prompt",
     "merge",
+    "merge_with_status",
     "parse_merge_response",
     "render_merge_prompt",
 ]
