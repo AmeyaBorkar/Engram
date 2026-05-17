@@ -9,14 +9,27 @@ Two backends, switchable via `ClusterParams.method`:
                      monotonic with cosine distance and lets HDBSCAN use
                      its spatial indexing fast paths.
   `agglomerative`  — single-link agglomerative threshold clustering using
-                     numpy + a union-find. Pure Python beyond numpy, no
-                     extra deps. O(N^2) memory for the similarity matrix,
-                     so this is the fallback for small N (< 50 by default
-                     under `method="auto"`).
+                     numpy vectorized triangle traversal + a union-find.
+                     Pure Python beyond numpy, no extra deps. O(N^2)
+                     memory for the similarity matrix; the per-pair work
+                     is vectorized so wall-time is dominated by the
+                     matrix multiply rather than a Python double-loop.
 
 `cluster()` returns a list of `ClusterAssignment` records. Items not in
 any cluster (HDBSCAN noise label, or singletons under the threshold) are
 not returned - the engine only acts on items that grouped.
+
+Post-processing divergence between the two backends: the agglomerative
+path uses `cohesion_threshold` directly as the cosine-similarity floor
+for the single-link merge, so it is honored both in cluster *formation*
+and (via `cohesion()`) in the reported `ClusterAssignment.cohesion`.
+HDBSCAN ignores `cohesion_threshold` entirely - its density-based
+selection has no analogous knob; tune `min_cluster_size` instead. The
+engine's downstream consumers (`extract_abstraction`, `_detect_conflicts`)
+see whatever cohesion the backend reports and clamp it for prompt use,
+but they do NOT re-apply `cohesion_threshold` as a filter, so HDBSCAN
+can surface a cluster with cohesion below the threshold. Callers that
+need a hard floor should post-filter the returned list.
 
 The math is deterministic in both backends: HDBSCAN itself is
 deterministic given a fixed input; the agglomerative path uses an
@@ -26,12 +39,15 @@ Replays produce identical cluster assignments.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, Literal
 
 import numpy as np
 import numpy.typing as npt
+
+_LOG = logging.getLogger("engram.consolidation.clustering")
 
 # A 2D float matrix. Engram normalizes embeddings to unit-norm float32 on
 # insert, so callers pass float32 - but the math is fine at float64 too,
@@ -183,8 +199,43 @@ def _cluster_hdbscan(vectors: FloatMatrix, params: ClusterParams) -> list[Cluste
     return _assignments_from_labels(vectors, labels, params)
 
 
+_UNIT_NORM_WARNED = False
+
+
+def _warn_non_unit_norm_once(deviation: float) -> None:
+    """Log a one-shot warning if the agglomerative path is fed
+    non-unit-norm rows.
+
+    The cosine-similarity math is `vectors @ vectors.T`, which only
+    equals the cosine for unit-norm rows; Engram normalizes embeddings
+    at insert so the contract holds in production. A noisy caller (or a
+    sibling agent's test fixture) can silently break the math, so we
+    surface it once via the logger instead of asserting -- asserting
+    would crash debug runs that legitimately fuzz with random vectors.
+    """
+    global _UNIT_NORM_WARNED
+    if _UNIT_NORM_WARNED:
+        return
+    _UNIT_NORM_WARNED = True
+    _LOG.warning(
+        "consolidation: agglomerative cluster received non-unit-norm "
+        "vectors (max |1 - ||v|||=%.4f); cosine similarities will be "
+        "off the [-1, 1] axis. Normalize embeddings before passing.",
+        deviation,
+    )
+
+
 def _cluster_agglomerative(vectors: FloatMatrix, params: ClusterParams) -> list[ClusterAssignment]:
     n = vectors.shape[0]
+    # One-time guard: if rows aren't unit-norm, the dot product is not
+    # cosine similarity and `cohesion_threshold` becomes meaningless.
+    # Engram normalizes at insert so this only trips for misconfigured
+    # callers/tests. Cheap check: max row-norm deviation from 1.
+    norms = np.linalg.norm(vectors, axis=1)
+    max_dev = float(np.abs(norms - 1.0).max()) if n > 0 else 0.0
+    if max_dev > 1e-3:
+        _warn_non_unit_norm_once(max_dev)
+
     sims = vectors @ vectors.T  # (N, N), cosine sim for unit-norm rows
     parent = list(range(n))
 
@@ -207,10 +258,21 @@ def _cluster_agglomerative(vectors: FloatMatrix, params: ClusterParams) -> list[
             else:
                 parent[ra] = rb
 
-    for i in range(n):
-        for j in range(i + 1, n):
-            if sims[i, j] >= params.cohesion_threshold:
-                union(i, j)
+    # Vectorized triangle walk: pull the (i, j) coords of every
+    # above-threshold cell in the strict upper triangle. For N=10k this
+    # turns a 10^8-iteration Python loop into one O(N^2) numpy compare
+    # plus a single linear pass over the (typically) sparse hit list.
+    # Memory is still O(N^2) (the `sims` matrix dominates); the wall
+    # time saving is the Python-bytecode cost of the double loop.
+    upper_i, upper_j = np.triu_indices(n, k=1)
+    above = sims[upper_i, upper_j] >= params.cohesion_threshold
+    # Iterating numpy-ordered pairs (i ascending, then j ascending within
+    # each i) preserves the original union-find merge order so the
+    # deterministic-replay invariant survives the vectorization.
+    hit_i = upper_i[above]
+    hit_j = upper_j[above]
+    for i, j in zip(hit_i.tolist(), hit_j.tolist(), strict=True):
+        union(int(i), int(j))
 
     labels = np.array([find(idx) for idx in range(n)], dtype=np.int64)
     return _assignments_from_labels(vectors, labels, params)
