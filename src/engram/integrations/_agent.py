@@ -256,6 +256,24 @@ class EngramAgent:
             samples=samples,
         )
 
+    async def achat(
+        self,
+        user_message: str,
+        history: Sequence[Message] = (),
+    ) -> EngramAgentTurn:
+        """Async surface for `chat`.
+
+        Trampolines the sync body through `asyncio.to_thread` so the
+        retrieve + chat work doesn't block the event loop (audit M-186).
+        Once `Memory.aretrieve` is the primary path and chat providers
+        ship a proper `.achat`, this method will switch to direct
+        awaiting; the current implementation is a correctness-first
+        bridge that matches the sync surface exactly.
+        """
+        import asyncio
+
+        return await asyncio.to_thread(self.chat, user_message, history)
+
     def record_procedure_outcome(
         self,
         situation: str,
