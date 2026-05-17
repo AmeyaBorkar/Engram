@@ -472,10 +472,13 @@ def _format_memory_grouped(results: Sequence[Any], storage: Any) -> str:
         return max(item[1].score for item in items)
 
     if "_other_" in buckets:
-        ordered_sessions = ["_other_"] + sorted(
-            (s for s in buckets if s != "_other_"),
-            key=lambda s: -session_best_score(buckets[s]),
-        )
+        ordered_sessions = [
+            "_other_",
+            *sorted(
+                (s for s in buckets if s != "_other_"),
+                key=lambda s: -session_best_score(buckets[s]),
+            ),
+        ]
     else:
         ordered_sessions = sorted(buckets, key=lambda s: -session_best_score(buckets[s]))
 
@@ -1570,7 +1573,7 @@ class LongMemEvalSuite:
             distilled = self._distill_chat.chat(
                 [Message(role="user", content=prompt)]
             )
-        except Exception as exc:  # noqa: BLE001 - monotonic fallback
+        except Exception as exc:
             _LOG.warning("  distill_chat failed: %s; using primary response", exc)
             return primary_response
         distilled = distilled.strip()
