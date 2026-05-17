@@ -594,6 +594,211 @@ _HAYSTACK_DATE_DOW_RE = re.compile(r"\s*\([A-Za-z]+\)\s*")
 _AUTO_TEMPORAL_YEAR_RE = re.compile(r"\b(?:19|20)\d{2}\b")
 
 
+# Tool layer (--enable-tools). The answer prompt is augmented with a
+# catalog of <tool>OP(args)</tool> tags; after the response comes back,
+# any tool tags are substituted with deterministic Python computations.
+# Targets the hard-wall failure modes documented in JOURNEY §20:
+# - 21 temporal-reasoning fails are "how many weeks/days/months between
+#   X and Y" where Kimi can't do date math reliably
+# - 24 multi-session fails are "total / count / sum / how many" where
+#   Kimi can't aggregate across sessions
+# - Tools are deterministic; LLM only has to extract the numbers/dates
+#   and emit a tag. Computation is exact.
+#
+# Each tool is a pure Python function taking list[str] -> str. Errors
+# leave the original tag in place (monotonic: never worse than no-tool).
+_TOOL_PATTERN = re.compile(r"<tool>([A-Z_]+)\(([^)]*)\)</tool>", re.IGNORECASE)
+
+_TOOL_DATE_FORMATS: tuple[str, ...] = (
+    "%Y-%m-%d",
+    "%Y/%m/%d",
+    "%m/%d/%Y",
+    "%d/%m/%Y",
+    "%B %d %Y",
+    "%B %d, %Y",
+    "%d %B %Y",
+    "%b %d %Y",
+    "%b %d, %Y",
+    "%Y-%m-%dT%H:%M:%S",
+    "%Y-%m-%d %H:%M:%S",
+)
+
+
+def _tool_parse_number(s: str) -> float:
+    """Parse a numeric arg, tolerating units (h, hours, lbs, $, etc.)."""
+    cleaned = s.strip().strip('"').strip("'").replace(",", "").replace("$", "")
+    m = re.match(r"^-?\d+(?:\.\d+)?", cleaned)
+    if not m:
+        raise ValueError(f"unparseable number: {s!r}")
+    return float(m.group(0))
+
+
+def _tool_parse_date(s: str) -> datetime:
+    """Parse a date arg in one of several common formats."""
+    cleaned = s.strip().strip('"').strip("'")
+    # Strip optional day-of-week parenthetical like "(Tue)".
+    cleaned = re.sub(r"\s*\([A-Za-z]+\)\s*", " ", cleaned).strip()
+    # Strip trailing time component if present.
+    cleaned = re.sub(r"\s+\d{1,2}:\d{2}(?::\d{2})?$", "", cleaned)
+    for fmt in _TOOL_DATE_FORMATS:
+        try:
+            return datetime.strptime(cleaned, fmt)
+        except ValueError:
+            continue
+    raise ValueError(f"unparseable date: {s!r}")
+
+
+def _format_number(x: float) -> str:
+    """Render a float, dropping trailing zeros and unnecessary decimals."""
+    if x == int(x):
+        return str(int(x))
+    return f"{x:.4f}".rstrip("0").rstrip(".")
+
+
+def _tool_sum(args: list[str]) -> str:
+    nums = [_tool_parse_number(a) for a in args]
+    return _format_number(sum(nums))
+
+
+def _tool_count(args: list[str]) -> str:
+    # COUNT counts the args themselves (regardless of value); empty
+    # parens -> 0 (callers should emit COUNT(item1, item2, ...)).
+    return str(len(args))
+
+
+def _tool_avg(args: list[str]) -> str:
+    nums = [_tool_parse_number(a) for a in args]
+    if not nums:
+        return "0"
+    return _format_number(sum(nums) / len(nums))
+
+
+def _tool_min(args: list[str]) -> str:
+    nums = [_tool_parse_number(a) for a in args]
+    return _format_number(min(nums))
+
+
+def _tool_max(args: list[str]) -> str:
+    nums = [_tool_parse_number(a) for a in args]
+    return _format_number(max(nums))
+
+
+def _tool_days_between(args: list[str]) -> str:
+    if len(args) != 2:
+        raise ValueError(f"DAYS_BETWEEN needs 2 args, got {len(args)}")
+    d1 = _tool_parse_date(args[0])
+    d2 = _tool_parse_date(args[1])
+    return str(abs((d2 - d1).days))
+
+
+def _tool_weeks_between(args: list[str]) -> str:
+    days = int(_tool_days_between(args))
+    return str(days // 7)
+
+
+def _tool_months_between(args: list[str]) -> str:
+    if len(args) != 2:
+        raise ValueError(f"MONTHS_BETWEEN needs 2 args, got {len(args)}")
+    d1 = _tool_parse_date(args[0])
+    d2 = _tool_parse_date(args[1])
+    # Calendar months absolute.
+    earlier, later = (d1, d2) if d1 <= d2 else (d2, d1)
+    months = (later.year - earlier.year) * 12 + (later.month - earlier.month)
+    if later.day < earlier.day:
+        months -= 1
+    return str(max(months, 0))
+
+
+def _tool_years_between(args: list[str]) -> str:
+    if len(args) != 2:
+        raise ValueError(f"YEARS_BETWEEN needs 2 args, got {len(args)}")
+    d1 = _tool_parse_date(args[0])
+    d2 = _tool_parse_date(args[1])
+    earlier, later = (d1, d2) if d1 <= d2 else (d2, d1)
+    years = later.year - earlier.year
+    if (later.month, later.day) < (earlier.month, earlier.day):
+        years -= 1
+    return str(max(years, 0))
+
+
+_TOOLS: dict[str, Any] = {
+    "SUM": _tool_sum,
+    "COUNT": _tool_count,
+    "AVG": _tool_avg,
+    "MIN": _tool_min,
+    "MAX": _tool_max,
+    "DAYS_BETWEEN": _tool_days_between,
+    "WEEKS_BETWEEN": _tool_weeks_between,
+    "MONTHS_BETWEEN": _tool_months_between,
+    "YEARS_BETWEEN": _tool_years_between,
+}
+
+
+def _apply_tools(response: str) -> str:
+    """Substitute <tool>OP(args)</tool> tags with computed results.
+
+    Unknown ops, parse errors, and computational errors leave the
+    original tag in place so the output is monotonic with respect to
+    tool failures.
+    """
+    def _execute(match: re.Match[str]) -> str:
+        op = match.group(1).upper()
+        args_str = match.group(2)
+        # Split on comma, allowing quoted args with embedded commas.
+        # Simple heuristic: split on top-level commas only.
+        args: list[str] = []
+        current: list[str] = []
+        in_quote: str | None = None
+        for ch in args_str:
+            if in_quote:
+                if ch == in_quote:
+                    in_quote = None
+                current.append(ch)
+            elif ch in ('"', "'"):
+                in_quote = ch
+                current.append(ch)
+            elif ch == "," and in_quote is None:
+                args.append("".join(current).strip())
+                current = []
+            else:
+                current.append(ch)
+        tail = "".join(current).strip()
+        if tail:
+            args.append(tail)
+        # Filter out empty args (e.g., trailing comma).
+        args = [a for a in args if a]
+        tool = _TOOLS.get(op)
+        if tool is None:
+            return match.group(0)
+        try:
+            return str(tool(args))
+        except (ValueError, ZeroDivisionError, TypeError):
+            return match.group(0)
+    return _TOOL_PATTERN.sub(_execute, response)
+
+
+_TOOLS_PROMPT_SUFFIX = (
+    "\n\nCOMPUTATIONAL TOOLS AVAILABLE:\n"
+    "When the question requires a sum, count, average, or date interval, "
+    "wrap the computation in <tool></tool> tags. The tool result will "
+    "automatically replace the tag in your answer. Use exact numbers/dates "
+    "from the memory.\n"
+    "Catalog:\n"
+    "  <tool>SUM(5, 10, 50)</tool> -> 65\n"
+    "  <tool>COUNT(a, b, c)</tool> -> 3\n"
+    "  <tool>AVG(5, 10, 15)</tool> -> 10\n"
+    "  <tool>MIN(3, 8, 1)</tool> -> 1\n"
+    "  <tool>MAX(3, 8, 1)</tool> -> 8\n"
+    "  <tool>DAYS_BETWEEN(2024-01-15, 2024-03-20)</tool> -> 65\n"
+    "  <tool>WEEKS_BETWEEN(2024-01-15, 2024-03-20)</tool> -> 9\n"
+    "  <tool>MONTHS_BETWEEN(2024-01-15, 2024-04-15)</tool> -> 3\n"
+    "  <tool>YEARS_BETWEEN(2020-05-01, 2024-05-01)</tool> -> 4\n"
+    "Use tools whenever the answer involves arithmetic; do NOT compute "
+    "manually. Always write the values as readable units in your final "
+    "answer (e.g., \"<tool>SUM(50, 70)</tool> pounds\" -> \"120 pounds\")."
+)
+
+
 def _build_auto_temporal_filter(question: str) -> str | None:
     """Extract year tokens from the question and build an OR-regex.
 
@@ -835,6 +1040,14 @@ class LongMemEvalSuite:
         # CoT preambles or verbose explanations that the judge
         # penalizes.  `None` (default) disables the second pass.
         self._distill_chat: ChatProvider | None = None
+        # Tool layer (--enable-tools). When True, the answer prompt
+        # advertises a catalog of <tool>OP(args)</tool> tags that
+        # the LLM can use for sums, counts, and date arithmetic.
+        # The Python implementations in _TOOLS are deterministic;
+        # the LLM only has to extract the numbers/dates and emit a
+        # tag.  Targets the 21 temporal + 24 multi-session hard-wall
+        # failures where Kimi K2.6 can't do arithmetic reliably.
+        self._enable_tools: bool = False
 
     def configure(
         self,
@@ -876,6 +1089,7 @@ class LongMemEvalSuite:
         context_format: str = "flat",
         answer_form: str = "freeform",
         distill_chat: ChatProvider | None = None,
+        enable_tools: bool = False,
     ) -> None:
         """Wire Phase E knobs from the CLI into the suite.
 
@@ -965,6 +1179,7 @@ class LongMemEvalSuite:
             )
         self._answer_form = answer_form
         self._distill_chat = distill_chat
+        self._enable_tools = enable_tools
 
     def setup(self, provider: Provider) -> None:
         self._provider = provider
@@ -1487,6 +1702,7 @@ class LongMemEvalSuite:
             else ""
         )
         aff_suffix = self._aff_suffix()
+        tools_suffix = _TOOLS_PROMPT_SUFFIX if self._enable_tools else ""
 
         def _one_call(prompt_text: str) -> str:
             raw: str = chat.chat([Message(role="user", content=prompt_text)])
@@ -1494,9 +1710,11 @@ class LongMemEvalSuite:
                 raw = _strip_cot(raw)
             if self._answer_form == "structured":
                 raw = self._extract_aff_answer(raw)
+            if self._enable_tools:
+                raw = _apply_tools(raw)
             return raw
 
-        prompt = base_prompt + cot_suffix + aff_suffix
+        prompt = base_prompt + cot_suffix + aff_suffix + tools_suffix
         if self._self_consistency_n >= 2:
             samples = tuple(_one_call(prompt) for _ in range(self._self_consistency_n))
             response = _majority_vote(samples)
@@ -1530,7 +1748,7 @@ class LongMemEvalSuite:
                     question=question,
                     question_date=question_date or "(date unknown)",
                     qtype_hint=qtype_hint,
-                ) + cot_suffix + aff_suffix
+                ) + cot_suffix + aff_suffix + tools_suffix
                 response = _one_call(fresh_prompt)
 
         # Two-Pass Answer Distillation: extract just the final answer

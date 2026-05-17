@@ -374,6 +374,22 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     run.add_argument(
+        "--enable-tools",
+        action="store_true",
+        help=(
+            "Computational tool layer (longmemeval): the answer prompt "
+            "advertises a catalog of <tool>OP(args)</tool> tags (SUM, "
+            "COUNT, AVG, MIN, MAX, DAYS_BETWEEN, WEEKS_BETWEEN, "
+            "MONTHS_BETWEEN, YEARS_BETWEEN). The LLM emits tags; we "
+            "substitute them with deterministic Python computations. "
+            "Targets the 21 temporal-reasoning + 24 multi-session "
+            "hard-wall failures where Kimi K2.6 can't reliably do "
+            "arithmetic or date math. Monotonic: tool failures leave "
+            "the tag in place. Stacks with --answer-form structured "
+            "(tools execute on the extracted final_answer)."
+        ),
+    )
+    run.add_argument(
         "--answer-form",
         default="freeform",
         choices=("freeform", "structured"),
@@ -676,6 +692,8 @@ def _resolve_suite_config(args: argparse.Namespace) -> dict[str, Any]:
         cfg["context_format"] = args.context_format
     if args.answer_form != "freeform":
         cfg["answer_form"] = args.answer_form
+    if args.enable_tools:
+        cfg["enable_tools"] = True
     if args.reranker and args.reranker != "none":
         from engram.retrieve._bge_reranker import BGEReranker
 
