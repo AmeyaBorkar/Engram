@@ -66,13 +66,40 @@ class EngramRetrieveNode:
     k: int = 5
     include_level: bool = True
 
-    def __call__(self, state: Mapping[str, Any]) -> dict[str, Any]:
+    def __call__(
+        self,
+        state: Mapping[str, Any],
+        config: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        # `config` is LangGraph 0.2+'s second positional arg (a
+        # `RunnableConfig`).  We accept and ignore it so the node is
+        # callable in both the older state-only and the newer state+config
+        # styles (audit M-50).  Falsy query short-circuits — return an
+        # empty context rather than embedding the empty string.
+        del config  # pylint: disable=unused-argument
         query = state.get(self.query_key, "")
-        if not query:
+        if not isinstance(query, str) or not query.strip():
             return {self.context_key: ""}
         results = self.memory.retrieve(query, k=self.k, reinforce=False)
         context = format_context(results, include_level=self.include_level)
         return {self.context_key: context}
+
+    async def ainvoke(
+        self,
+        state: Mapping[str, Any],
+        config: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Async entry point: blocks the event loop for retrieve.
+
+        LangGraph routes async invocation through `.ainvoke` when present
+        on a node; without it the runtime falls back to running `__call__`
+        in a thread, which is fine for I/O-bound retrieves but worse
+        than a properly-awaited path here (audit M-185).  Currently the
+        underlying `Memory.retrieve` is sync, so we call it directly;
+        when `Memory.aretrieve` becomes the primary path this method will
+        switch to `await self.memory.aretrieve(...)`.
+        """
+        return self.__call__(state, config)
 
 
 @dataclass(frozen=True)
@@ -93,7 +120,12 @@ class EngramObserveNode:
     user_key: str = "query"
     reply_key: str = "reply"
 
-    def __call__(self, state: Mapping[str, Any]) -> dict[str, Any]:
+    def __call__(
+        self,
+        state: Mapping[str, Any],
+        config: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        del config  # pylint: disable=unused-argument
         user = state.get(self.user_key)
         reply = state.get(self.reply_key)
         for slot in (user, reply):
@@ -101,6 +133,13 @@ class EngramObserveNode:
             if text is not None:
                 self.memory.observe(text)
         return {}
+
+    async def ainvoke(
+        self,
+        state: Mapping[str, Any],
+        config: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        return self.__call__(state, config)
 
 
 def _coerce_observable(value: Any) -> str | None:
