@@ -152,6 +152,20 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     run.add_argument(
+        "--chat-max-tokens",
+        type=int,
+        default=None,
+        help=(
+            "Override the primary chat provider's max_tokens cap. Required "
+            "when routing a thinking-mode model (e.g. moonshotai/kimi-k2.6) "
+            "through a generic OpenAI-compatible endpoint like OpenRouter "
+            "that otherwise inherits OpenAIChat's 1024-token safety guard "
+            "and truncates mid-reasoning. JOURNEY §24 documents the cliff. "
+            "Suggested values: 8192 for Kimi K2.6 thinking, 4096 for most "
+            "non-thinking models, leave unset for short-answer suites."
+        ),
+    )
+    run.add_argument(
         "--runs-dir",
         type=Path,
         default=Path("benchmarks/runs"),
@@ -622,6 +636,7 @@ def _resolve_provider(args: argparse.Namespace) -> Provider:
         embed_device=args.embed_device,
         embed_dtype=dtype_map[args.dtype],
         chat_model=args.chat_model,
+        chat_max_tokens=args.chat_max_tokens,
     )
     if args.disk_cache is not None:
         from engram.providers._disk_cache import with_disk_cache

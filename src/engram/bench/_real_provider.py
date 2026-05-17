@@ -53,7 +53,7 @@ class _MixedProvider:
         return f"{self.name}/{h.hexdigest()[:16]}"
 
 
-def _moonshot_chat(model: str | None) -> ChatProvider:
+def _moonshot_chat(model: str | None, max_tokens: int | None = None) -> ChatProvider:
     from engram.providers.openai import OpenAIChat
 
     api_key = os.environ.get("MOONSHOT_API_KEY")
@@ -61,11 +61,14 @@ def _moonshot_chat(model: str | None) -> ChatProvider:
         raise RuntimeError(
             "MOONSHOT_API_KEY is not set. Get a key from https://platform.moonshot.ai/"
         )
-    return OpenAIChat(
-        model=model or "kimi-k2.6",
-        api_key=api_key,
-        base_url="https://api.moonshot.ai/v1",
-    )
+    kwargs: dict[str, Any] = {
+        "model": model or "kimi-k2.6",
+        "api_key": api_key,
+        "base_url": "https://api.moonshot.ai/v1",
+    }
+    if max_tokens is not None:
+        kwargs["max_tokens"] = max_tokens
+    return OpenAIChat(**kwargs)
 
 
 def _opencode_api_key() -> str:
@@ -90,7 +93,7 @@ def _opencode_api_key() -> str:
     )
 
 
-def _opencode_zen_chat(model: str | None) -> ChatProvider:
+def _opencode_zen_chat(model: str | None, max_tokens: int | None = None) -> ChatProvider:
     """OpenCode Zen — multi-model gateway with OpenAI-compatible chat API.
 
     One API key, access to Claude (haiku/sonnet/opus 4.x), GPT 5.x, and
@@ -100,14 +103,17 @@ def _opencode_zen_chat(model: str | None) -> ChatProvider:
     """
     from engram.providers.openai import OpenAIChat
 
-    return OpenAIChat(
-        model=model or "claude-haiku-4-5",
-        api_key=_opencode_api_key(),
-        base_url="https://opencode.ai/zen/v1",
-    )
+    kwargs: dict[str, Any] = {
+        "model": model or "claude-haiku-4-5",
+        "api_key": _opencode_api_key(),
+        "base_url": "https://opencode.ai/zen/v1",
+    }
+    if max_tokens is not None:
+        kwargs["max_tokens"] = max_tokens
+    return OpenAIChat(**kwargs)
 
 
-def _opencode_go_chat(model: str | None) -> ChatProvider:
+def _opencode_go_chat(model: str | None, max_tokens: int | None = None) -> ChatProvider:
     """OpenCode Go -- open-weight coding models behind one subscription.
 
     Same OpenCode account / API key as Zen, but a different endpoint
@@ -116,12 +122,13 @@ def _opencode_go_chat(model: str | None) -> ChatProvider:
     Default model is `kimi-k2.6` because it's the strongest general
     open-weight model on the plan at the time of writing.
 
-    `max_tokens=8192` because Kimi K2.6 (and other thinking-capable
-    open-weight models on this endpoint) reason for 1000-3000 tokens
-    before emitting the final answer. The OpenAIChat default of 1024
-    is a safety guard for unknown endpoints, but here it would cut
+    `max_tokens` defaults to 8192 because Kimi K2.6 (and other thinking-
+    capable open-weight models on this endpoint) reason for 1000-3000
+    tokens before emitting the final answer. The OpenAIChat default of
+    1024 is a safety guard for unknown endpoints, but here it would cut
     the model off mid-reasoning before any answer is emitted -- see
-    JOURNEY §24 for the diagnostic trail.
+    JOURNEY §24 for the diagnostic trail. An explicit `max_tokens` arg
+    (e.g. from `--chat-max-tokens`) overrides this default.
     """
     from engram.providers.openai import OpenAIChat
 
@@ -129,17 +136,20 @@ def _opencode_go_chat(model: str | None) -> ChatProvider:
         model=model or "kimi-k2.6",
         api_key=_opencode_api_key(),
         base_url="https://opencode.ai/zen/go/v1",
-        max_tokens=8192,
+        max_tokens=max_tokens if max_tokens is not None else 8192,
     )
 
 
-def _openai_chat(model: str | None) -> ChatProvider:
+def _openai_chat(model: str | None, max_tokens: int | None = None) -> ChatProvider:
     from engram.providers.openai import OpenAIChat
 
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
         raise RuntimeError("OPENAI_API_KEY is not set.")
-    return OpenAIChat(model=model or "gpt-4o-mini", api_key=api_key)
+    kwargs: dict[str, Any] = {"model": model or "gpt-4o-mini", "api_key": api_key}
+    if max_tokens is not None:
+        kwargs["max_tokens"] = max_tokens
+    return OpenAIChat(**kwargs)
 
 
 def _openrouter_headers() -> dict[str, str]:
@@ -158,7 +168,7 @@ def _openrouter_headers() -> dict[str, str]:
     }
 
 
-def _openrouter_chat(model: str | None) -> ChatProvider:
+def _openrouter_chat(model: str | None, max_tokens: int | None = None) -> ChatProvider:
     """OpenRouter chat (OpenAI-compatible) -- one API key, every frontier model.
 
     Catalog includes `anthropic/claude-opus-4.7`, `openai/gpt-5.5`,
@@ -167,6 +177,13 @@ def _openrouter_chat(model: str | None) -> ChatProvider:
     `anthropic/claude-haiku-4-5` because it matches what most
     LongMemEval-style reports use and stays cheap. Override via
     --chat-model.
+
+    `max_tokens` is left unset by default (falls through to OpenAIChat's
+    1024 safety cap). Thinking-mode models routed through OpenRouter
+    (e.g. `moonshotai/kimi-k2.6`) need an explicit `--chat-max-tokens
+    8192` to avoid the mid-reasoning truncation documented in JOURNEY
+    §24 -- the cap that bit us on the opencode-go endpoint applies
+    identically here because the underlying model is the same.
     """
     from engram.providers.openai import OpenAIChat
 
@@ -176,12 +193,15 @@ def _openrouter_chat(model: str | None) -> ChatProvider:
             "OPENROUTER_API_KEY is not set. Get a key from https://openrouter.ai/keys "
             "and add it to your .env."
         )
-    return OpenAIChat(
-        model=model or "anthropic/claude-haiku-4-5",
-        api_key=api_key,
-        base_url="https://openrouter.ai/api/v1",
-        default_headers=_openrouter_headers(),
-    )
+    kwargs: dict[str, Any] = {
+        "model": model or "anthropic/claude-haiku-4-5",
+        "api_key": api_key,
+        "base_url": "https://openrouter.ai/api/v1",
+        "default_headers": _openrouter_headers(),
+    }
+    if max_tokens is not None:
+        kwargs["max_tokens"] = max_tokens
+    return OpenAIChat(**kwargs)
 
 
 def _openrouter_embedder(
@@ -271,17 +291,23 @@ def _local_embedder(
     )
 
 
-def _anthropic_chat(model: str | None) -> ChatProvider:
+def _anthropic_chat(model: str | None, max_tokens: int | None = None) -> ChatProvider:
     from engram.providers.anthropic import AnthropicChat
 
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
         raise RuntimeError("ANTHROPIC_API_KEY is not set.")
-    return AnthropicChat(model=model or "claude-haiku-4-5-20251001", api_key=api_key)
+    kwargs: dict[str, Any] = {
+        "model": model or "claude-haiku-4-5-20251001",
+        "api_key": api_key,
+    }
+    if max_tokens is not None:
+        kwargs["max_tokens"] = max_tokens
+    return AnthropicChat(**kwargs)
 
 
 _CHAT_BUILDERS: dict[str, Any] = {
-    "fake": lambda model: FakeChat(),  # noqa: ARG005
+    "fake": lambda model, max_tokens=None: FakeChat(),  # noqa: ARG005
     "openai": _openai_chat,
     "anthropic": _anthropic_chat,
     "moonshot": _moonshot_chat,
@@ -306,17 +332,27 @@ _EMBEDDER_BUILDERS: dict[str, Any] = {
 }
 
 
-def build_chat(name: str, model: str | None = None) -> ChatProvider:
+def build_chat(
+    name: str,
+    model: str | None = None,
+    *,
+    max_tokens: int | None = None,
+) -> ChatProvider:
     """Construct a standalone chat provider by name.
 
     Same chat catalog as `build_provider`, but returns the chat
     provider alone -- useful for the bench's secondary chat slots
     (`consolidate_chat`, `judge_chat`) where the embedder side is
     irrelevant.
+
+    `max_tokens`, when set, overrides the per-builder default. `None`
+    (the default) preserves backwards compat -- each builder applies
+    whatever cap it chose (opencode-go's 8192 for thinking-mode Kimi,
+    others fall through to OpenAIChat's 1024 safety guard).
     """
     if name not in _CHAT_BUILDERS:
         raise ValueError(f"unknown chat {name!r}; choose from {sorted(_CHAT_BUILDERS)}")
-    chat: ChatProvider = _CHAT_BUILDERS[name](model)
+    chat: ChatProvider = _CHAT_BUILDERS[name](model, max_tokens)
     return chat
 
 
@@ -329,6 +365,7 @@ def build_provider(
     embed_device: str | None = None,
     embed_dtype: str = "auto",
     chat_model: str | None = None,
+    chat_max_tokens: int | None = None,
 ) -> _MixedProvider:
     """Construct a bench Provider from CLI flags.
 
@@ -337,6 +374,11 @@ def build_provider(
     and `chat_name=openai|anthropic|moonshot|opencode-zen|opencode-go|openrouter`
     for real runs; missing API keys surface as actionable RuntimeError
     messages. `embed_device` + `embed_dtype` only apply to local.
+
+    `chat_max_tokens`, when set, overrides the per-builder default cap.
+    Required when routing a thinking-mode model (e.g. Kimi K2.6) through
+    a generic OpenAI-compatible endpoint like OpenRouter that otherwise
+    inherits OpenAIChat's 1024-token safety guard -- see JOURNEY §24.
     """
     if embedder_name not in _EMBEDDER_BUILDERS:
         raise ValueError(
@@ -348,6 +390,6 @@ def build_provider(
     embedder = _EMBEDDER_BUILDERS[embedder_name](
         embed_model, embed_dim, embed_device, embed_dtype
     )
-    chat = _CHAT_BUILDERS[chat_name](chat_model)
+    chat = _CHAT_BUILDERS[chat_name](chat_model, chat_max_tokens)
     name = f"{embedder_name}+{chat_name}"
     return _MixedProvider(name=name, embedder=embedder, chat=chat)
