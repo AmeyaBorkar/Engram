@@ -140,6 +140,17 @@ class ConsolidationParams:
     per surviving candidate per consolidate, so callers opt in
     explicitly. `promotion_params` configures the summary -> abstraction
     promotion pass; also off by default.
+
+    `pass_deadline_s` (H-58): an aggregate wall-clock budget for the
+    sync `consolidate()` pass.  When set, the engine stops dispatching
+    new per-cluster LLM calls once `time.monotonic() -
+    started_at_monotonic` exceeds the budget; clusters not yet
+    processed are left for the next pass.  `None` disables the budget
+    (the historical behavior).  The deadline is best-effort -- the
+    current cluster's chat call is allowed to finish even if it
+    overshoots, because the `ChatProvider` protocol does not yet
+    expose a per-call timeout argument (changing that surface is
+    Cluster A2's territory).
     """
 
     cluster_params: ClusterParams = field(default_factory=ClusterParams)
@@ -148,12 +159,17 @@ class ConsolidationParams:
     abstraction_max_retries: int = 1
     contradiction_params: ContradictionParams = field(default_factory=ContradictionParams)
     promotion_params: PromotionParams = field(default_factory=PromotionParams)
+    pass_deadline_s: float | None = None
 
     def __post_init__(self) -> None:
         if not 0.0 <= self.support_weight <= 1.0:
             raise ValueError(f"support_weight must be in [0, 1], got {self.support_weight!r}")
         if self.level is Level.EVENT:
             raise ValueError("consolidation produces summaries/abstractions, not raw events")
+        if self.pass_deadline_s is not None and self.pass_deadline_s <= 0.0:
+            raise ValueError(
+                f"pass_deadline_s must be > 0 or None, got {self.pass_deadline_s!r}"
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -267,11 +283,30 @@ class ConsolidationEngine:
         assignments = cluster_vectors(vectors, params=self._params.cluster_params)
 
         # 3. Per-cluster abstraction + atomic write.
+        # H-58: aggregate deadline.  When `pass_deadline_s` is set the
+        # loop stops dispatching new clusters once the wall budget is
+        # spent.  The currently-running chat call is allowed to finish
+        # (per-call cancellation requires a protocol-level
+        # `chat(..., timeout=...)` knob which the ChatProvider seam
+        # does not yet expose).
+        deadline = (
+            time.monotonic() + self._params.pass_deadline_s
+            if self._params.pass_deadline_s is not None
+            else None
+        )
         created = 0
         failed = 0
         events_consolidated = 0
         conflicts_detected = 0
         for assignment in assignments:
+            if deadline is not None and time.monotonic() >= deadline:
+                _LOG.warning(
+                    "consolidation: pass_deadline_s=%.3f exhausted; "
+                    "%d cluster(s) deferred to the next pass",
+                    self._params.pass_deadline_s,
+                    len(assignments) - (created + failed),
+                )
+                break
             outcome = self._consolidate_one_cluster(events, vectors, assignment)
             if outcome is None:
                 failed += 1
