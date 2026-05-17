@@ -351,9 +351,7 @@ class TestColdTransitionInvalidatesIndexes:
     pick up the change.
     """
 
-    def test_record_cold_transition_calls_mark_cold(
-        self, tmp_path: Path
-    ) -> None:
+    def test_record_cold_transition_calls_mark_cold(self, tmp_path: Path) -> None:
         with SqliteStorage(tmp_path / "x.db") as storage:
             item = _seed_memory_item(storage, weight=0.30)
             params = DecayParams(half_life_seconds=1e9, delta=0.30, threshold=0.10)
@@ -378,9 +376,7 @@ class TestColdTransitionInvalidatesIndexes:
             assert calls[0][0] == item.id
             assert calls[0][1] is ItemKind.MEMORY_ITEM
 
-    def test_tick_cold_transition_calls_mark_cold_per_event(
-        self, tmp_path: Path
-    ) -> None:
+    def test_tick_cold_transition_calls_mark_cold_per_event(self, tmp_path: Path) -> None:
         with SqliteStorage(tmp_path / "x.db") as storage:
             event = _seed_event(storage)
             params = DecayParams(half_life_seconds=1.0, threshold=0.05)
@@ -408,9 +404,7 @@ class TestColdTransitionInvalidatesIndexes:
 class TestTickStreaming:
     """H-66: tick must not materialize the full hot snapshot at once."""
 
-    def test_tick_streams_chunks_when_corpus_exceeds_batch_size(
-        self, tmp_path: Path
-    ) -> None:
+    def test_tick_streams_chunks_when_corpus_exceeds_batch_size(self, tmp_path: Path) -> None:
         with SqliteStorage(tmp_path / "x.db") as storage:
             # Seed more events than the engine's `batch_size`.
             for i in range(7):
@@ -428,9 +422,7 @@ class TestTickStreaming:
                 # the engine actually drives the streaming contract
                 # rather than calling once with a huge buffer.
                 calls.append(batch_size)
-                yield from real_iter(
-                    kind, include_cold=include_cold, batch_size=batch_size
-                )
+                yield from real_iter(kind, include_cold=include_cold, batch_size=batch_size)
 
             storage.iter_decay_states = traced  # type: ignore[method-assign]
             engine.tick(now=_now())

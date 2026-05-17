@@ -131,9 +131,7 @@ def run(
             if accepts_var_kw:
                 accepted = suite_config
             else:
-                accepted = {
-                    k: v for k, v in suite_config.items() if k in sig_params
-                }
+                accepted = {k: v for k, v in suite_config.items() if k in sig_params}
             configure(**accepted)
 
     suite.setup(provider)

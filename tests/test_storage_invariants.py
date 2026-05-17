@@ -84,7 +84,7 @@ def test_provenance_never_dangles(storage: SqliteStorage, n_events: int, n_links
     # supported lookups only resolve forward, not over the link table.
     # Raw SELECT lets us pin the schema invariant directly. (Audit M-126.)
     rows = (
-        storage._connect()  # noqa: SLF001
+        storage._connect()
         .execute(
             "SELECT pl.memory_item_id, pl.event_id, "
             "       (SELECT 1 FROM memory_items mi WHERE mi.id = pl.memory_item_id) AS mi_ok, "

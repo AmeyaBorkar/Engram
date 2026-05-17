@@ -21,17 +21,16 @@ from __future__ import annotations
 import logging
 from importlib import resources
 
+from engram._prompt_util import inline as _inline
+from engram._prompt_util import render_prompt
 from engram.providers._message import Message
 from engram.providers._protocols import ChatProvider
-from engram._prompt_util import inline as _inline, render_prompt
 
 _LOG = logging.getLogger("engram.retrieve")
 
 DECOMPOSE_PROMPT_NAME = "decompose"
 DECOMPOSE_PROMPT_VERSION = "v1"
-DECOMPOSE_PROMPT_FILENAME = (
-    f"{DECOMPOSE_PROMPT_NAME}_{DECOMPOSE_PROMPT_VERSION}.txt"
-)
+DECOMPOSE_PROMPT_FILENAME = f"{DECOMPOSE_PROMPT_NAME}_{DECOMPOSE_PROMPT_VERSION}.txt"
 
 
 def load_decompose_prompt() -> str:
@@ -69,7 +68,8 @@ def decompose_query(query: str, chat: ChatProvider) -> list[str]:
     except Exception as exc:
         _LOG.warning(
             "decompose_query: chat raised %s: %s; falling back to [query]",
-            type(exc).__name__, exc,
+            type(exc).__name__,
+            exc,
         )
         return [query]
     lines = [_strip_marker(line.strip()) for line in response.splitlines()]
@@ -90,6 +90,7 @@ def _strip_marker(line: str) -> str:
     if line[0] in "-*•" and len(line) > 1 and line[1] == " ":
         return line[2:].strip()
     return line
+
 
 __all__ = [
     "decompose_query",

@@ -78,10 +78,8 @@ class TestJudgePromptRenderingIsHardened:
             # The raw newline from the payload must not appear inside the
             # STATEMENTS block as a new line; the literal `\n` escape
             # sequence must be there instead.
-            statements_block = prompt[prompt.find("STATEMENTS"):]
-            assert "\\n" in statements_block, (
-                f"{attack.name}: newline not escaped in judge prompt"
-            )
+            statements_block = prompt[prompt.find("STATEMENTS") :]
+            assert "\\n" in statements_block, f"{attack.name}: newline not escaped in judge prompt"
 
     def test_payload_appears_only_in_statement_slots(self) -> None:
         """The injection payload must land in the A: or B: slot, never
@@ -96,8 +94,7 @@ class TestJudgePromptRenderingIsHardened:
             sentinel = attack.payload.split("\n", 1)[0][:30]
             if len(sentinel) >= 5 and "{" not in sentinel:
                 assert sentinel not in rules_block, (
-                    f"{attack.name}: payload sentinel {sentinel!r} leaked "
-                    "into CRITICAL RULES block"
+                    f"{attack.name}: payload sentinel {sentinel!r} leaked into CRITICAL RULES block"
                 )
 
     def test_chat_template_tokens_are_preserved_as_literals(self) -> None:
@@ -112,7 +109,7 @@ class TestJudgePromptRenderingIsHardened:
         # Most importantly, the tokens appear only inside the STATEMENTS
         # block (escaped via _inline keeps newlines from breaking the
         # prompt structure but tokens stay literal).
-        statements_block = prompt[prompt.find("STATEMENTS"):]
+        statements_block = prompt[prompt.find("STATEMENTS") :]
         assert "<|im_start|>" in statements_block
 
 
@@ -144,9 +141,7 @@ class TestParseRejectsMalformedJudgeResponses:
 
     def test_extra_fields_are_ignored(self) -> None:
         """The model is permissive on extras; only `verdict` matters."""
-        out = parse_judge_response(
-            json.dumps({"verdict": "contradict", "INJECTED": "extra"})
-        )
+        out = parse_judge_response(json.dumps({"verdict": "contradict", "INJECTED": "extra"}))
         assert out.verdict is Verdict.CONTRADICT
 
     def test_strips_code_fence(self) -> None:
@@ -188,9 +183,7 @@ class TestJudgeFallbackOnFailure:
     def test_successful_parse_returns_actual_verdict(self) -> None:
         """Sanity: a well-formed CONTRADICT response surfaces unchanged."""
         prompt = render_judge_prompt(a=SAFE_A, b=SAFE_B)
-        chat = FakeChat(
-            scripts={content_hash(prompt): json.dumps({"verdict": "contradict"})}
-        )
+        chat = FakeChat(scripts={content_hash(prompt): json.dumps({"verdict": "contradict"})})
         verdict = judge(a=SAFE_A, b=SAFE_B, chat=chat, max_retries=0)
         assert verdict is Verdict.CONTRADICT
 
@@ -220,18 +213,14 @@ class TestEndToEndJudgeAgainstInjectionCorpus:
             # FakeChat will return AGREE if asked — but the
             # short-circuit means chat is never called.
             chat = FakeChat(default=json.dumps({"verdict": "agree"}))
-            verdict = judge(
-                a=attack.payload, b=SAFE_B, chat=chat, max_retries=0
-            )
+            verdict = judge(a=attack.payload, b=SAFE_B, chat=chat, max_retries=0)
             assert verdict is Verdict.UNRELATED, attack.name
 
     def test_every_attack_as_statement_b_short_circuits(self) -> None:
         """Symmetric: payload as B, benign as A."""
         for attack in CORPUS:
             chat = FakeChat(default=json.dumps({"verdict": "agree"}))
-            verdict = judge(
-                a=SAFE_A, b=attack.payload, chat=chat, max_retries=0
-            )
+            verdict = judge(a=SAFE_A, b=attack.payload, chat=chat, max_retries=0)
             assert verdict is Verdict.UNRELATED, attack.name
 
     def test_injection_in_both_statements_short_circuits(self) -> None:

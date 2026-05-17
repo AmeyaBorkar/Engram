@@ -93,9 +93,7 @@ class TestSurfaceConflicts:
         assert len(results) == 2
         assert {a.id, b.id} == ids
 
-    def test_on_adds_conflict_partner_if_not_already_present(
-        self, memory: Memory
-    ) -> None:
+    def test_on_adds_conflict_partner_if_not_already_present(self, memory: Memory) -> None:
         """The classic case: query embedding matches only ONE side
         strongly. Without `surface_conflicts`, the other side doesn't
         appear. With `surface_conflicts=True`, it does."""
@@ -162,9 +160,7 @@ class TestSurfaceConflicts:
     def test_dedup_doesnt_double_add(self, memory: Memory) -> None:
         """If both sides ALREADY surface naturally, surface_conflicts
         doesn't double-add."""
-        a, b = _seed_pair(
-            memory, a_text="X is true", b_text="X is false", same_vector=True
-        )
+        a, b = _seed_pair(memory, a_text="X is true", b_text="X is false", same_vector=True)
         results = memory.retrieve(
             "X is true",
             k=10,

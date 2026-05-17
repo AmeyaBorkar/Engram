@@ -8,10 +8,9 @@ public surface.
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from uuid import UUID
 
 import pytest
-
-from uuid import UUID
 
 from engram import (
     Conflict,
@@ -78,9 +77,7 @@ def _seed_pair(
     return older, newer, conflict
 
 
-def _seed_corroboration(
-    storage: Storage, item_id: UUID, count: int, at: datetime
-) -> None:
+def _seed_corroboration(storage: Storage, item_id: UUID, count: int, at: datetime) -> None:
     existing = storage.get_decay_state(item_id, ItemKind.MEMORY_ITEM)
     assert existing is not None, "Memory item should have a default decay state"
     storage.update_decay_state(
@@ -199,9 +196,7 @@ class TestPreferFrequent:
         )
         assert out.resolved_winner_id == older.id
 
-    def test_corroboration_tie_falls_back_to_recent(
-        self, storage: SqliteStorage
-    ) -> None:
+    def test_corroboration_tie_falls_back_to_recent(self, storage: SqliteStorage) -> None:
         _older, newer, conflict = _seed_pair(
             storage,
             older_at=_utc(2026, 1, 1),
@@ -266,9 +261,7 @@ class TestManual:
             storage, older_at=_utc(2026, 1, 1), newer_at=_utc(2026, 4, 1)
         )
         with pytest.raises(ValueError, match="manual_winner_id"):
-            Reconciler(storage).reconcile(
-                conflict.id, resolution=Resolution.MANUAL
-            )
+            Reconciler(storage).reconcile(conflict.id, resolution=Resolution.MANUAL)
 
     def test_winner_not_party_raises(self, storage: SqliteStorage) -> None:
         _older, _newer, conflict = _seed_pair(
@@ -291,9 +284,7 @@ class TestManual:
 class TestErrors:
     def test_missing_conflict_raises(self, storage: SqliteStorage) -> None:
         with pytest.raises(KeyError):
-            Reconciler(storage).reconcile(
-                new_id(), resolution=Resolution.PREFER_RECENT
-            )
+            Reconciler(storage).reconcile(new_id(), resolution=Resolution.PREFER_RECENT)
 
     def test_already_resolved_raises(self, storage: SqliteStorage) -> None:
         _older, _newer, conflict = _seed_pair(
@@ -318,17 +309,11 @@ class TestErrors:
 class TestRecencyTieBreak:
     def test_identical_timestamps_use_id_order(self, storage: SqliteStorage) -> None:
         same = _utc(2026, 3, 15)
-        a = MemoryItem(
-            level=Level.SUMMARY, content="a", created_at=same, valid_from=same
-        )
-        b = MemoryItem(
-            level=Level.SUMMARY, content="b", created_at=same, valid_from=same
-        )
+        a = MemoryItem(level=Level.SUMMARY, content="a", created_at=same, valid_from=same)
+        b = MemoryItem(level=Level.SUMMARY, content="b", created_at=same, valid_from=same)
         storage.insert_memory_item(a)
         storage.insert_memory_item(b)
-        conflict = Conflict(
-            source_item_id=a.id, target_item_id=b.id, similarity=0.9
-        )
+        conflict = Conflict(source_item_id=a.id, target_item_id=b.id, similarity=0.9)
         storage.record_conflict(conflict)
         out = Reconciler(storage).reconcile(
             conflict.id,
@@ -416,9 +401,7 @@ class TestReconcileWithAsOf:
                 )
             )
 
-        conflict = Conflict(
-            source_item_id=newer.id, target_item_id=older.id, similarity=1.0
-        )
+        conflict = Conflict(source_item_id=newer.id, target_item_id=older.id, similarity=1.0)
         storage.record_conflict(conflict)
 
         # Resolve at 2026-05-01 -- newer wins, older gets invalidated.
@@ -429,9 +412,7 @@ class TestReconcileWithAsOf:
         )
 
         # Default retrieve (no as_of) -- older should be gone.
-        default_hits = storage.search_memory_item_embeddings_as_of(
-            same, k=10, model=embedder.model
-        )
+        default_hits = storage.search_memory_item_embeddings_as_of(same, k=10, model=embedder.model)
         ids = {u for u, _, _ in default_hits}
         assert newer.id in ids
         assert older.id not in ids
@@ -456,9 +437,7 @@ def test_default_clock_used(storage: SqliteStorage) -> None:
         storage, older_at=_utc(2026, 1, 1), newer_at=_utc(2026, 4, 1)
     )
     before = datetime.now(timezone.utc) - timedelta(seconds=1)
-    out = Reconciler(storage).reconcile(
-        conflict.id, resolution=Resolution.PREFER_RECENT
-    )
+    out = Reconciler(storage).reconcile(conflict.id, resolution=Resolution.PREFER_RECENT)
     after = datetime.now(timezone.utc) + timedelta(seconds=1)
     assert out.resolved_at is not None
     assert before <= out.resolved_at <= after

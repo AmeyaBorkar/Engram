@@ -37,6 +37,7 @@ Asymptotics (audit H-56):
 from __future__ import annotations
 
 import logging
+import threading
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, Literal
@@ -63,12 +64,25 @@ FloatMatrix = npt.NDArray[np.floating[Any]]
 
 
 _HDBSCAN_AVAILABLE: bool | None = None
+_HDBSCAN_LOCK = threading.Lock()
 
 
 def _hdbscan_available() -> bool:
-    """Cached availability check for the optional `hdbscan` extra."""
+    """Cached availability check for the optional `hdbscan` extra.
+
+    Audit M-22: the global cache write is double-checked under
+    ``_HDBSCAN_LOCK`` so two threads hitting ``cluster_vectors``
+    concurrently under no-GIL (PEP 703) builds can't both observe
+    ``None``, both run the import, and race the assignment.  Under GIL
+    the race is benign (both writes set the same value); under no-GIL
+    the check-then-set isn't atomic.
+    """
     global _HDBSCAN_AVAILABLE
-    if _HDBSCAN_AVAILABLE is None:
+    if _HDBSCAN_AVAILABLE is not None:
+        return _HDBSCAN_AVAILABLE
+    with _HDBSCAN_LOCK:
+        if _HDBSCAN_AVAILABLE is not None:
+            return _HDBSCAN_AVAILABLE
         try:
             import hdbscan  # type: ignore[import-untyped]  # noqa: F401
 

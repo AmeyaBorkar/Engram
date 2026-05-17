@@ -57,9 +57,7 @@ def test_suite_runs_and_lifts() -> None:
     assert sum(1 for r in result.per_question if r["split"] == "contradiction") == len(
         CONTRADICTION_PAIRS
     )
-    assert sum(1 for r in result.per_question if r["split"] == "temporal") == len(
-        TEMPORAL_TRIPLES
-    )
+    assert sum(1 for r in result.per_question if r["split"] == "temporal") == len(TEMPORAL_TRIPLES)
 
 
 def test_dataset_checksum_is_stable() -> None:

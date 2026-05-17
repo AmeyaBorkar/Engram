@@ -131,7 +131,7 @@ def test_local_embedder_unload_drops_model_and_cache(
     assert len(embedder.cache) >= 1
     embedder.unload()
     # Model handle is dropped.
-    assert not hasattr(embedder, "_st") or embedder._st is None  # noqa: SLF001
+    assert not hasattr(embedder, "_st") or embedder._st is None
     # Cache is cleared and detached.
     assert embedder.cache is None
 
@@ -170,21 +170,19 @@ def test_local_embedder_embed_query_falls_back_to_doc_cache_for_symmetric_models
     local_module, stub_cls = _build_stub_embedder()
     monkeypatch.setattr(local_module, "_SentenceTransformer", stub_cls)
     monkeypatch.setattr(local_module, "_detect_device", lambda: "cpu")
-    embedder = local_module.LocalEmbedder(
-        model="BAAI/bge-large-en-v1.5", cache_size=32
-    )
+    embedder = local_module.LocalEmbedder(model="BAAI/bge-large-en-v1.5", cache_size=32)
 
     # First, embed as document.
     docs = embedder.embed(["alpha"])
     encode_calls: list[int] = []
 
-    real_encode = embedder._encode  # noqa: SLF001
+    real_encode = embedder._encode
 
     def traced_encode(texts, *, extra=None):
         encode_calls.append(len(texts))
         return real_encode(texts, extra=extra)
 
-    embedder._encode = traced_encode  # type: ignore[method-assign]  # noqa: SLF001
+    embedder._encode = traced_encode  # type: ignore[method-assign]
 
     # Calling embed_query("alpha") on a symmetric model should NOT
     # trigger a fresh encode — the doc-side cache slot is reused.
@@ -203,19 +201,17 @@ def test_local_embedder_embed_query_keeps_strict_split_for_asymmetric_models(
     monkeypatch.setattr(local_module, "_detect_device", lambda: "cpu")
     # Asymmetric model — entry in _QUERY_ENCODE_KWARGS so
     # `_is_symmetric()` returns False.
-    embedder = local_module.LocalEmbedder(
-        model="intfloat/e5-large-v2", cache_size=32
-    )
+    embedder = local_module.LocalEmbedder(model="intfloat/e5-large-v2", cache_size=32)
 
     embedder.embed(["alpha"])
     encode_calls: list[int] = []
-    real_encode = embedder._encode  # noqa: SLF001
+    real_encode = embedder._encode
 
     def traced_encode(texts, *, extra=None):
         encode_calls.append(len(texts))
         return real_encode(texts, extra=extra)
 
-    embedder._encode = traced_encode  # type: ignore[method-assign]  # noqa: SLF001
+    embedder._encode = traced_encode  # type: ignore[method-assign]
 
     embedder.embed_query("alpha")
     # Asymmetric path: doc-cache hit must NOT serve query slot.

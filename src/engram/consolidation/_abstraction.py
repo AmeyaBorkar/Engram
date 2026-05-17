@@ -24,7 +24,6 @@ pipeline as a regression suite (separate test file).
 from __future__ import annotations
 
 import json
-import re
 from dataclasses import dataclass
 from importlib import resources
 
@@ -32,6 +31,8 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from engram._prompt_util import (
     inline as _inline,
+)
+from engram._prompt_util import (
     strip_code_fence as _strip_code_fence,
 )
 from engram.providers._message import Message

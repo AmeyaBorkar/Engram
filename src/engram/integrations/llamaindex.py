@@ -68,8 +68,7 @@ class _PseudoChatMessage:
         except ValueError as exc:
             valid = ", ".join(repr(m.value) for m in MessageRole)
             raise ValueError(
-                f"role {self.role!r} is not a LlamaIndex MessageRole; "
-                f"valid values are: {valid}"
+                f"role {self.role!r} is not a LlamaIndex MessageRole; valid values are: {valid}"
             ) from exc
         return ChatMessage(
             role=role,
@@ -118,9 +117,7 @@ class EngramLlamaIndexMemory:
         if content:
             self._memory.observe(str(content))
 
-    def get(
-        self, input: str | None = None, **kwargs: Any
-    ) -> Sequence[_PseudoChatMessage]:
+    def get(self, input: str | None = None, **kwargs: Any) -> Sequence[_PseudoChatMessage]:
         """Return one pseudo-message that carries the retrieved memory
         context.
 

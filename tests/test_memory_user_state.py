@@ -161,9 +161,7 @@ class TestSetUserStateUpdate:
 
 
 class TestUserStateTenantScoping:
-    def test_get_user_state_filters_by_tenant(
-        self, storage: SqliteStorage
-    ) -> None:
+    def test_get_user_state_filters_by_tenant(self, storage: SqliteStorage) -> None:
         # Two tenants on the same storage; each gets its own user-state.
         m_a = Memory(
             storage=storage,
@@ -185,13 +183,9 @@ class TestUserStateTenantScoping:
         assert sa.id == item_a.id
         assert sb.id == item_b.id
 
-    def test_untenanted_memory_sees_only_untenanted_state(
-        self, storage: SqliteStorage
-    ) -> None:
+    def test_untenanted_memory_sees_only_untenanted_state(self, storage: SqliteStorage) -> None:
         m_untagged = Memory(storage=storage, embedder=FakeEmbedder(dim=8))
-        m_tagged = Memory(
-            storage=storage, embedder=FakeEmbedder(dim=8), tenant_id="x"
-        )
+        m_tagged = Memory(storage=storage, embedder=FakeEmbedder(dim=8), tenant_id="x")
         untagged = m_untagged.set_user_state("u")
         tagged = m_tagged.set_user_state("t")
         u = m_untagged.get_user_state()

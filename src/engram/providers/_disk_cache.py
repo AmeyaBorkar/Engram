@@ -126,8 +126,7 @@ class DiskCache:
                 resolved.relative_to(root)
             except ValueError as exc:
                 raise ValueError(
-                    f"DiskCache path {str(resolved)!r} is not under "
-                    f"allowed_root {str(root)!r}"
+                    f"DiskCache path {str(resolved)!r} is not under allowed_root {str(root)!r}"
                 ) from exc
         self._path = str(resolved)
         self._lock = threading.Lock()
@@ -188,9 +187,7 @@ class DiskCache:
 
     def chat_get(self, key: str) -> str | None:
         with self._lock:
-            row = self._conn.execute(
-                "SELECT value FROM chat WHERE key = ?", (key,)
-            ).fetchone()
+            row = self._conn.execute("SELECT value FROM chat WHERE key = ?", (key,)).fetchone()
             # Counter updates under the same lock that protects the
             # sqlite operation so two concurrent chat_get calls don't
             # race on the integer increment (CPython int += is not
@@ -228,9 +225,7 @@ class DiskCache:
 
     def embed_get(self, key: str) -> list[float] | None:
         with self._lock:
-            row = self._conn.execute(
-                "SELECT value FROM embed WHERE key = ?", (key,)
-            ).fetchone()
+            row = self._conn.execute("SELECT value FROM embed WHERE key = ?", (key,)).fetchone()
             if row is None:
                 self._embed_misses += 1
                 return None
@@ -311,7 +306,7 @@ class DiskCache:
                     del _HANDLES[k]
 
 
-def _hash_lp(h: "hashlib._Hash", data: bytes) -> None:
+def _hash_lp(h: hashlib._Hash, data: bytes) -> None:
     """Update `h` with a length-prefixed byte string.
 
     Eight-byte big-endian length followed by the bytes.  Centralized so
@@ -441,9 +436,7 @@ class CachedEmbedder:
         results: list[list[float] | None] = [None] * len(texts)
         miss_idx: list[int] = []
         miss_text: list[str] = []
-        keys: list[str] = [
-            self._cache.embed_key(self.name, self.model, t) for t in texts
-        ]
+        keys: list[str] = [self._cache.embed_key(self.name, self.model, t) for t in texts]
         found = self._cache.embed_get_many(keys)
         for i, key in enumerate(keys):
             vec = found.get(key)
@@ -454,7 +447,7 @@ class CachedEmbedder:
                 miss_text.append(texts[i])
         # Account for the misses now that we know the partition; the
         # legacy per-row `embed_get` flow counted them inline.
-        self._cache._embed_misses += len(miss_idx)  # noqa: SLF001 - sibling helper
+        self._cache._embed_misses += len(miss_idx)
         return results, miss_idx, miss_text
 
     def embed(self, texts: Sequence[str]) -> list[list[float]]:

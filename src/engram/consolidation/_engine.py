@@ -32,11 +32,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import math
 import time
 from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime
 from itertools import islice
 from typing import Any
 
@@ -82,7 +81,6 @@ _LOG = logging.getLogger("engram.consolidation")
 
 
 from engram._time import utcnow as _utcnow  # noqa: E402
-
 
 # Streaming-batch size for `iter_unconsolidated_events_with_embeddings`
 # consumption. Audit H-55: the engine used to materialize the entire
@@ -181,9 +179,7 @@ class ConsolidationParams:
         if self.level is Level.EVENT:
             raise ValueError("consolidation produces summaries/abstractions, not raw events")
         if self.stream_batch_size < 1:
-            raise ValueError(
-                f"stream_batch_size must be >= 1, got {self.stream_batch_size}"
-            )
+            raise ValueError(f"stream_batch_size must be >= 1, got {self.stream_batch_size}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -309,22 +305,17 @@ class ConsolidationEngine:
             chunk_vectors = np.asarray([p[1] for p in chunk], dtype=np.float32)
             events_processed += len(chunk_events)
 
-            assignments = cluster_vectors(
-                chunk_vectors, params=self._params.cluster_params
-            )
+            assignments = cluster_vectors(chunk_vectors, params=self._params.cluster_params)
             clusters_formed += len(assignments)
 
             for assignment in assignments:
                 if self._deadline_exceeded(deadline_mono):
                     _LOG.warning(
-                        "consolidation: pass deadline exceeded mid-chunk "
-                        "(%d clusters skipped)",
+                        "consolidation: pass deadline exceeded mid-chunk (%d clusters skipped)",
                         len(assignments) - clusters_formed,
                     )
                     break
-                outcome = self._consolidate_one_cluster(
-                    chunk_events, chunk_vectors, assignment
-                )
+                outcome = self._consolidate_one_cluster(chunk_events, chunk_vectors, assignment)
                 if outcome is None:
                     failed += 1
                 else:
@@ -416,9 +407,7 @@ class ConsolidationEngine:
             chunk_events = [p[0] for p in chunk]
             chunk_vectors = np.asarray([p[1] for p in chunk], dtype=np.float32)
             events_processed += len(chunk_events)
-            assignments = cluster_vectors(
-                chunk_vectors, params=self._params.cluster_params
-            )
+            assignments = cluster_vectors(chunk_vectors, params=self._params.cluster_params)
             clusters_formed += len(assignments)
             if not assignments:
                 continue
@@ -430,13 +419,14 @@ class ConsolidationEngine:
             async def _bounded_extract(
                 assignment: ClusterAssignment,
                 events: list[Event] = chunk_events,
+                sem: asyncio.Semaphore = semaphore,
             ) -> AbstractionResult | None:
                 member_indices = list(assignment.members)
                 request = AbstractionRequest(
                     observations=tuple(events[i].content for i in member_indices),
                     cohesion_hint=_clamp01(assignment.cohesion),
                 )
-                async with semaphore:
+                async with sem:
                     try:
                         return await aextract_abstraction(
                             request,
@@ -445,8 +435,7 @@ class ConsolidationEngine:
                         )
                     except AbstractionParseError:
                         _LOG.warning(
-                            "consolidation: abstraction failed after retries "
-                            "(cluster size=%d)",
+                            "consolidation: abstraction failed after retries (cluster size=%d)",
                             len(member_indices),
                         )
                         return None
@@ -463,7 +452,7 @@ class ConsolidationEngine:
                 for assignment, result in zip(assignments, results, strict=True)
                 if result is not None
             ]
-            for assignment, result in zip(assignments, results, strict=True):
+            for _assignment, result in zip(assignments, results, strict=True):
                 if result is None:
                     failed += 1
             if not ok_pairs:
@@ -471,14 +460,9 @@ class ConsolidationEngine:
             ab_texts = [r.abstraction for _, r in ok_pairs]
             ab_vecs = await self._embedder.aembed(ab_texts)
             ab_units = [_normalize(v) for v in ab_vecs]
-            for (assignment, result), ab_unit in zip(
-                ok_pairs, ab_units, strict=True
-            ):
+            for (assignment, result), ab_unit in zip(ok_pairs, ab_units, strict=True):
                 if self._deadline_exceeded(deadline_mono):
-                    _LOG.warning(
-                        "consolidation(async): pass deadline exceeded during "
-                        "write loop"
-                    )
+                    _LOG.warning("consolidation(async): pass deadline exceeded during write loop")
                     break
                 cluster_event_count = len(list(assignment.members))
                 try:
@@ -525,9 +509,7 @@ class ConsolidationEngine:
         if budget_s is None:
             return None
         if budget_s <= 0:
-            raise ValueError(
-                f"pass_deadline_s must be > 0 when set, got {budget_s!r}"
-            )
+            raise ValueError(f"pass_deadline_s must be > 0 when set, got {budget_s!r}")
         return time.monotonic() + budget_s
 
     @staticmethod
@@ -559,17 +541,14 @@ class ConsolidationEngine:
         member_indices = list(assignment.members)
         if len(set(member_indices)) != len(member_indices):
             raise ValueError(
-                "ClusterAssignment.members contains duplicate indices: "
-                f"{member_indices}"
+                f"ClusterAssignment.members contains duplicate indices: {member_indices}"
             )
         cluster_events = [events[i] for i in member_indices]
         # Defensive: duplicate event-ids would silently overwrite
         # `provenance_weights` -- assert at the seam so a buggy
         # caller can't sneak a duplicate past the dict-build below.
         if len({e.id for e in cluster_events}) != len(cluster_events):
-            raise ValueError(
-                "cluster has duplicate event ids; refusing to write provenance"
-            )
+            raise ValueError("cluster has duplicate event ids; refusing to write provenance")
         request = AbstractionRequest(
             observations=tuple(e.content for e in cluster_events),
             cohesion_hint=_clamp01(assignment.cohesion),
@@ -734,11 +713,7 @@ class ConsolidationEngine:
         # Cross-tenant contradictions are not meaningful — they leak
         # tenants into each other's conflict graph.
         if new_tenant_id is not None and candidates:
-            candidates = [
-                c
-                for c in candidates
-                if self._matches_tenant(c.item_id, new_tenant_id)
-            ]
+            candidates = [c for c in candidates if self._matches_tenant(c.item_id, new_tenant_id)]
         if not candidates:
             return []
         return detect_contradictions(
@@ -843,6 +818,23 @@ class ConsolidationEngine:
             # reconcile flipped to status=RESOLVED) no longer block
             # promotion -- the metadata blob never used to get cleared.
             if self._has_open_conflicts(item.id):
+                continue
+            # Audit H-89: never promote an item whose content trips the
+            # injection screen.  The summary may have already been
+            # planted (e.g. by an upstream consolidate that ran before
+            # this gate existed), so we refuse the level bump rather
+            # than try to retro-validate the synthesis path.  Operators
+            # see the skip as a non-promotion; the underlying
+            # SUMMARY-tier row stays in place but never gains the
+            # broader retrieval surface that ABSTRACTION carries.
+            from engram._security.prompt_injection import looks_like_injection
+
+            if looks_like_injection(item.content):
+                _LOG.warning(
+                    "promote: refusing to lift %s to ABSTRACTION — "
+                    "content matches injection screen (audit H-89)",
+                    item.id,
+                )
                 continue
             self._storage.update_memory_item_level(item.id, Level.ABSTRACTION)
             promoted += 1

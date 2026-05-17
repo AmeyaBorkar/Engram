@@ -124,9 +124,7 @@ class TestAsyncProcedure:
                 outcome=Outcome.SUCCESS,
             )
         )
-        matches = _run(
-            memory.aretrieve_procedures("flaky test", k=1, reinforce=False)
-        )
+        matches = _run(memory.aretrieve_procedures("flaky test", k=1, reinforce=False))
         assert len(matches) == 1
         assert matches[0].procedure.id == proc.id
 
@@ -153,9 +151,7 @@ class TestAsyncConsolidation:
                     vector=same_vec,
                 )
             )
-        req = AbstractionRequest(
-            observations=tuple(e.content for e in events), cohesion_hint=1.0
-        )
+        req = AbstractionRequest(observations=tuple(e.content for e in events), cohesion_hint=1.0)
         chat = FakeChat(
             scripts={
                 content_hash(render_prompt(req)): json.dumps(

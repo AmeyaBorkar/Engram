@@ -26,6 +26,7 @@ from uuid import UUID
 
 import numpy as np
 
+from engram.retrieve._bm25 import BM25Index
 from engram.schemas import (
     Cluster,
     Conflict,
@@ -42,7 +43,6 @@ from engram.schemas import (
     Resolution,
     Verdict,
 )
-from engram.retrieve._bm25 import BM25Index
 from engram.storage._serialize import (
     dumps_metadata,
     iso,
@@ -260,8 +260,7 @@ _DECAY_TABLES: dict[ItemKind, str] = {
     ItemKind.PROCEDURE: "procedures",
 }
 _GET_DECAY_STATE_SQL: dict[ItemKind, str] = {
-    kind: f"SELECT {_DECAY_COLS} FROM {table} WHERE id = ?"  # noqa: S608
-    for kind, table in _DECAY_TABLES.items()
+    kind: f"SELECT {_DECAY_COLS} FROM {table} WHERE id = ?" for kind, table in _DECAY_TABLES.items()
 }
 # `id` is the table's PRIMARY KEY so a SELECT with no ORDER BY already
 # scans in id order under SQLite's PK rowid alias — the explicit `ORDER BY
@@ -269,53 +268,50 @@ _GET_DECAY_STATE_SQL: dict[ItemKind, str] = {
 # ORDER BY` line on a 100k-row decay-tick scan).  Drop it; the protocol
 # docstring already says order is unspecified for iter_decay_states.
 _ITER_DECAY_STATES_HOT_SQL: dict[ItemKind, str] = {
-    kind: f"SELECT {_DECAY_COLS} FROM {table} WHERE cold_at IS NULL"  # noqa: S608
+    kind: f"SELECT {_DECAY_COLS} FROM {table} WHERE cold_at IS NULL"
     for kind, table in _DECAY_TABLES.items()
 }
 _ITER_DECAY_STATES_ALL_SQL: dict[ItemKind, str] = {
-    kind: f"SELECT {_DECAY_COLS} FROM {table}"  # noqa: S608
-    for kind, table in _DECAY_TABLES.items()
+    kind: f"SELECT {_DECAY_COLS} FROM {table}" for kind, table in _DECAY_TABLES.items()
 }
+
+
 def _build_update_decay_sql(kind: ItemKind, table: str) -> str:
     # memory_items / procedures carry `updated_at`; events do not.  Bump
     # it alongside the decay-state write so audit logs that watch
     # `updated_at` reflect every reinforce / corroborate / tick.
     if kind is ItemKind.EVENT:
         return (
-            f"UPDATE {table} SET weight = ?, reinforcement_count = ?, "  # noqa: S608
+            f"UPDATE {table} SET weight = ?, reinforcement_count = ?, "
             "corroboration_count = ?, contradiction_count = ?, "
             "last_decayed_at = ?, cold_at = ? WHERE id = ?"
         )
     return (
-        f"UPDATE {table} SET weight = ?, reinforcement_count = ?, "  # noqa: S608
+        f"UPDATE {table} SET weight = ?, reinforcement_count = ?, "
         "corroboration_count = ?, contradiction_count = ?, "
         "last_decayed_at = ?, cold_at = ?, updated_at = ? WHERE id = ?"
     )
 
 
 _UPDATE_DECAY_STATE_SQL: dict[ItemKind, str] = {
-    kind: _build_update_decay_sql(kind, table)
-    for kind, table in _DECAY_TABLES.items()
+    kind: _build_update_decay_sql(kind, table) for kind, table in _DECAY_TABLES.items()
 }
 _MARK_COLD_SQL: dict[ItemKind, str] = {
-    kind: f"UPDATE {table} SET cold_at = ? WHERE id = ?"  # noqa: S608
-    for kind, table in _DECAY_TABLES.items()
+    kind: f"UPDATE {table} SET cold_at = ? WHERE id = ?" for kind, table in _DECAY_TABLES.items()
 }
 _UNMARK_COLD_SQL: dict[ItemKind, str] = {
-    kind: f"UPDATE {table} SET cold_at = NULL WHERE id = ?"  # noqa: S608
-    for kind, table in _DECAY_TABLES.items()
+    kind: f"UPDATE {table} SET cold_at = NULL WHERE id = ?" for kind, table in _DECAY_TABLES.items()
 }
 _COUNT_COLD_SQL: dict[ItemKind, str] = {
-    kind: f"SELECT COUNT(*) FROM {table} WHERE cold_at IS NOT NULL"  # noqa: S608
+    kind: f"SELECT COUNT(*) FROM {table} WHERE cold_at IS NOT NULL"
     for kind, table in _DECAY_TABLES.items()
 }
 _DELETE_COLD_SQL: dict[ItemKind, str] = {
-    kind: f"DELETE FROM {table} WHERE cold_at IS NOT NULL"  # noqa: S608
-    for kind, table in _DECAY_TABLES.items()
+    kind: f"DELETE FROM {table} WHERE cold_at IS NOT NULL" for kind, table in _DECAY_TABLES.items()
 }
 _DECAY_TOTALS_SQL: dict[ItemKind, str] = {
     kind: (
-        "SELECT "  # noqa: S608
+        "SELECT "
         "SUM(CASE WHEN cold_at IS NULL THEN 1 ELSE 0 END) AS hot_items, "
         "SUM(CASE WHEN cold_at IS NOT NULL THEN 1 ELSE 0 END) AS cold_items, "
         "COALESCE(SUM(CASE WHEN cold_at IS NULL THEN reinforcement_count ELSE 0 END), 0) "
@@ -574,10 +570,8 @@ class SqliteStorage:
             # ROLLBACK itself can raise if the connection is in a broken
             # state.  Suppress so the original exception (which is more
             # actionable) is what the caller sees.
-            try:
+            with contextlib.suppress(sqlite3.Error):
                 conn.execute("ROLLBACK")
-            except sqlite3.Error:
-                pass
             raise
         else:
             conn.execute("COMMIT")
@@ -729,8 +723,7 @@ class SqliteStorage:
         # quietly clawing back the boost.
         now = iso(datetime.now(tz=timezone.utc))
         cursor = self._connect().execute(
-            "UPDATE memory_items SET weight = ?, updated_at = ?, "
-            "last_decayed_at = ? WHERE id = ?",
+            "UPDATE memory_items SET weight = ?, updated_at = ?, last_decayed_at = ? WHERE id = ?",
             (weight, now, now, item_id.bytes),
         )
         if cursor.rowcount == 0:
@@ -870,7 +863,7 @@ class SqliteStorage:
         sets.append("updated_at = ?")
         params.append(iso(datetime.now(tz=timezone.utc)))
         params.append(item_id.bytes)
-        sql = f"UPDATE memory_items SET {', '.join(sets)} WHERE id = ?"  # noqa: S608
+        sql = f"UPDATE memory_items SET {', '.join(sets)} WHERE id = ?"
         # Wrap read-validate-write in a transaction so a ValueError raised
         # after a partial UPDATE rolls back instead of leaving the row in
         # the invalid state.  Pre-fetch the *current* valid_from /
@@ -888,17 +881,20 @@ class SqliteStorage:
             new_vf = (
                 valid_from
                 if valid_from is not None
-                else parse_iso(existing["valid_from"]) if existing["valid_from"] else None
+                else parse_iso(existing["valid_from"])
+                if existing["valid_from"]
+                else None
             )
             new_vu = (
                 valid_until
                 if valid_until is not None
-                else parse_iso(existing["valid_until"]) if existing["valid_until"] else None
+                else parse_iso(existing["valid_until"])
+                if existing["valid_until"]
+                else None
             )
             if new_vf is not None and new_vu is not None and new_vu < new_vf:
                 raise ValueError(
-                    f"valid_until {new_vu.isoformat()} precedes "
-                    f"valid_from {new_vf.isoformat()}"
+                    f"valid_until {new_vu.isoformat()} precedes valid_from {new_vf.isoformat()}"
                 )
             cursor = conn.execute(sql, params)
             if cursor.rowcount == 0:
@@ -971,7 +967,7 @@ class SqliteStorage:
                     # Default: current-state. Exclude any row that has been
                     # invalidated, regardless of when.
                     sql = (
-                        "SELECT id, content FROM memory_items "  # noqa: S608
+                        "SELECT id, content FROM memory_items "
                         f"WHERE id IN ({placeholders}) "
                         "AND invalidated_at IS NULL"
                     )
@@ -979,7 +975,7 @@ class SqliteStorage:
                 else:
                     # As-of mode: surface items whose validity covers `as_of`.
                     sql = (
-                        "SELECT id, content FROM memory_items "  # noqa: S608
+                        "SELECT id, content FROM memory_items "
                         f"WHERE id IN ({placeholders}) "
                         "  AND (valid_from IS NULL OR valid_from <= ?) "
                         "  AND (valid_until IS NULL OR valid_until > ?) "
@@ -989,20 +985,12 @@ class SqliteStorage:
                 for r in self._connect().execute(sql, params).fetchall():
                     content[bytes(r["id"])] = r["content"]
             # Preserve vector-search ordering for items that passed the filter.
-            filtered = [
-                (u, content[u.bytes], score)
-                for u, _, score in hits
-                if u.bytes in content
-            ]
+            filtered = [(u, content[u.bytes], score) for u, _, score in hits if u.bytes in content]
             attempts += 1
             # Exit when we have k results, when we've already over-fetched
             # the whole shard (further expansion can't help), or after
             # the bounded retry budget.
-            if (
-                len(filtered) >= k
-                or len(hits) < k * fetch_multiplier
-                or attempts >= max_attempts
-            ):
+            if len(filtered) >= k or len(hits) < k * fetch_multiplier or attempts >= max_attempts:
                 break
             fetch_multiplier *= 2
         return filtered[:k]
@@ -1133,24 +1121,19 @@ class SqliteStorage:
                 raise KeyError(f"conflict {conflict_id} not found")
             if existing.status is ConflictStatus.RESOLVED:
                 raise RuntimeError(
-                    f"conflict {conflict_id} is already resolved "
-                    f"(resolution={existing.resolution})"
+                    f"conflict {conflict_id} is already resolved (resolution={existing.resolution})"
                 )
             # KEEP_BOTH and MERGE legitimately leave the winner field NULL.
             if (
                 resolution not in (Resolution.KEEP_BOTH, Resolution.MERGE)
                 and resolved_winner_id is None
             ):
-                raise ValueError(
-                    f"resolution={resolution.value} requires resolved_winner_id"
-                )
+                raise ValueError(f"resolution={resolution.value} requires resolved_winner_id")
             if resolved_winner_id is not None and resolved_winner_id not in (
                 existing.source_item_id,
                 existing.target_item_id,
             ):
-                raise ValueError(
-                    "resolved_winner_id must equal source_item_id or target_item_id"
-                )
+                raise ValueError("resolved_winner_id must equal source_item_id or target_item_id")
             cursor = self._connect().execute(
                 "UPDATE conflicts SET status = 'resolved', resolution = ?, "
                 "resolved_winner_id = ?, resolved_at = ? "
@@ -1444,7 +1427,7 @@ class SqliteStorage:
             rows = (
                 self._connect()
                 .execute(
-                    f"SELECT id, content FROM events WHERE id IN ({placeholders})",  # noqa: S608
+                    f"SELECT id, content FROM events WHERE id IN ({placeholders})",
                     list(chunk),
                 )
                 .fetchall()
@@ -1470,7 +1453,7 @@ class SqliteStorage:
             rows = (
                 self._connect()
                 .execute(
-                    f"SELECT id, content FROM memory_items "  # noqa: S608
+                    f"SELECT id, content FROM memory_items "
                     f"WHERE invalidated_at IS NULL AND id IN ({placeholders})",
                     list(chunk),
                 )
@@ -1524,7 +1507,7 @@ class SqliteStorage:
             rows = (
                 self._connect()
                 .execute(
-                    f"SELECT id, situation FROM procedures WHERE id IN ({placeholders})",  # noqa: S608
+                    f"SELECT id, situation FROM procedures WHERE id IN ({placeholders})",
                     list(chunk),
                 )
                 .fetchall()
@@ -1592,7 +1575,7 @@ class SqliteStorage:
             rows = (
                 self._connect()
                 .execute(
-                    f"SELECT id, content FROM events WHERE id IN ({placeholders})",  # noqa: S608
+                    f"SELECT id, content FROM events WHERE id IN ({placeholders})",
                     list(chunk),
                 )
                 .fetchall()
@@ -1671,12 +1654,10 @@ class SqliteStorage:
             for chunk in _chunked(id_bytes_list):
                 placeholders = ",".join("?" for _ in chunk)
                 sql = (
-                    f"SELECT item_id, vector, dim FROM embeddings "  # noqa: S608
+                    f"SELECT item_id, vector, dim FROM embeddings "
                     f"WHERE model = ? AND item_kind = ? AND item_id IN ({placeholders})"
                 )
-                rows = self._connect().execute(
-                    sql, (model, kind.value, *chunk)
-                ).fetchall()
+                rows = self._connect().execute(sql, (model, kind.value, *chunk)).fetchall()
                 for row in rows:
                     uid = UUID(bytes=row["item_id"])
                     out[uid] = list(unpack_vector(row["vector"], int(row["dim"])))
@@ -1706,10 +1687,7 @@ class SqliteStorage:
             # Chunk to keep the IN-list under SQLite's variable ceiling.
             for chunk in _chunked(id_bytes_list):
                 placeholders = ",".join("?" for _ in chunk)
-                sql = (
-                    f"SELECT id, created_at FROM {table} "  # noqa: S608
-                    f"WHERE id IN ({placeholders})"
-                )
+                sql = f"SELECT id, created_at FROM {table} WHERE id IN ({placeholders})"
                 rows = self._connect().execute(sql, list(chunk)).fetchall()
                 for row in rows:
                     out[UUID(bytes=row["id"])] = parse_iso(row["created_at"])
@@ -1759,7 +1737,7 @@ class SqliteStorage:
                 "       emb.vector AS vector, emb.dim AS dim "
                 "FROM embeddings emb "
                 "JOIN events e ON emb.item_id = e.id "
-                f"WHERE emb.item_kind = 'event' AND emb.model = ? "  # noqa: S608
+                f"WHERE emb.item_kind = 'event' AND emb.model = ? "
                 f"  AND e.id IN ({placeholders})"
             )
             if not include_cold:

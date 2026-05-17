@@ -80,9 +80,7 @@ class TestParser:
         assert out.reasoning == "x"
 
     def test_parses_null_anchor(self) -> None:
-        out = parse_temporal_response(
-            json.dumps({"anchor": None, "reasoning": "non-temporal"})
-        )
+        out = parse_temporal_response(json.dumps({"anchor": None, "reasoning": "non-temporal"}))
         assert out.anchor is None
 
     def test_rejects_non_json(self) -> None:
@@ -126,9 +124,7 @@ class TestComputeAnchor:
 
     def test_temporal_query_calls_chat_and_parses_anchor(self) -> None:
         chat = FakeChat(
-            default=json.dumps(
-                {"anchor": "2024-03-15T00:00:00+00:00", "reasoning": "..."}
-            )
+            default=json.dumps({"anchor": "2024-03-15T00:00:00+00:00", "reasoning": "..."})
         )
         anchor = compute_temporal_anchor(
             "where was I in March 2024?",
@@ -138,9 +134,7 @@ class TestComputeAnchor:
         assert anchor == datetime(2024, 3, 15, tzinfo=timezone.utc)
 
     def test_null_anchor_returns_none(self) -> None:
-        chat = FakeChat(
-            default=json.dumps({"anchor": None, "reasoning": "non-temporal"})
-        )
+        chat = FakeChat(default=json.dumps({"anchor": None, "reasoning": "non-temporal"}))
         # The heuristic gate must allow the call -- pick a query with a
         # cue but the LLM decides null.
         anchor = compute_temporal_anchor(
@@ -151,9 +145,7 @@ class TestComputeAnchor:
         assert anchor is None
 
     def test_unparseable_anchor_returns_none(self) -> None:
-        chat = FakeChat(
-            default=json.dumps({"anchor": "not-a-date", "reasoning": "..."})
-        )
+        chat = FakeChat(default=json.dumps({"anchor": "not-a-date", "reasoning": "..."}))
         anchor = compute_temporal_anchor(
             "where was I yesterday",
             chat,
@@ -261,9 +253,7 @@ class TestMemoryRetrieveWithTemporal:
         )
         assert not called
 
-    def test_temporal_true_runs_codegen_for_temporal_query(
-        self, memory_with_chat: Memory
-    ) -> None:
+    def test_temporal_true_runs_codegen_for_temporal_query(self, memory_with_chat: Memory) -> None:
         from engram.providers._cache import content_hash
 
         chat = memory_with_chat._chat
@@ -279,9 +269,7 @@ class TestMemoryRetrieveWithTemporal:
         }
         # Just verify the path doesn't crash -- the actual `as_of`
         # being applied is tested by the temporal tests in Stage 8.
-        memory_with_chat.retrieve(
-            "yesterday", k=1, reinforce=False, temporal=True
-        )
+        memory_with_chat.retrieve("yesterday", k=1, reinforce=False, temporal=True)
 
 
 # ---------------------------------------------------------------------------
@@ -340,9 +328,7 @@ class TestTemporalRetryExhaustion:
                 attempt["n"] += 1
                 if attempt["n"] < 2:
                     raise RuntimeError("transient")
-                return json.dumps(
-                    {"anchor": "2024-03-15T00:00:00+00:00", "reasoning": "ok"}
-                )
+                return json.dumps({"anchor": "2024-03-15T00:00:00+00:00", "reasoning": "ok"})
 
             async def achat(self, messages: object) -> str:
                 return ""
@@ -392,15 +378,24 @@ class TestTemporalNaiveDatetimeWarn:
     """Audit M-40: naive datetimes coerce to UTC but emit a WARNING
     so an operator can spot the prompt drift."""
 
-    def test_naive_datetime_warns_and_coerces(
-        self, caplog: pytest.LogCaptureFixture
-    ) -> None:
+    def test_naive_datetime_warns_and_coerces(self, caplog: pytest.LogCaptureFixture) -> None:
+        import logging as _logging
+
+        chat = FakeChat(default=json.dumps({"anchor": "2024-03-15T12:00:00", "reasoning": "naive"}))
+        with caplog.at_level(_logging.WARNING, logger="engram.retrieve"):
+            anchor = compute_temporal_anchor(
+                "yesterday",
+                chat,
+                now=datetime(2026, 5, 11, tzinfo=timezone.utc),
+            )
+        assert anchor == datetime(2024, 3, 15, 12, 0, tzinfo=timezone.utc)
+        assert any("naive datetime" in r.getMessage() for r in caplog.records)
+
+    def test_tz_aware_datetime_no_warning(self, caplog: pytest.LogCaptureFixture) -> None:
         import logging as _logging
 
         chat = FakeChat(
-            default=json.dumps(
-                {"anchor": "2024-03-15T12:00:00", "reasoning": "naive"}
-            )
+            default=json.dumps({"anchor": "2024-03-15T12:00:00+00:00", "reasoning": "ok"})
         )
         with caplog.at_level(_logging.WARNING, logger="engram.retrieve"):
             anchor = compute_temporal_anchor(
@@ -409,27 +404,4 @@ class TestTemporalNaiveDatetimeWarn:
                 now=datetime(2026, 5, 11, tzinfo=timezone.utc),
             )
         assert anchor == datetime(2024, 3, 15, 12, 0, tzinfo=timezone.utc)
-        assert any(
-            "naive datetime" in r.getMessage() for r in caplog.records
-        )
-
-    def test_tz_aware_datetime_no_warning(
-        self, caplog: pytest.LogCaptureFixture
-    ) -> None:
-        import logging as _logging
-
-        chat = FakeChat(
-            default=json.dumps(
-                {"anchor": "2024-03-15T12:00:00+00:00", "reasoning": "ok"}
-            )
-        )
-        with caplog.at_level(_logging.WARNING, logger="engram.retrieve"):
-            anchor = compute_temporal_anchor(
-                "yesterday",
-                chat,
-                now=datetime(2026, 5, 11, tzinfo=timezone.utc),
-            )
-        assert anchor == datetime(2024, 3, 15, 12, 0, tzinfo=timezone.utc)
-        assert not any(
-            "naive datetime" in r.getMessage() for r in caplog.records
-        )
+        assert not any("naive datetime" in r.getMessage() for r in caplog.records)

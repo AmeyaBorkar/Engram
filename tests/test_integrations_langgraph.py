@@ -44,9 +44,7 @@ class TestEngramRetrieveNode:
 
     def test_custom_state_keys(self, memory: Memory) -> None:
         memory.observe("hi")
-        node = EngramRetrieveNode(
-            memory, query_key="q", context_key="ctx"
-        )
+        node = EngramRetrieveNode(memory, query_key="q", context_key="ctx")
         out = node({"q": "hi"})
         assert "ctx" in out
         assert "engram_context" not in out

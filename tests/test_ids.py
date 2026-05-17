@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import time
 
-import pytest
-
 from engram.ids import new_id
 
 
@@ -25,4 +23,3 @@ def test_new_id_time_ordered() -> None:
     time.sleep(0.002)
     b = new_id()
     assert a.bytes < b.bytes, "UUIDv7 should be time-ordered when generation gap > 1ms"
-

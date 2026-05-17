@@ -28,7 +28,7 @@ from __future__ import annotations
 import asyncio
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
@@ -280,9 +280,7 @@ class DecayEngine:
                 # executemany call.  Leaving the per-row write here
                 # documented as a known perf gap.
                 chunk: list[DecayState] = []
-                iterator = self._storage.iter_decay_states(
-                    kind, batch_size=self._batch_size
-                )
+                iterator = self._storage.iter_decay_states(kind, batch_size=self._batch_size)
                 for state in iterator:
                     chunk.append(state)
                     if len(chunk) >= self._batch_size:
@@ -347,11 +345,7 @@ class DecayEngine:
             dt = max(0.0, (moment - state.last_decayed_at).total_seconds())
             new_weight = apply(weight=state.weight, dt_seconds=dt, params=self._params)
             became_cold = is_cold(new_weight, self._params)
-            if (
-                new_weight == state.weight
-                and state.last_decayed_at == moment
-                and not became_cold
-            ):
+            if new_weight == state.weight and state.last_decayed_at == moment and not became_cold:
                 # Nothing changed. Skip the write.
                 continue
 

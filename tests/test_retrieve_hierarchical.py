@@ -331,10 +331,7 @@ class TestReranker:
         assert len(results) == 2
         # The warning must surface so an operator can spot the
         # misbehaving reranker.
-        assert any(
-            "padding with prior_score" in record.getMessage()
-            for record in caplog.records
-        )
+        assert any("padding with prior_score" in record.getMessage() for record in caplog.records)
 
     def test_reranker_that_raises_falls_back_to_prior_order(
         self, storage: SqliteStorage, caplog: pytest.LogCaptureFixture
@@ -356,12 +353,13 @@ class TestReranker:
 
         with caplog.at_level(_logging.WARNING, logger="engram.retrieve"):
             results = memory.retrieve(
-                "a", k=2, reranker=CrashingReranker()  # type: ignore[arg-type]
+                "a",
+                k=2,
+                reranker=CrashingReranker(),  # type: ignore[arg-type]
             )
         assert len(results) == 2
         assert any(
-            "falling back to pre-rerank order" in record.getMessage()
-            for record in caplog.records
+            "falling back to pre-rerank order" in record.getMessage() for record in caplog.records
         )
 
 
@@ -444,9 +442,7 @@ class TestConfidencePreservedAcrossFusion:
     for every hit.  After the fix, confidence reflects the original
     dense cosine even after RRF fusion."""
 
-    def test_confidence_is_dense_cosine_not_rrf(
-        self, storage: SqliteStorage
-    ) -> None:
+    def test_confidence_is_dense_cosine_not_rrf(self, storage: SqliteStorage) -> None:
         embedder = PlantedEmbedder(dim=4)
         v = (1.0, 0.0, 0.0, 0.0)
         # Plant two events with vectors aligned to the query so dense
@@ -504,7 +500,9 @@ class TestRerankerLengthMismatchFallback:
 
         with caplog.at_level(_logging.WARNING, logger="engram.retrieve"):
             results = memory.retrieve(
-                "x", k=2, reranker=_ValueErrorReranker()  # type: ignore[arg-type]
+                "x",
+                k=2,
+                reranker=_ValueErrorReranker(),  # type: ignore[arg-type]
             )
         assert len(results) == 2
 
@@ -525,9 +523,7 @@ class TestBm25EventKeyRemapToMemoryItemParents:
     the abstraction climbs in the final order.
     """
 
-    def test_bm25_lift_flows_to_parent_memory_item(
-        self, storage: SqliteStorage
-    ) -> None:
+    def test_bm25_lift_flows_to_parent_memory_item(self, storage: SqliteStorage) -> None:
         embedder = PlantedEmbedder(dim=4)
         # Two abstractions with dense vectors so abs_b is closer to
         # the query than abs_a.  abs_a's supporting event carries the

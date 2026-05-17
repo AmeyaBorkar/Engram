@@ -25,9 +25,7 @@ class _FakeStorage:
     def __init__(self, created_at_map: dict[UUID, datetime]) -> None:
         self._created_at_map = created_at_map
 
-    def get_created_at_batch(
-        self, items: Sequence[tuple[UUID, ItemKind]]
-    ) -> dict[UUID, datetime]:
+    def get_created_at_batch(self, items: Sequence[tuple[UUID, ItemKind]]) -> dict[UUID, datetime]:
         return {iid: self._created_at_map[iid] for iid, _ in items if iid in self._created_at_map}
 
 
@@ -69,9 +67,7 @@ class TestRecencyBoostMath:
         now = datetime(2026, 5, 15, tzinfo=timezone.utc)
         c = _cand()
         retriever = _make_retriever({c.item_id: now})
-        p = RetrieveParams(
-            recency_lambda=0.5, recency_decay_days=10.0, as_of=now
-        )
+        p = RetrieveParams(recency_lambda=0.5, recency_decay_days=10.0, as_of=now)
         out = retriever._apply_recency_boost([c], [1.0], p)  # type: ignore[reportPrivateUsage]
         # exp(0) = 1; 1.0 + 0.5 * 1.0 = 1.5
         assert out[0] == pytest.approx(1.5, abs=1e-9)
@@ -121,9 +117,7 @@ class TestRecencyBoostMath:
             as_of=now,
         )
         scores = [2.0, 3.0, 4.0]
-        out = retriever._apply_recency_boost(
-            [c_recent, c_old, c_missing], scores, p
-        )  # type: ignore[reportPrivateUsage]
+        out = retriever._apply_recency_boost([c_recent, c_old, c_missing], scores, p)  # type: ignore[reportPrivateUsage]
         assert len(out) == 3
         # recent: 2.0 + 1.0 * exp(0) = 3.0
         assert out[0] == pytest.approx(3.0, abs=1e-9)

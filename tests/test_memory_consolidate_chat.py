@@ -73,9 +73,7 @@ def _seed_with_provenance_simple(
 class TestConsolidateChat:
     def test_default_falls_back_to_chat(self, storage: SqliteStorage) -> None:
         cheap = FakeChat(default="cheap reply")
-        memory = Memory(
-            storage=storage, embedder=FakeEmbedder(dim=8), chat=cheap
-        )
+        memory = Memory(storage=storage, embedder=FakeEmbedder(dim=8), chat=cheap)
         # The reconciler uses consolidate_chat; defaults to chat.
         # Smoke: construction works; no separate strong provider.
         assert memory._consolidate_chat is cheap
@@ -108,9 +106,7 @@ class TestConsolidateChat:
 
 
 class TestMergeUsesConsolidateChat:
-    def test_merge_calls_strong_provider(
-        self, storage: SqliteStorage
-    ) -> None:
+    def test_merge_calls_strong_provider(self, storage: SqliteStorage) -> None:
         """MERGE -> the merged content comes from consolidate_chat, not
         from the cheap chat."""
         from engram.reconcile._merge import render_merge_prompt
@@ -126,9 +122,7 @@ class TestMergeUsesConsolidateChat:
             content="B",
             created_at=datetime(2026, 4, 1, tzinfo=timezone.utc),
         )
-        conflict = Conflict(
-            source_item_id=newer.id, target_item_id=older.id, similarity=0.9
-        )
+        conflict = Conflict(source_item_id=newer.id, target_item_id=older.id, similarity=0.9)
         storage.record_conflict(conflict)
 
         cheap = FakeChat(default="DEFINITELY_NOT_THE_MERGE")

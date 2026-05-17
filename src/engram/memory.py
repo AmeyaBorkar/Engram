@@ -27,11 +27,10 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
-import math
 import time
 from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import datetime
 from uuid import UUID
 
 from engram._otel import METRICS, span
@@ -255,9 +254,7 @@ class Memory:
         # ONE provider call for the whole batch.
         vectors = self._embedder.embed([ev.content for ev in events])
         if len(vectors) != len(events):
-            raise RuntimeError(
-                f"embedder returned {len(vectors)} vectors for {len(events)} inputs"
-            )
+            raise RuntimeError(f"embedder returned {len(vectors)} vectors for {len(events)} inputs")
         for ev, vec in zip(events, vectors, strict=True):
             normalized = _normalize(vec)
             embedding = Embedding(
@@ -369,9 +366,7 @@ class Memory:
         effective_temporal = temporal if temporal is not None else defaults.temporal
         effective_as_of = as_of
         if effective_as_of is None and effective_temporal and self._chat is not None:
-            effective_as_of = compute_temporal_anchor(
-                query, self._chat, now=self._clock()
-            )
+            effective_as_of = compute_temporal_anchor(query, self._chat, now=self._clock())
         params = RetrieveParams(
             k=k if k is not None else defaults.k,
             prefer=prefer if prefer is not None else defaults.prefer,
@@ -390,15 +385,11 @@ class Memory:
             reinforce_on_use=(reinforce if reinforce is not None else defaults.reinforce_on_use),
             as_of=effective_as_of if effective_as_of is not None else defaults.as_of,
             hyde=hyde if hyde is not None else defaults.hyde,
-            multi_query_n=(
-                multi_query_n if multi_query_n is not None else defaults.multi_query_n
-            ),
+            multi_query_n=(multi_query_n if multi_query_n is not None else defaults.multi_query_n),
             rrf_k=rrf_k if rrf_k is not None else defaults.rrf_k,
             decompose=decompose if decompose is not None else defaults.decompose,
             surface_conflicts=(
-                surface_conflicts
-                if surface_conflicts is not None
-                else defaults.surface_conflicts
+                surface_conflicts if surface_conflicts is not None else defaults.surface_conflicts
             ),
             temporal=effective_temporal,
             bm25_weight=bm25_weight if bm25_weight is not None else defaults.bm25_weight,
@@ -416,13 +407,9 @@ class Memory:
                 if recency_decay_days is not None
                 else defaults.recency_decay_days
             ),
-            mmr_pool_size=(
-                mmr_pool_size if mmr_pool_size is not None else defaults.mmr_pool_size
-            ),
+            mmr_pool_size=(mmr_pool_size if mmr_pool_size is not None else defaults.mmr_pool_size),
             recent_window_k=(
-                recent_window_k
-                if recent_window_k is not None
-                else defaults.recent_window_k
+                recent_window_k if recent_window_k is not None else defaults.recent_window_k
             ),
         )
         effective_reranker = reranker if reranker is not None else self._default_reranker
@@ -589,9 +576,7 @@ class Memory:
                 s.set_attribute(
                     "engram.consolidate.abstractions_created", result.abstractions_created
                 )
-                s.set_attribute(
-                    "engram.consolidate.conflicts_detected", result.conflicts_detected
-                )
+                s.set_attribute("engram.consolidate.conflicts_detected", result.conflicts_detected)
             return result
 
     def promote(self, *, now: datetime | None = None) -> PromotionResult:
@@ -770,9 +755,7 @@ class Memory:
             except (KeyError, RuntimeError):  # pragma: no cover - defensive
                 continue
             for c in conflicts:
-                sibling_id = (
-                    c.target_item_id if c.source_item_id == r.item_id else c.source_item_id
-                )
+                sibling_id = c.target_item_id if c.source_item_id == r.item_id else c.source_item_id
                 if sibling_id in existing_ids:
                     continue
                 pending.append((r, sibling_id))
@@ -858,8 +841,7 @@ class Memory:
                     continue
                 slice_size = min(len(ranking), params.k * params.candidate_multiplier)
                 cands = [
-                    RerankCandidate(result=r, prior_score=r.score)
-                    for r in ranking[:slice_size]
+                    RerankCandidate(result=r, prior_score=r.score) for r in ranking[:slice_size]
                 ]
                 try:
                     rerank_scores = reranker.rerank(sub_query, cands)
@@ -889,7 +871,7 @@ class Memory:
                         sub_query,
                     )
                     padded = list(rerank_scores) + [
-                        c.prior_score for c in cands[len(rerank_scores):]
+                        c.prior_score for c in cands[len(rerank_scores) :]
                     ]
                     rerank_scores = padded[: len(cands)]
                 paired = sorted(
@@ -949,16 +931,11 @@ class Memory:
             or getattr(self._embedder, "_disable_thread_parallelism", False)
             or storage_path == ":memory:"
         ):
-            return [
-                self._retriever.retrieve(q, params=leaf_params, reranker=None)
-                for q in queries
-            ]
+            return [self._retriever.retrieve(q, params=leaf_params, reranker=None) for q in queries]
         max_workers = min(len(queries), 8)
         with ThreadPoolExecutor(max_workers=max_workers) as pool:
             futures = [
-                pool.submit(
-                    self._retriever.retrieve, q, params=leaf_params, reranker=None
-                )
+                pool.submit(self._retriever.retrieve, q, params=leaf_params, reranker=None)
                 for q in queries
             ]
             return [f.result() for f in futures]
@@ -1047,9 +1024,7 @@ class Memory:
             if reinforce:
                 for r in results:
                     with contextlib.suppress(KeyError, RuntimeError, ValueError):
-                        kind = (
-                            ItemKind.EVENT if r.level is Level.EVENT else ItemKind.MEMORY_ITEM
-                        )
+                        kind = ItemKind.EVENT if r.level is Level.EVENT else ItemKind.MEMORY_ITEM
                         self._engine.reinforce(r.item_id, kind)
             return results
 
@@ -1133,10 +1108,7 @@ class Memory:
             from engram.retrieve._reranker import RerankCandidate
 
             slice_size = min(len(fused), params.k * params.candidate_multiplier)
-            cands = [
-                RerankCandidate(result=r, prior_score=r.score)
-                for r in fused[:slice_size]
-            ]
+            cands = [RerankCandidate(result=r, prior_score=r.score) for r in fused[:slice_size]]
             try:
                 rerank_scores = reranker.rerank(query, cands)
             except (RuntimeError, ValueError):
@@ -1157,7 +1129,7 @@ class Memory:
                         len(cands),
                     )
                     padded = list(rerank_scores) + [
-                        c.prior_score for c in cands[len(rerank_scores):]
+                        c.prior_score for c in cands[len(rerank_scores) :]
                     ]
                     rerank_scores = padded[: len(cands)]
                 paired = sorted(
@@ -1236,9 +1208,7 @@ class Memory:
             if s is not None:
                 s.set_attribute("engram.reconcile.conflict_id", str(conflict_id))
                 if out.resolved_winner_id is not None:
-                    s.set_attribute(
-                        "engram.reconcile.winner_id", str(out.resolved_winner_id)
-                    )
+                    s.set_attribute("engram.reconcile.winner_id", str(out.resolved_winner_id))
             return out
 
     def list_conflicts(
@@ -1346,9 +1316,7 @@ class Memory:
         introducing a separate async-native code path.  Will move to
         a native async pipeline when v0.4 lands the Postgres backend.
         """
-        return await asyncio.to_thread(
-            lambda: self.reinforce(item_id, kind, count=count, now=now)
-        )
+        return await asyncio.to_thread(lambda: self.reinforce(item_id, kind, count=count, now=now))
 
     async def acorroborate(
         self,
@@ -1374,9 +1342,7 @@ class Memory:
     ) -> DecayState:
         """Async version of `contradict`.  See `areinforce` for the
         thread-pool note."""
-        return await asyncio.to_thread(
-            lambda: self.contradict(item_id, kind, count=count, now=now)
-        )
+        return await asyncio.to_thread(lambda: self.contradict(item_id, kind, count=count, now=now))
 
     async def aconsolidate(
         self,
@@ -1404,9 +1370,7 @@ class Memory:
             )
         aconsolidate = getattr(self._consolidator, "aconsolidate", None)
         if not callable(aconsolidate):  # pragma: no cover - back-compat
-            return await asyncio.to_thread(
-                lambda: self.consolidate(max_events=max_events)
-            )
+            return await asyncio.to_thread(lambda: self.consolidate(max_events=max_events))
         with span("engram.memory.aconsolidate", max_events=max_events) as s:
             result: ConsolidationResult = await aconsolidate(
                 max_events=max_events,
@@ -1438,9 +1402,7 @@ class Memory:
         metadata: dict[str, object] | None = None,
     ) -> Procedure:
         return await asyncio.to_thread(
-            lambda: self.record_procedure(
-                situation, action, outcome=outcome, metadata=metadata
-            )
+            lambda: self.record_procedure(situation, action, outcome=outcome, metadata=metadata)
         )
 
     async def aretrieve_procedures(
@@ -1469,9 +1431,7 @@ class Memory:
         *,
         now: datetime | None = None,
     ) -> Procedure:
-        return await asyncio.to_thread(
-            lambda: self.update_outcome(procedure_id, outcome, now=now)
-        )
+        return await asyncio.to_thread(lambda: self.update_outcome(procedure_id, outcome, now=now))
 
     async def areconcile(
         self,
@@ -1498,9 +1458,7 @@ class Memory:
         limit: int = 100,
     ) -> list[Conflict]:
         return await asyncio.to_thread(
-            lambda: self.list_conflicts(
-                status=status, memory_item_id=memory_item_id, limit=limit
-            )
+            lambda: self.list_conflicts(status=status, memory_item_id=memory_item_id, limit=limit)
         )
 
     # --- aggregate user-state ----------------------------------------------

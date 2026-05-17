@@ -51,17 +51,13 @@ class TestRRFWeights:
         """A zero weight drops the ranking entirely (so doc 'b' is gone)."""
         a = "a"
         b = "b"
-        fused = reciprocal_rank_fusion(
-            [[(a, 1.0)], [(b, 1.0)]], k=60, weights=[1.0, 0.0]
-        )
+        fused = reciprocal_rank_fusion([[(a, 1.0)], [(b, 1.0)]], k=60, weights=[1.0, 0.0])
         keys = [k for k, _ in fused]
         assert keys == [a]
 
     def test_weights_length_mismatch_raises(self) -> None:
         with pytest.raises(ValueError, match="weights length"):
-            reciprocal_rank_fusion(
-                [[("a", 1.0)], [("b", 1.0)]], k=60, weights=[1.0]
-            )
+            reciprocal_rank_fusion([[("a", 1.0)], [("b", 1.0)]], k=60, weights=[1.0])
 
     def test_negative_weight_raises(self) -> None:
         with pytest.raises(ValueError, match="weights must be >= 0"):

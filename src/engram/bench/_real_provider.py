@@ -387,9 +387,7 @@ def build_provider(
     if chat_name not in _CHAT_BUILDERS:
         raise ValueError(f"unknown chat {chat_name!r}; choose from {sorted(_CHAT_BUILDERS)}")
 
-    embedder = _EMBEDDER_BUILDERS[embedder_name](
-        embed_model, embed_dim, embed_device, embed_dtype
-    )
+    embedder = _EMBEDDER_BUILDERS[embedder_name](embed_model, embed_dim, embed_device, embed_dtype)
     chat = _CHAT_BUILDERS[chat_name](chat_model, chat_max_tokens)
     # M-151: name includes the resolved model so a sweep over
     # `--chat-model` produces distinguishable rows in the

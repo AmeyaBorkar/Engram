@@ -17,7 +17,6 @@ falling back.
 
 from __future__ import annotations
 
-import json
 import logging
 from datetime import datetime, timezone
 
@@ -45,42 +44,31 @@ class _ErrChat:
 
 
 class TestSwallowLogsWarning:
-    def test_hyde_logs_on_chat_error(
-        self, caplog: pytest.LogCaptureFixture
-    ) -> None:
+    def test_hyde_logs_on_chat_error(self, caplog: pytest.LogCaptureFixture) -> None:
         with caplog.at_level(logging.WARNING, logger="engram.retrieve"):
             out = hyde_transform("query", _ErrChat())  # type: ignore[arg-type]
         assert out == "query"
         assert any(
-            "hyde" in r.getMessage().lower() and "boom" in r.getMessage()
-            for r in caplog.records
+            "hyde" in r.getMessage().lower() and "boom" in r.getMessage() for r in caplog.records
         )
 
-    def test_multi_query_logs_on_chat_error(
-        self, caplog: pytest.LogCaptureFixture
-    ) -> None:
+    def test_multi_query_logs_on_chat_error(self, caplog: pytest.LogCaptureFixture) -> None:
         with caplog.at_level(logging.WARNING, logger="engram.retrieve"):
             out = expand_queries("query", 3, _ErrChat())  # type: ignore[arg-type]
         assert out == ["query"]
         assert any(
-            "expand_queries" in r.getMessage() and "boom" in r.getMessage()
-            for r in caplog.records
+            "expand_queries" in r.getMessage() and "boom" in r.getMessage() for r in caplog.records
         )
 
-    def test_decompose_logs_on_chat_error(
-        self, caplog: pytest.LogCaptureFixture
-    ) -> None:
+    def test_decompose_logs_on_chat_error(self, caplog: pytest.LogCaptureFixture) -> None:
         with caplog.at_level(logging.WARNING, logger="engram.retrieve"):
             out = decompose_query("query", _ErrChat())  # type: ignore[arg-type]
         assert out == ["query"]
         assert any(
-            "decompose" in r.getMessage() and "boom" in r.getMessage()
-            for r in caplog.records
+            "decompose" in r.getMessage() and "boom" in r.getMessage() for r in caplog.records
         )
 
-    def test_temporal_logs_on_chat_error(
-        self, caplog: pytest.LogCaptureFixture
-    ) -> None:
+    def test_temporal_logs_on_chat_error(self, caplog: pytest.LogCaptureFixture) -> None:
         with caplog.at_level(logging.WARNING, logger="engram.retrieve"):
             anchor = compute_temporal_anchor(
                 "yesterday",
@@ -90,8 +78,7 @@ class TestSwallowLogsWarning:
             )
         assert anchor is None
         assert any(
-            "temporal" in r.getMessage().lower()
-            and "RuntimeError" in r.getMessage()
+            "temporal" in r.getMessage().lower() and "RuntimeError" in r.getMessage()
             for r in caplog.records
         )
 

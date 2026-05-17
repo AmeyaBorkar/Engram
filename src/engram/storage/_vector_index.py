@@ -290,9 +290,7 @@ def _level_mask(
             # our outer snapshot and now), `cached` length may not match
             # `snapshot_levels` — refresh against the snapshot.
             if cached is None or len(cached) != len(snapshot_levels):
-                cached = np.asarray(
-                    [lv == level for lv in snapshot_levels], dtype=np.bool_
-                )
+                cached = np.asarray([lv == level for lv in snapshot_levels], dtype=np.bool_)
                 # Only memoize when the cache matches the live shard so
                 # we don't poison a fresh rebuild's mask cache with a
                 # snapshot-sized array.

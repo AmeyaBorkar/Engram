@@ -11,6 +11,7 @@ without one don't count.
 
 from __future__ import annotations
 
+import contextlib
 import ctypes
 import json
 import os
@@ -86,19 +87,15 @@ class Manifest:
         # NamedTemporaryFile with delete=False so we control the
         # rename ourselves; suffix matches the destination so a glob
         # for *.json still sees it if the process crashes mid-write.
-        fd, tmp_name = tempfile.mkstemp(
-            prefix=f"{base}.", suffix=".json.tmp", dir=str(runs_dir)
-        )
+        fd, tmp_name = tempfile.mkstemp(prefix=f"{base}.", suffix=".json.tmp", dir=str(runs_dir))
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 f.write(payload)
             os.replace(tmp_name, path)
         except BaseException:
             # Best-effort cleanup: leave nothing behind on failure.
-            try:
+            with contextlib.suppress(OSError):
                 os.unlink(tmp_name)
-            except OSError:
-                pass
             raise
         return path
 

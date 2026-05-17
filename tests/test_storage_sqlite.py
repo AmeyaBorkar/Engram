@@ -274,9 +274,7 @@ def test_cluster_link_set_null_on_delete(storage: SqliteStorage) -> None:
     # ON DELETE SET NULL FK behavior on memory_items.cluster_id, which is
     # a schema-level invariant only verifiable by deleting a cluster row
     # directly. (Audit M-126.)
-    storage._connect().execute(  # noqa: SLF001
-        "DELETE FROM clusters WHERE id = ?", (cluster.id.bytes,)
-    )
+    storage._connect().execute("DELETE FROM clusters WHERE id = ?", (cluster.id.bytes,))
     fetched = storage.get_memory_item(item.id)
     assert fetched is not None
     assert fetched.cluster_id is None
@@ -326,9 +324,7 @@ def test_provenance_blocks_event_deletion(storage: SqliteStorage) -> None:
         # RESTRICT behavior on events when a provenance_link still
         # references the row. Public API never deletes raw events; raw
         # SQL is the only way to drive this invariant. (Audit M-126.)
-        storage._connect().execute(  # noqa: SLF001
-            "DELETE FROM events WHERE id = ?", (event.id.bytes,)
-        )
+        storage._connect().execute("DELETE FROM events WHERE id = ?", (event.id.bytes,))
 
     with pytest.raises(sqlite3.IntegrityError):
         _delete_event()
@@ -345,9 +341,7 @@ def test_memory_item_deletion_cascades_provenance(storage: SqliteStorage) -> Non
     # Public API uses delete_memory_item() which goes through the same path,
     # but pinning the cascade behavior directly verifies the schema invariant
     # independently of the wrapper. (Audit M-126.)
-    storage._connect().execute(  # noqa: SLF001
-        "DELETE FROM memory_items WHERE id = ?", (item.id.bytes,)
-    )
+    storage._connect().execute("DELETE FROM memory_items WHERE id = ?", (item.id.bytes,))
     assert storage.count_provenance_links() == 0
     assert storage.count_events() == 1
 

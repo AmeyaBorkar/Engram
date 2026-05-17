@@ -65,9 +65,7 @@ class TestObserveInjectsTenant:
         assert fetched is not None
         assert fetched.tenant_id == "other-tenant"
 
-    def test_untenanted_memory_does_not_set(
-        self, storage: SqliteStorage
-    ) -> None:
+    def test_untenanted_memory_does_not_set(self, storage: SqliteStorage) -> None:
         memory = Memory(storage=storage, embedder=FakeEmbedder(dim=8))
         event = memory.observe("x")
         fetched = memory.storage.get_event(event.id)
@@ -77,9 +75,7 @@ class TestObserveInjectsTenant:
 
 class TestRecordProcedureInjectsTenant:
     def test_procedure_tagged(self, memory_a: Memory) -> None:
-        proc = memory_a.record_procedure(
-            "flaky CI", "rerun", outcome=Outcome.SUCCESS
-        )
+        proc = memory_a.record_procedure("flaky CI", "rerun", outcome=Outcome.SUCCESS)
         fetched = memory_a.storage.get_procedure(proc.id)
         assert fetched is not None
         assert fetched.tenant_id == "tenant-a"

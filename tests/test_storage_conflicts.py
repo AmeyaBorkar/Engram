@@ -259,9 +259,7 @@ class TestResolveConflict:
                 resolved_at=_utc(2026, 5, 1),
             )
 
-    def test_status_guard_on_update_prevents_double_resolve(
-        self, storage: SqliteStorage
-    ) -> None:
+    def test_status_guard_on_update_prevents_double_resolve(self, storage: SqliteStorage) -> None:
         """Regression for H-35: the UPDATE carries `AND status = 'open'`
         and asserts `rowcount == 1`.
 
@@ -405,9 +403,7 @@ class TestSetValidityWindow:
                 valid_until=_utc(2026, 1, 1),
             )
 
-    def test_until_before_from_rolls_back_partial_write(
-        self, storage: SqliteStorage
-    ) -> None:
+    def test_until_before_from_rolls_back_partial_write(self, storage: SqliteStorage) -> None:
         """Regression for H-34: validation must run *before* the UPDATE
         (or roll back on raise), so an invalid window doesn't persist.
 
@@ -480,9 +476,7 @@ class TestSearchMemoryItemEmbeddingsAsOf:
         a = _seed_item(storage, "a", vec=[1.0, 0.0, 0.0, 0.0])
         b = _seed_item(storage, "b", vec=[1.0, 0.0, 0.0, 0.0])
         storage.invalidate_memory_item(a.id, at=_utc(2026, 5, 1), by=b.id)
-        hits = storage.search_memory_item_embeddings_as_of(
-            [1.0, 0.0, 0.0, 0.0], k=10, model="fake"
-        )
+        hits = storage.search_memory_item_embeddings_as_of([1.0, 0.0, 0.0, 0.0], k=10, model="fake")
         ids = {u for u, _, _ in hits}
         assert b.id in ids
         assert a.id not in ids
@@ -491,12 +485,8 @@ class TestSearchMemoryItemEmbeddingsAsOf:
         """If `a` was invalidated at t2, querying as_of=t1 (t1 < t2) must
         still surface it. Seed valid_from explicitly so the test does not
         race the wall clock."""
-        a = _seed_item(
-            storage, "a", vec=[1.0, 0.0, 0.0, 0.0], valid_from=_utc(2026, 1, 1)
-        )
-        b = _seed_item(
-            storage, "b", vec=[1.0, 0.0, 0.0, 0.0], valid_from=_utc(2026, 1, 1)
-        )
+        a = _seed_item(storage, "a", vec=[1.0, 0.0, 0.0, 0.0], valid_from=_utc(2026, 1, 1))
+        b = _seed_item(storage, "b", vec=[1.0, 0.0, 0.0, 0.0], valid_from=_utc(2026, 1, 1))
         storage.invalidate_memory_item(a.id, at=_utc(2026, 5, 1), by=b.id)
         hits = storage.search_memory_item_embeddings_as_of(
             [1.0, 0.0, 0.0, 0.0], k=10, model="fake", as_of=_utc(2026, 4, 15)
@@ -528,16 +518,12 @@ class TestSearchMemoryItemEmbeddingsAsOf:
         assert a.id not in _ids_at(_utc(2026, 10, 1))
 
     def test_empty_corpus(self, storage: SqliteStorage) -> None:
-        out = storage.search_memory_item_embeddings_as_of(
-            [1.0, 0.0, 0.0, 0.0], k=5, model="fake"
-        )
+        out = storage.search_memory_item_embeddings_as_of([1.0, 0.0, 0.0, 0.0], k=5, model="fake")
         assert out == []
 
     def test_invalid_args(self, storage: SqliteStorage) -> None:
         with pytest.raises(ValueError, match="k must be"):
-            storage.search_memory_item_embeddings_as_of(
-                [1.0, 0.0, 0.0, 0.0], k=0, model="fake"
-            )
+            storage.search_memory_item_embeddings_as_of([1.0, 0.0, 0.0, 0.0], k=0, model="fake")
         with pytest.raises(ValueError, match="candidate_multiplier"):
             storage.search_memory_item_embeddings_as_of(
                 [1.0, 0.0, 0.0, 0.0], k=5, model="fake", candidate_multiplier=0

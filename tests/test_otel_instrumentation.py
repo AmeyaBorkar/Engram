@@ -45,16 +45,12 @@ def span_exporter(monkeypatch: pytest.MonkeyPatch) -> InMemorySpanExporter:
     doesn't leak into any later test that imports otel_trace.
     """
     exporter = InMemorySpanExporter()
-    provider = TracerProvider(
-        resource=Resource.create({"service.name": "engram-test"})
-    )
+    provider = TracerProvider(resource=Resource.create({"service.name": "engram-test"}))
     provider.add_span_processor(SimpleSpanProcessor(exporter))
     # `monkeypatch.setattr` records the original value and restores it
     # at fixture teardown — so the test patch doesn't bleed into
     # subsequent tests that import otel_trace.
-    monkeypatch.setattr(
-        otel_trace, "_TRACER_PROVIDER", provider, raising=False
-    )
+    monkeypatch.setattr(otel_trace, "_TRACER_PROVIDER", provider, raising=False)
     monkeypatch.setattr(
         otel_trace._TRACER_PROVIDER_SET_ONCE,
         "_done",
@@ -75,17 +71,13 @@ def _span_names(exporter: InMemorySpanExporter) -> list[str]:
 
 
 class TestObserveInstrumentation:
-    def test_observe_emits_span(
-        self, memory: Memory, span_exporter: InMemorySpanExporter
-    ) -> None:
+    def test_observe_emits_span(self, memory: Memory, span_exporter: InMemorySpanExporter) -> None:
         event = memory.observe("hello world")
         names = _span_names(span_exporter)
         assert "engram.memory.observe" in names
         # The span has the event id and embedder.model attributes.
         obs_span = next(
-            s
-            for s in span_exporter.get_finished_spans()
-            if s.name == "engram.memory.observe"
+            s for s in span_exporter.get_finished_spans() if s.name == "engram.memory.observe"
         )
         attrs = dict(obs_span.attributes or {})
         assert attrs.get("engram.event_id") == str(event.id)
@@ -101,9 +93,7 @@ class TestRetrieveInstrumentation:
         names = _span_names(span_exporter)
         assert "engram.memory.retrieve" in names
         retr_span = next(
-            s
-            for s in span_exporter.get_finished_spans()
-            if s.name == "engram.memory.retrieve"
+            s for s in span_exporter.get_finished_spans() if s.name == "engram.memory.retrieve"
         )
         attrs = dict(retr_span.attributes or {})
         assert attrs.get("k") == 5
@@ -117,9 +107,7 @@ class TestRetrieveInstrumentation:
         when = datetime(2030, 1, 1, tzinfo=timezone.utc)
         memory.retrieve("x", k=1, as_of=when)
         retr_span = next(
-            s
-            for s in span_exporter.get_finished_spans()
-            if s.name == "engram.memory.retrieve"
+            s for s in span_exporter.get_finished_spans() if s.name == "engram.memory.retrieve"
         )
         attrs = dict(retr_span.attributes or {})
         assert attrs.get("engram.retrieve.as_of") == when.isoformat()
@@ -127,7 +115,9 @@ class TestRetrieveInstrumentation:
 
 class TestReconcileInstrumentation:
     def test_reconcile_emits_span_with_resolution(
-        self, memory: Memory, storage: SqliteStorage,
+        self,
+        memory: Memory,
+        storage: SqliteStorage,
         span_exporter: InMemorySpanExporter,
     ) -> None:
         older = MemoryItem(
@@ -152,9 +142,7 @@ class TestReconcileInstrumentation:
             now=datetime(2026, 5, 1, tzinfo=timezone.utc),
         )
         rec_span = next(
-            s
-            for s in span_exporter.get_finished_spans()
-            if s.name == "engram.memory.reconcile"
+            s for s in span_exporter.get_finished_spans() if s.name == "engram.memory.reconcile"
         )
         attrs = dict(rec_span.attributes or {})
         assert attrs.get("resolution") == "prefer_recent"
@@ -163,9 +151,7 @@ class TestReconcileInstrumentation:
 
 
 class TestInstrumentationName:
-    def test_tracer_named_engram(
-        self, memory: Memory, span_exporter: InMemorySpanExporter
-    ) -> None:
+    def test_tracer_named_engram(self, memory: Memory, span_exporter: InMemorySpanExporter) -> None:
         # Every span comes from the `engram` instrumentation library.
         # Uses the conftest-derived `memory` fixture (audit M-134) so
         # the underlying SqliteStorage is closed on teardown.
@@ -250,9 +236,7 @@ class TestSpanSafeSetAttribute:
         spans = span_exporter.get_finished_spans()
         # The span finished cleanly — its name + the safe attributes
         # land in the export; the bad ones are dropped.
-        attr_guard_span = next(
-            sp for sp in spans if sp.name == "engram.test.attr_guard"
-        )
+        attr_guard_span = next(sp for sp in spans if sp.name == "engram.test.attr_guard")
         attrs = dict(attr_guard_span.attributes or {})
         assert attrs.get("ok") == "yes"
         assert "bad" not in attrs

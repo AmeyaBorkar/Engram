@@ -20,13 +20,9 @@ from __future__ import annotations
 from collections.abc import Sequence
 from datetime import datetime, timedelta, timezone
 
-import pytest
-
 from engram import Memory, SqliteStorage
 from engram.providers._fake import FakeEmbedder
-from engram.retrieve._engine import HierarchicalRetriever
 from engram.retrieve._mmr import mmr_select
-from engram.retrieve._params import RetrieveParams
 from engram.retrieve._reranker import RerankCandidate
 
 
@@ -39,13 +35,8 @@ class _Reorderer:
     def __init__(self, scores_by_content: dict[str, float]) -> None:
         self._scores = scores_by_content
 
-    def rerank(
-        self, query: str, candidates: Sequence[RerankCandidate]
-    ) -> list[float]:
-        return [
-            self._scores.get(c.result.content, c.prior_score)
-            for c in candidates
-        ]
+    def rerank(self, query: str, candidates: Sequence[RerankCandidate]) -> list[float]:
+        return [self._scores.get(c.result.content, c.prior_score) for c in candidates]
 
 
 class TestMmrPoolSizeFloor:
@@ -73,9 +64,7 @@ class TestMmrPoolSizeFloor:
 
 
 class TestMmrUsesUnboostedScores:
-    def test_recency_does_not_distort_mmr_diversity(
-        self, storage: SqliteStorage
-    ) -> None:
+    def test_recency_does_not_distort_mmr_diversity(self, storage: SqliteStorage) -> None:
         """Plant two near-duplicate candidates (sharing a vector) and
         one diverse outlier (orthogonal vector). MMR with lambda~0.5
         should always surface the outlier in the top-2, regardless of
@@ -83,7 +72,6 @@ class TestMmrUsesUnboostedScores:
         decided on un-boosted relevance.
         """
         from engram.schemas import Embedding, Event, ItemKind
-
         from tests.test_retrieve_hierarchical import PlantedEmbedder
 
         embedder = PlantedEmbedder(dim=4)
@@ -141,9 +129,9 @@ class TestMmrSelectFunction:
         # Two near-duplicate vectors and two distinct ones. MMR should
         # avoid stacking the duplicates at the top.
         vecs: list[Sequence[float] | None] = [
-            [1.0, 0.0],   # a
-            [1.0, 0.001], # b -- near duplicate of a
-            [0.0, 1.0],   # c -- orthogonal
+            [1.0, 0.0],  # a
+            [1.0, 0.001],  # b -- near duplicate of a
+            [0.0, 1.0],  # c -- orthogonal
             [-1.0, 0.0],  # d -- antipodal
         ]
         ranked = mmr_select(items, rel, vecs, k=3, lambda_=0.5)
@@ -160,19 +148,15 @@ class TestRecencyAppliedAfterMmr:
     rerank scores; recency is then folded in as the final sort key.
     """
 
-    def test_mmr_pool_unchanged_by_recency_lambda(
-        self, storage: SqliteStorage
-    ) -> None:
+    def test_mmr_pool_unchanged_by_recency_lambda(self, storage: SqliteStorage) -> None:
         """When MMR's pool covers the entire candidate set, the items
         that survive must be identical regardless of recency_lambda
         — recency is applied AFTER MMR has picked the diverse set.
         Final ORDER can differ (recency reorders the sort), but the
         SET must be stable.
         """
-        from datetime import datetime, timedelta, timezone
 
         from engram.schemas import Embedding, Event, ItemKind
-
         from tests.test_retrieve_hierarchical import PlantedEmbedder
 
         embedder = PlantedEmbedder(dim=4)
@@ -232,18 +216,14 @@ class TestRecencyAppliedAfterMmr:
         # them but must not change membership.
         assert baseline_ids == boosted_ids
 
-    def test_recency_reorders_after_mmr_picks(
-        self, storage: SqliteStorage
-    ) -> None:
+    def test_recency_reorders_after_mmr_picks(self, storage: SqliteStorage) -> None:
         """The recency boost is applied after MMR; the final order
         reflects recency on the MMR-picked candidates.  We compare two
         runs that differ ONLY in recency_lambda and expect order to
         differ when one candidate is much newer than another.
         """
-        from datetime import datetime, timedelta, timezone
 
         from engram.schemas import Embedding, Event, ItemKind
-
         from tests.test_retrieve_hierarchical import PlantedEmbedder
 
         embedder = PlantedEmbedder(dim=4)

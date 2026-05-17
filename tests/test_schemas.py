@@ -276,9 +276,7 @@ def test_memory_item_valid_until_before_valid_from_rejected() -> None:
     earlier = datetime(2026, 1, 1, tzinfo=timezone.utc)
     later = earlier + timedelta(days=1)
     with pytest.raises(ValidationError):
-        MemoryItem(
-            level=Level.EVENT, content="x", valid_from=later, valid_until=earlier
-        )
+        MemoryItem(level=Level.EVENT, content="x", valid_from=later, valid_until=earlier)
 
 
 def test_memory_item_invalidated_by_requires_invalidated_at() -> None:

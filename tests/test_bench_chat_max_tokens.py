@@ -72,9 +72,7 @@ def test_openrouter_chat_honors_max_tokens_override() -> None:
     """
     from engram.bench._real_provider import build_chat
 
-    with _stub_openai_sdk(), patch.dict(
-        os.environ, {"OPENROUTER_API_KEY": "sk-test"}, clear=False
-    ):
+    with _stub_openai_sdk(), patch.dict(os.environ, {"OPENROUTER_API_KEY": "sk-test"}, clear=False):
         chat = build_chat("openrouter", model="moonshotai/kimi-k2.6", max_tokens=8192)
 
     assert chat._kwargs["max_tokens"] == 8192
@@ -85,9 +83,7 @@ def test_openrouter_chat_default_no_max_tokens_override() -> None:
     default 1024 cap (the existing safety guard)."""
     from engram.bench._real_provider import build_chat
 
-    with _stub_openai_sdk(), patch.dict(
-        os.environ, {"OPENROUTER_API_KEY": "sk-test"}, clear=False
-    ):
+    with _stub_openai_sdk(), patch.dict(os.environ, {"OPENROUTER_API_KEY": "sk-test"}, clear=False):
         chat = build_chat("openrouter", model="moonshotai/kimi-k2.6")
 
     assert chat._kwargs["max_tokens"] == 1024
@@ -102,9 +98,7 @@ def test_opencode_go_chat_default_uses_8192() -> None:
     """
     from engram.bench._real_provider import build_chat
 
-    with _stub_openai_sdk(), patch.dict(
-        os.environ, {"OPENCODE_API_KEY": "sk-test"}, clear=False
-    ):
+    with _stub_openai_sdk(), patch.dict(os.environ, {"OPENCODE_API_KEY": "sk-test"}, clear=False):
         chat = build_chat("opencode-go", model="kimi-k2.6")
 
     assert chat._kwargs["max_tokens"] == 8192
@@ -116,9 +110,7 @@ def test_opencode_go_chat_explicit_override_wins() -> None:
     need 8K)."""
     from engram.bench._real_provider import build_chat
 
-    with _stub_openai_sdk(), patch.dict(
-        os.environ, {"OPENCODE_API_KEY": "sk-test"}, clear=False
-    ):
+    with _stub_openai_sdk(), patch.dict(os.environ, {"OPENCODE_API_KEY": "sk-test"}, clear=False):
         chat = build_chat("opencode-go", model="kimi-k2.6", max_tokens=2048)
 
     assert chat._kwargs["max_tokens"] == 2048
@@ -129,9 +121,7 @@ def test_build_provider_forwards_chat_max_tokens() -> None:
     to the chat builder."""
     from engram.bench._real_provider import build_provider
 
-    with _stub_openai_sdk(), patch.dict(
-        os.environ, {"OPENROUTER_API_KEY": "sk-test"}, clear=False
-    ):
+    with _stub_openai_sdk(), patch.dict(os.environ, {"OPENROUTER_API_KEY": "sk-test"}, clear=False):
         provider = build_provider(
             embedder_name="fake",
             chat_name="openrouter",
@@ -145,9 +135,7 @@ def test_build_provider_forwards_chat_max_tokens() -> None:
 def test_openai_chat_honors_max_tokens_override() -> None:
     from engram.bench._real_provider import build_chat
 
-    with _stub_openai_sdk(), patch.dict(
-        os.environ, {"OPENAI_API_KEY": "sk-test"}, clear=False
-    ):
+    with _stub_openai_sdk(), patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test"}, clear=False):
         chat = build_chat("openai", model="gpt-4o", max_tokens=4096)
 
     assert chat._kwargs["max_tokens"] == 4096
@@ -159,9 +147,7 @@ def test_anthropic_chat_honors_max_tokens_override() -> None:
     pytest.importorskip("anthropic")
     from engram.bench._real_provider import build_chat
 
-    with patch.dict(
-        os.environ, {"ANTHROPIC_API_KEY": "sk-test"}, clear=False
-    ):
+    with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-test"}, clear=False):
         chat = build_chat("anthropic", model="claude-haiku-4-5-20251001", max_tokens=4096)
 
     assert chat._max_tokens == 4096

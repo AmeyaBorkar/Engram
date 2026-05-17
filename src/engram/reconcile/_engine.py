@@ -33,13 +33,17 @@ from __future__ import annotations
 
 import logging
 import math
-from collections.abc import Callable, Sequence
-from datetime import datetime, timezone
+from collections.abc import Callable
+from datetime import datetime
 from uuid import UUID
 
+from engram._time import utcnow as _utcnow
+from engram._vec_math import normalize as _normalize
 from engram.providers._protocols import ChatProvider, EmbeddingProvider
 from engram.reconcile._merge import (
     MERGE_PROMPT_VERSION,
+)
+from engram.reconcile._merge import (
     merge_with_status as run_merge_with_status,
 )
 from engram.schemas import (
@@ -52,12 +56,6 @@ from engram.schemas import (
     Resolution,
 )
 from engram.storage._protocol import Storage
-
-
-from engram._time import utcnow as _utcnow  # noqa: E402
-
-
-from engram._vec_math import normalize as _normalize  # noqa: E402
 
 _LOG = logging.getLogger("engram.reconcile")
 
@@ -134,8 +132,7 @@ class Reconciler:
             raise KeyError(f"conflict {conflict_id} not found")
         if conflict.status is ConflictStatus.RESOLVED:
             raise RuntimeError(
-                f"conflict {conflict_id} is already resolved "
-                f"(resolution={conflict.resolution})"
+                f"conflict {conflict_id} is already resolved (resolution={conflict.resolution})"
             )
 
         when = now if now is not None else self._clock()
@@ -143,9 +140,7 @@ class Reconciler:
         if resolution is Resolution.MERGE:
             return self._reconcile_merge(conflict, when)
 
-        winner_id = self._pick_winner(
-            conflict, resolution, manual_winner_id=manual_winner_id
-        )
+        winner_id = self._pick_winner(conflict, resolution, manual_winner_id=manual_winner_id)
         loser_id = self._loser(conflict, winner_id) if winner_id is not None else None
         # Audit M-63: invalidating the loser then resolving the conflict
         # outside of a transaction lets a crash between the two steps
@@ -173,13 +168,9 @@ class Reconciler:
         RESOLVED with `resolved_winner_id=None`.
         """
         if self._chat is None:
-            raise ValueError(
-                "Resolution.MERGE requires the Reconciler to have a chat provider"
-            )
+            raise ValueError("Resolution.MERGE requires the Reconciler to have a chat provider")
         if self._embedder is None:
-            raise ValueError(
-                "Resolution.MERGE requires the Reconciler to have an embedder"
-            )
+            raise ValueError("Resolution.MERGE requires the Reconciler to have an embedder")
         # Audit M-195: open a transaction around the fetch + insert so
         # the merged item's preconditions (parents still exist, not
         # invalidated, conflict still OPEN) can't change underneath us
@@ -257,8 +248,7 @@ class Reconciler:
             if outcome.is_fallback:
                 reconcile_meta["merge_fallback"] = True
                 _LOG.warning(
-                    "reconcile: merge fallback used for conflict=%s "
-                    "(source=%s target=%s)",
+                    "reconcile: merge fallback used for conflict=%s (source=%s target=%s)",
                     conflict.id,
                     source.id,
                     target.id,
@@ -283,12 +273,8 @@ class Reconciler:
                 event_ids,
                 embedding=embedding,
             )
-            self._storage.invalidate_memory_item(
-                source.id, at=when, by=merged_item.id
-            )
-            self._storage.invalidate_memory_item(
-                target.id, at=when, by=merged_item.id
-            )
+            self._storage.invalidate_memory_item(source.id, at=when, by=merged_item.id)
+            self._storage.invalidate_memory_item(target.id, at=when, by=merged_item.id)
             return self._storage.resolve_conflict(
                 conflict.id,
                 resolution=Resolution.MERGE,
@@ -296,9 +282,7 @@ class Reconciler:
                 resolved_at=when,
             )
 
-    def _collect_union_provenance(
-        self, source: MemoryItem, target: MemoryItem
-    ) -> list[UUID]:
+    def _collect_union_provenance(self, source: MemoryItem, target: MemoryItem) -> list[UUID]:
         """Union of both parents' supporting event ids, dedup-preserved.
 
         Audit M-100: the prior implementation issued two distinct
@@ -329,16 +313,12 @@ class Reconciler:
             raise RuntimeError("MERGE is handled by _reconcile_merge, not _pick_winner")
         if resolution is Resolution.MANUAL:
             if manual_winner_id is None:
-                raise ValueError(
-                    "manual_winner_id is required when resolution=MANUAL"
-                )
+                raise ValueError("manual_winner_id is required when resolution=MANUAL")
             if manual_winner_id not in (
                 conflict.source_item_id,
                 conflict.target_item_id,
             ):
-                raise ValueError(
-                    "manual_winner_id must equal source_item_id or target_item_id"
-                )
+                raise ValueError("manual_winner_id must equal source_item_id or target_item_id")
             return manual_winner_id
         source = self._fetch_or_raise(conflict.source_item_id)
         target = self._fetch_or_raise(conflict.target_item_id)
@@ -352,9 +332,7 @@ class Reconciler:
             # with `!=` lets a microscopic diff pick a winner that a
             # human would call a tie. `isclose` treats near-equal trust
             # as equal and falls through to PREFER_RECENT.
-            if not math.isclose(
-                ts, tt, rel_tol=_TRUST_REL_TOL, abs_tol=_TRUST_ABS_TOL
-            ):
+            if not math.isclose(ts, tt, rel_tol=_TRUST_REL_TOL, abs_tol=_TRUST_ABS_TOL):
                 return source.id if ts > tt else target.id
             return _pick_by_recency(source, target)
         if resolution is Resolution.PREFER_FREQUENT:

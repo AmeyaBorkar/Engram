@@ -174,9 +174,7 @@ class TestUpgradeFromV4:
         with SqliteStorage(path) as storage:
             conn = storage._connect()
             indexes = {
-                row[0] for row in conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type='index'"
-                )
+                row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='index'")
             }
             for expected in (
                 "idx_conflicts_status",

@@ -230,7 +230,25 @@ select = [
 #                  the migration tests. Keep suppressed for parity with
 #                  the existing test conventions.
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101", "S311", "B", "SIM", "ARG"]
+"tests/*" = ["S101", "S311", "B", "SIM", "ARG", "PT011", "PT018", "RUF012", "RUF015", "RUF059", "F841", "E501"]
+# The prompt-injection corpus and the line-separator escapes in
+# `_prompt_util.inline` intentionally embed full-width / U+2028 /
+# U+2029 Unicode — those ARE the attack payloads the module exists
+# to detect.  Suppress RUF001/2/3 here only.
+"src/engram/_security/prompt_injection.py" = ["RUF001", "RUF002", "RUF003"]
+"src/engram/_prompt_util.py" = ["RUF001"]
+# LlamaIndex adapter does optional-dependency import + ImportError
+# fallback at module scope; the imports cannot move to the top.
+"src/engram/integrations/llamaindex.py" = ["E402"]
+# Temporal anchor regex defines `_DATE_TOKEN` whose name triggers
+# bandit's "looks like a password" heuristic; it is a regex pattern.
+"src/engram/retrieve/_temporal.py" = ["S105"]
+# Storage paths legitimately format SQL fragments with table names
+# from a closed ItemKind enum, which is safe but trips S608.
+"src/engram/providers/_disk_cache.py" = ["S608"]
+"src/engram/storage/sqlite.py" = ["S608", "S101"]
+# BM25 `assert` checks are invariants the algorithm depends on.
+"src/engram/retrieve/_bm25.py" = ["S101"]
 
 [tool.mypy]
 python_version = "3.10"

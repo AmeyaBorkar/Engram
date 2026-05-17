@@ -15,7 +15,7 @@ dropping data.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
 from enum import Enum
 from typing import Any
 from uuid import UUID
@@ -36,7 +36,7 @@ SCHEMA_VERSION: str = "1"
 # Tune deliberately if a workload needs more — these are public defaults
 # documented in the schema contract.
 _MAX_CONTENT_LEN: int = 64 * 1024  # 64 KiB per stored text field
-_MAX_EMBED_DIM: int = 8192          # widest cap covers Qwen3-8B / Stella
+_MAX_EMBED_DIM: int = 8192  # widest cap covers Qwen3-8B / Stella
 
 
 class Level(str, Enum):
@@ -137,10 +137,10 @@ class Resolution(str, Enum):
 class ConflictStatus(str, Enum):
     """Lifecycle stage of a `Conflict` row.
 
-      * `OPEN` - detected by consolidation; awaiting reconciliation.
-      * `RESOLVED` - the reconciler picked a winner (or chose
-        `KEEP_BOTH`); `resolution`, `resolved_winner_id`, and
-        `resolved_at` are filled in.
+    * `OPEN` - detected by consolidation; awaiting reconciliation.
+    * `RESOLVED` - the reconciler picked a winner (or chose
+      `KEEP_BOTH`); `resolution`, `resolved_winner_id`, and
+      `resolved_at` are filled in.
     """
 
     OPEN = "open"
@@ -415,20 +415,15 @@ class Conflict(BaseModel):
             # because both stay valid, MERGE because the merged-into id is
             # tracked via the `invalidated_by` field on both originals.
             if (
-                self.resolution
-                not in (Resolution.KEEP_BOTH, Resolution.MERGE)
+                self.resolution not in (Resolution.KEEP_BOTH, Resolution.MERGE)
                 and self.resolved_winner_id is None
             ):
-                raise ValueError(
-                    f"resolution={self.resolution.value} requires resolved_winner_id"
-                )
+                raise ValueError(f"resolution={self.resolution.value} requires resolved_winner_id")
             if self.resolved_winner_id is not None and self.resolved_winner_id not in (
                 self.source_item_id,
                 self.target_item_id,
             ):
-                raise ValueError(
-                    "resolved_winner_id must equal source_item_id or target_item_id"
-                )
+                raise ValueError("resolved_winner_id must equal source_item_id or target_item_id")
         else:  # OPEN
             if self.resolution is not None:
                 raise ValueError("open conflict must have no resolution")

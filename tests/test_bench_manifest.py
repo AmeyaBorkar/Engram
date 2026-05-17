@@ -122,8 +122,6 @@ def test_manifest_write_is_atomic_no_partial_file(tmp_path: Path) -> None:
         latency_ms={},
     )
     path = m.write(tmp_path)
-    leftovers = [
-        p for p in tmp_path.iterdir() if p.suffix == ".tmp" or ".tmp" in p.suffixes
-    ]
+    leftovers = [p for p in tmp_path.iterdir() if p.suffix == ".tmp" or ".tmp" in p.suffixes]
     assert leftovers == [], f"atomic write left .tmp files behind: {leftovers}"
     assert path.exists()

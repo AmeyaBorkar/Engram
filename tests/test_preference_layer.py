@@ -25,7 +25,6 @@ from engram.providers._fake import FakeEmbedder
 from engram.schemas import Level
 from engram.storage.migrations import list_migrations
 
-
 # ---------------------------------------------------------------------------
 # Heuristic detector
 # ---------------------------------------------------------------------------
@@ -220,9 +219,7 @@ class TestRetrievePreferences:
         # Mix of regular observe + record_preference.
         memory.observe("I love this pizza.")
         memory.record_preference("I love this pizza.")
-        results = memory.retrieve_preferences(
-            "love pizza", k=5, reinforce=False
-        )
+        results = memory.retrieve_preferences("love pizza", k=5, reinforce=False)
         # Every result is Level.PREFERENCE; the raw event doesn't surface.
         assert results
         for r in results:

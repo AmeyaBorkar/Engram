@@ -102,6 +102,7 @@ def test_cli_resolves_provider_returns_pre_wrap_hash(
     of the same config produce identical hashes.
     """
     from argparse import Namespace
+
     from engram.bench._cli import _resolve_provider
 
     # Build a minimal Namespace that satisfies _resolve_provider.

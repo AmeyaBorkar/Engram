@@ -18,6 +18,7 @@ two runs at different endpoints stay distinguishable.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import logging
@@ -133,11 +134,9 @@ def _build_sdk_kwargs(
         kwargs["default_headers"] = default_headers
     if timeout is not None:
         try:
-            import httpx  # noqa: PLC0415  # optional dep, only at SDK construction
+            import httpx  # optional dep, only at SDK construction
 
-            kwargs["timeout"] = httpx.Timeout(
-                timeout, connect=_DEFAULT_CONNECT_TIMEOUT_SECONDS
-            )
+            kwargs["timeout"] = httpx.Timeout(timeout, connect=_DEFAULT_CONNECT_TIMEOUT_SECONDS)
         except ImportError:  # pragma: no cover - httpx ships with openai SDK
             kwargs["timeout"] = timeout
     return kwargs
@@ -223,8 +222,7 @@ class OpenAIEmbedder:
         if self._chunk_size <= 0 or len(texts) <= self._chunk_size:
             return [list(texts)]
         return [
-            list(texts[i : i + self._chunk_size])
-            for i in range(0, len(texts), self._chunk_size)
+            list(texts[i : i + self._chunk_size]) for i in range(0, len(texts), self._chunk_size)
         ]
 
     def embed(self, texts: Sequence[str]) -> list[list[float]]:
@@ -278,13 +276,13 @@ class OpenAIEmbedder:
         _safe_close(self._client)
         await _safe_aclose(self._aclient)
 
-    def __enter__(self) -> "OpenAIEmbedder":
+    def __enter__(self) -> OpenAIEmbedder:
         return self
 
     def __exit__(self, *_exc: Any) -> None:
         self.close()
 
-    async def __aenter__(self) -> "OpenAIEmbedder":
+    async def __aenter__(self) -> OpenAIEmbedder:
         return self
 
     async def __aexit__(self, *_exc: Any) -> None:
@@ -397,13 +395,13 @@ class OpenAIChat:
         _safe_close(self._client)
         await _safe_aclose(self._aclient)
 
-    def __enter__(self) -> "OpenAIChat":
+    def __enter__(self) -> OpenAIChat:
         return self
 
     def __exit__(self, *_exc: Any) -> None:
         self.close()
 
-    async def __aenter__(self) -> "OpenAIChat":
+    async def __aenter__(self) -> OpenAIChat:
         return self
 
     async def __aexit__(self, *_exc: Any) -> None:
@@ -415,10 +413,8 @@ def _safe_close(client: Any) -> None:
     close = getattr(client, "close", None)
     if not callable(close):
         return
-    try:
+    with contextlib.suppress(Exception):  # pragma: no cover - defensive
         close()
-    except Exception:  # pragma: no cover - defensive
-        pass
 
 
 async def _safe_aclose(client: Any) -> None:
@@ -435,7 +431,7 @@ async def _safe_aclose(client: Any) -> None:
             result = aclose()
             if hasattr(result, "__await__"):
                 await result
-        except Exception:  # pragma: no cover - defensive
+        except Exception:  # pragma: no cover - defensive  # noqa: S110
             pass
         return
     _safe_close(client)
@@ -519,12 +515,13 @@ def _extract_openai_content(resp: Any, model: str) -> str:
         _LOG.warning(
             "chat %r hit max_tokens cap; response truncated at %d chars "
             "(finish_reason='length'). Raise max_tokens or shorten the prompt.",
-            model, len(text),
+            model,
+            len(text),
         )
     elif finish_reason == "content_filter":
         _LOG.warning(
-            "chat %r returned content_filter block; partial content "
-            "(%d chars) returned.",
-            model, len(text),
+            "chat %r returned content_filter block; partial content (%d chars) returned.",
+            model,
+            len(text),
         )
     return text

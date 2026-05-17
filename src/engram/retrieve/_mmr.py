@@ -67,8 +67,7 @@ def mmr_select(
     n = len(items)
     if n != len(relevance) or n != len(vectors):
         raise ValueError(
-            f"items / relevance / vectors length mismatch: "
-            f"{n} / {len(relevance)} / {len(vectors)}"
+            f"items / relevance / vectors length mismatch: {n} / {len(relevance)} / {len(vectors)}"
         )
     if n == 0 or k == 0:
         return []
@@ -87,9 +86,7 @@ def mmr_select(
         # All relevance identical -> normalize to 0 so the diversity
         # term carries the entire selection signal.
         relevance_np = np.zeros_like(relevance_raw)
-    valid_mask = np.fromiter(
-        (v is not None for v in vectors), dtype=bool, count=n
-    )
+    valid_mask = np.fromiter((v is not None for v in vectors), dtype=bool, count=n)
     # If no vectors at all, fall back to top-k by raw relevance (the
     # normalized version would be order-preserving but easier to read
     # in the raw form when there's nothing else going on).

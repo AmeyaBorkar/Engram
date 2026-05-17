@@ -330,7 +330,7 @@ class TestProvenanceWeights:
                 # only way to verify the weight column was populated
                 # correctly by consolidation. (Audit M-126 / M-191.)
                 row = (
-                    storage._connect()  # noqa: SLF001
+                    storage._connect()
                     .execute(
                         "SELECT weight FROM provenance_links "
                         "WHERE memory_item_id = ? AND event_id = ?",
@@ -467,9 +467,7 @@ class TestDetectConflictsInvalidationGate:
         # Plant a successor (the "invalidated_by" pointer).
         successor = MemoryItem(level=Level.SUMMARY, content="new truth", weight=1.0)
         storage.insert_memory_item(successor)
-        storage.invalidate_memory_item(
-            invalidated.id, at=_now(), by=successor.id
-        )
+        storage.invalidate_memory_item(invalidated.id, at=_now(), by=successor.id)
 
         # New events that land in a cluster sharing the same vec.
         for i in range(3):
@@ -557,10 +555,11 @@ class TestDetectConflictsDedup:
         # Forge `_write_cluster_result` inputs directly so we can pin
         # the dedup behavior in isolation. The duplicate candidate id
         # below would crash record_conflict's UNIQUE constraint pre-fix.
-        from engram.consolidation._clustering import ClusterAssignment
-        from engram.consolidation._abstraction import AbstractionResult
-        from engram.schemas import Embedding, MemoryItem
         from uuid import uuid4
+
+        from engram.consolidation._abstraction import AbstractionResult
+        from engram.consolidation._clustering import ClusterAssignment
+        from engram.schemas import Embedding, MemoryItem
 
         candidate_id = uuid4()
         candidate = MemoryItem(
@@ -596,9 +595,7 @@ class TestDetectConflictsDedup:
             events.append(ev)
 
         assignment = ClusterAssignment(members=(0, 1), cohesion=1.0)
-        result = AbstractionResult(
-            abstraction="abst", confidence=0.9, supports=(0,)
-        )
+        result = AbstractionResult(abstraction="abst", confidence=0.9, supports=(0,))
         # Patch _detect_conflicts to return the duplicate pair.
         original = engine._detect_conflicts
 
@@ -630,9 +627,7 @@ class TestDetectConflictsDedup:
         # But only ONE row landed because of the dedup gate.
         from engram.schemas import ConflictStatus
 
-        rows = storage.list_conflicts(
-            status=ConflictStatus.OPEN, memory_item_id=candidate_id
-        )
+        rows = storage.list_conflicts(status=ConflictStatus.OPEN, memory_item_id=candidate_id)
         assert len(rows) == 1
         storage.close()
 
@@ -660,9 +655,7 @@ class TestStreamingConsume:
         chunks = list(_chunked(iterator, 3))  # type: ignore[arg-type]
         assert [len(c) for c in chunks] == [3, 3, 1]
 
-    def test_engine_does_not_materialize_full_backlog(
-        self, tmp_path: Path
-    ) -> None:
+    def test_engine_does_not_materialize_full_backlog(self, tmp_path: Path) -> None:
         """A peek-counting wrapper around the storage iterator: the
         engine must NOT pull everything before the first cluster
         write. Pre-fix the engine `list(...)`-ed the iterator before
@@ -831,9 +824,7 @@ class TestAsyncBatchedEmbed:
     embeds into one `embedder.aembed(...)` call before the write loop.
     """
 
-    def test_async_path_calls_aembed_once_per_chunk(
-        self, tmp_path: Path
-    ) -> None:
+    def test_async_path_calls_aembed_once_per_chunk(self, tmp_path: Path) -> None:
         import asyncio
 
         from engram.consolidation._engine import ConsolidationEngine
@@ -939,9 +930,7 @@ class TestTenantCacheLRU:
             embedder=FakeEmbedder(dim=8),
             chat=FakeChat(default="{}"),
         )
-        item = MemoryItem(
-            level=Level.SUMMARY, content="x", tenant_id="t-1", weight=0.5
-        )
+        item = MemoryItem(level=Level.SUMMARY, content="x", tenant_id="t-1", weight=0.5)
         storage.insert_memory_item(item)
 
         # Count `get_memory_item` calls via a wrapper.
@@ -968,8 +957,8 @@ class TestTenantCacheLRU:
     def test_tenant_cache_bounded(self, tmp_path: Path) -> None:
         """The cache evicts oldest entries past the bound."""
         from engram.consolidation._engine import (
-            ConsolidationEngine,
             _TENANT_CACHE_MAX,
+            ConsolidationEngine,
         )
         from engram.schemas import MemoryItem
 

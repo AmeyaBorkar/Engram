@@ -24,15 +24,19 @@ from importlib import resources
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
+from engram._prompt_util import (
+    inline as _inline,
+)
+from engram._prompt_util import (
+    render_prompt,
+)
+from engram._prompt_util import (
+    strip_code_fence as _strip_code_fence,
+)
 from engram.consolidation._abstraction import AbstractionParseError
 from engram.providers._message import Message
 from engram.providers._protocols import ChatProvider
 from engram.schemas import RetrievalResult
-from engram._prompt_util import (
-    inline as _inline,
-    render_prompt,
-    strip_code_fence as _strip_code_fence,
-)
 
 _LOG = logging.getLogger("engram.retrieve")
 
@@ -118,7 +122,8 @@ def react_judge(
             # and gracefully exit the loop instead.
             _LOG.warning(
                 "react_judge: chat raised %s: %s; exiting iterative loop",
-                type(exc).__name__, exc,
+                type(exc).__name__,
+                exc,
             )
             return ReactVerdict(sufficient=True, refined_query="")
         try:
@@ -136,6 +141,7 @@ def react_judge(
                 ),
             ]
     return ReactVerdict(sufficient=True, refined_query="")
+
 
 __all__ = [
     "ReactVerdict",

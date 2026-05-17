@@ -11,6 +11,7 @@ and runs pending migrations in order.
 
 from __future__ import annotations
 
+import contextlib
 import re
 import sqlite3
 from importlib import resources
@@ -40,8 +41,7 @@ def list_migrations() -> list[tuple[int, str]]:
     for version, filename in migrations:
         if version in seen:
             raise RuntimeError(
-                f"duplicate migration version {version}: "
-                f"{seen[version]!r} and {filename!r}"
+                f"duplicate migration version {version}: {seen[version]!r} and {filename!r}"
             )
         seen[version] = filename
     return migrations
@@ -80,10 +80,8 @@ def applied_versions(conn: sqlite3.Connection) -> set[int]:
         rows = conn.execute("SELECT version FROM schema_migrations").fetchall()
     except BaseException:
         if not in_outer_tx:
-            try:
+            with contextlib.suppress(sqlite3.Error):
                 conn.execute("ROLLBACK")
-            except sqlite3.Error:
-                pass
         raise
     else:
         if not in_outer_tx:
@@ -99,9 +97,7 @@ def applied_versions(conn: sqlite3.Connection) -> set[int]:
         expected = list(range(ordered[0], ordered[0] + len(ordered)))
         if ordered != expected:
             missing = [v for v in expected if v not in versions]
-            raise RuntimeError(
-                f"schema_migrations has gaps: applied {ordered}, missing {missing}"
-            )
+            raise RuntimeError(f"schema_migrations has gaps: applied {ordered}, missing {missing}")
     return versions
 
 

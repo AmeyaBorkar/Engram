@@ -30,8 +30,6 @@ import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-import pytest
-
 from engram import Memory, SqliteStorage
 from engram._security.prompt_injection import (
     CORPUS,
@@ -272,15 +270,6 @@ class TestEndToEndPromotion:
             assert forbidden.lower() not in items[0].content.lower()
         storage.close()
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "promotion gate not yet wired - production bug. "
-            "Memory.promote() does not screen content for "
-            "looks_like_injection() before raising to Level.ABSTRACTION. "
-            "See audit H-89."
-        ),
-    )
     def test_injection_text_never_promoted_to_abstraction(self, tmp_path: Path) -> None:
         # End-to-end invariant: even if a malicious memory_item ends up
         # planted at level=summary (e.g. via direct storage manipulation
@@ -318,8 +307,7 @@ class TestEndToEndPromotion:
         abstractions = storage.list_memory_items(level=Level.ABSTRACTION, limit=100)
         for abstraction in abstractions:
             assert not looks_like_injection(abstraction.content), (
-                f"injection content reached Level.ABSTRACTION: "
-                f"{abstraction.content!r}"
+                f"injection content reached Level.ABSTRACTION: {abstraction.content!r}"
             )
         storage.close()
 

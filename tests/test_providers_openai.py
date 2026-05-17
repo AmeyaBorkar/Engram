@@ -155,10 +155,7 @@ def test_openai_chat_warns_on_length_truncation(
     with caplog.at_level("WARNING", logger="engram.providers.openai"):
         out = c.chat([Message(role="user", content="x")])
     assert out == "cut off mid"  # content still returned, not dropped
-    assert any(
-        "max_tokens" in rec.message and "kimi-k2.6" in rec.message
-        for rec in caplog.records
-    )
+    assert any("max_tokens" in rec.message and "kimi-k2.6" in rec.message for rec in caplog.records)
 
 
 def test_openai_chat_warns_on_length_truncation_with_null_content(
@@ -170,9 +167,7 @@ def test_openai_chat_warns_on_length_truncation_with_null_content(
     a clean "model had nothing to say" empty response.
     """
     client = MagicMock()
-    client.chat.completions.create.return_value = _make_chat_response(
-        None, finish_reason="length"
-    )
+    client.chat.completions.create.return_value = _make_chat_response(None, finish_reason="length")
     c = OpenAIChat(model="kimi-k2.6", client=client, async_client=AsyncMock())
     with caplog.at_level("WARNING", logger="engram.providers.openai"):
         out = c.chat([Message(role="user", content="x")])
@@ -230,9 +225,7 @@ def test_openai_chat_redacts_api_key_from_error_message() -> None:
     """An exception raised by the SDK with a key in its message must be redacted."""
     client = MagicMock()
     leaked = "sk-abcdefghijklmnopqrstuvwxyz12345678"
-    client.chat.completions.create.side_effect = RuntimeError(
-        f"Bad request — sent token={leaked}"
-    )
+    client.chat.completions.create.side_effect = RuntimeError(f"Bad request — sent token={leaked}")
     c = OpenAIChat(client=client, async_client=AsyncMock())
     with pytest.raises(RuntimeError) as excinfo:
         c.chat([Message(role="user", content="hi")])
@@ -245,9 +238,7 @@ def test_openai_chat_redacts_api_key_from_error_message() -> None:
 def test_openai_embedder_redacts_api_key_from_error_message() -> None:
     client = MagicMock()
     leaked = "sk-ant-api01-secretkey1234567890abcdef"
-    client.embeddings.create.side_effect = RuntimeError(
-        f"auth failed token={leaked}"
-    )
+    client.embeddings.create.side_effect = RuntimeError(f"auth failed token={leaked}")
     e = OpenAIEmbedder(client=client, async_client=AsyncMock())
     with pytest.raises(RuntimeError) as excinfo:
         e.embed(["x"])

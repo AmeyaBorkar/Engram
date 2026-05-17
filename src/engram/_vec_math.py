@@ -28,9 +28,7 @@ import numpy as np
 
 def _check_dim(vec: Sequence[float], expected_dim: int | None, name: str) -> None:
     if expected_dim is not None and len(vec) != expected_dim:
-        raise ValueError(
-            f"{name} length {len(vec)} does not match expected_dim {expected_dim}"
-        )
+        raise ValueError(f"{name} length {len(vec)} does not match expected_dim {expected_dim}")
 
 
 def normalize(
@@ -67,9 +65,7 @@ def normalize(
 def dot(a: Sequence[float], b: Sequence[float]) -> float:
     """Inner product; raises ``ValueError`` on dimension mismatch."""
     if len(a) != len(b):
-        raise ValueError(
-            f"dot: dimensions differ ({len(a)} vs {len(b)})"
-        )
+        raise ValueError(f"dot: dimensions differ ({len(a)} vs {len(b)})")
     arr_a = np.asarray(a, dtype=np.float64)
     arr_b = np.asarray(b, dtype=np.float64)
     return float(np.dot(arr_a, arr_b))
@@ -87,23 +83,17 @@ def cosine_similarity(
     optionally pins both vectors to a specific length.
     """
     if len(a) != len(b):
+        raise ValueError(f"cosine_similarity: dimensions differ ({len(a)} vs {len(b)})")
+    if expected_dim is not None and len(a) != expected_dim:
         raise ValueError(
-            f"cosine_similarity: dimensions differ ({len(a)} vs {len(b)})"
+            f"cosine_similarity: expected_dim={expected_dim} but inputs have length {len(a)}"
         )
-    if expected_dim is not None:
-        if len(a) != expected_dim:
-            raise ValueError(
-                f"cosine_similarity: expected_dim={expected_dim} but inputs "
-                f"have length {len(a)}"
-            )
     arr_a = np.asarray(a, dtype=np.float64)
     arr_b = np.asarray(b, dtype=np.float64)
     norm_a = float(np.linalg.norm(arr_a))
     norm_b = float(np.linalg.norm(arr_b))
     if norm_a == 0.0 or norm_b == 0.0 or not (math.isfinite(norm_a) and math.isfinite(norm_b)):
-        raise ValueError(
-            f"cosine_similarity: zero-norm input (norms={norm_a}, {norm_b})"
-        )
+        raise ValueError(f"cosine_similarity: zero-norm input (norms={norm_a}, {norm_b})")
     return float(np.dot(arr_a, arr_b) / (norm_a * norm_b))
 
 

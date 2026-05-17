@@ -127,9 +127,7 @@ class TestUpgradeFromV5:
             conn.close()
         with SqliteStorage(path) as storage:
             conn = storage._connect()
-            row = conn.execute(
-                "SELECT tenant_id FROM events WHERE id = ?", (eid,)
-            ).fetchone()
+            row = conn.execute("SELECT tenant_id FROM events WHERE id = ?", (eid,)).fetchone()
             assert row is not None
             assert row["tenant_id"] is None
 

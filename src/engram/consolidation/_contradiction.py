@@ -26,7 +26,6 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 from dataclasses import dataclass
 from importlib import resources
 from typing import Any
@@ -34,16 +33,20 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
+from engram._prompt_util import (
+    inline as _inline,
+)
+from engram._prompt_util import (
+    render_prompt,
+)
+from engram._prompt_util import (
+    strip_code_fence as _strip_code_fence,
+)
+from engram._security.prompt_injection import looks_like_injection
 from engram.consolidation._abstraction import AbstractionParseError
 from engram.providers._message import Message
 from engram.providers._protocols import ChatProvider
 from engram.schemas import Verdict
-from engram._security.prompt_injection import looks_like_injection
-from engram._prompt_util import (
-    inline as _inline,
-    render_prompt,
-    strip_code_fence as _strip_code_fence,
-)
 
 _LOG = logging.getLogger(__name__)
 
@@ -249,6 +252,7 @@ def conflicts_to_metadata(conflicts: list[DetectedConflict]) -> list[dict[str, A
         }
         for c in conflicts
     ]
+
 
 # Re-export for the engine.
 __all__ = [

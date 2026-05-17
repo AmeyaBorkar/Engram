@@ -9,6 +9,7 @@ These pin the security-critical invariants:
   - `render_prompt` does ONE substitution pass — user content in slot
     `a` cannot impersonate a literal `{b}` and steer the second pass.
 """
+
 from __future__ import annotations
 
 from engram._prompt_util import inline, render_prompt, strip_code_fence
@@ -44,13 +45,13 @@ class TestInline:
 
 class TestStripCodeFence:
     def test_json_fence(self) -> None:
-        assert strip_code_fence("```json\n{\"x\":1}\n```") == '{"x":1}'
+        assert strip_code_fence('```json\n{"x":1}\n```') == '{"x":1}'
 
     def test_uppercase_fence(self) -> None:
-        assert strip_code_fence("```JSON\n{\"x\":1}\n```") == '{"x":1}'
+        assert strip_code_fence('```JSON\n{"x":1}\n```') == '{"x":1}'
 
     def test_bare_fence(self) -> None:
-        assert strip_code_fence("```\n{\"x\":1}\n```") == '{"x":1}'
+        assert strip_code_fence('```\n{"x":1}\n```') == '{"x":1}'
 
     def test_no_fence_passes_through(self) -> None:
         assert strip_code_fence('{"x":1}') == '{"x":1}'

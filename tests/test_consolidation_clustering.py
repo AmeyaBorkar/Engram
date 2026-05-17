@@ -367,13 +367,9 @@ class TestUnitNormWarning:
                     min_cluster_size=2,
                 ),
             )
-        assert any(
-            "not unit-norm" in rec.message for rec in caplog.records
-        )
+        assert any("not unit-norm" in rec.message for rec in caplog.records)
 
-    def test_no_warning_for_unit_norm_input(
-        self, caplog: pytest.LogCaptureFixture
-    ) -> None:
+    def test_no_warning_for_unit_norm_input(self, caplog: pytest.LogCaptureFixture) -> None:
         import engram.consolidation._clustering as cmod
 
         cmod._NORM_WARNING_EMITTED = False
@@ -388,6 +384,4 @@ class TestUnitNormWarning:
                 ),
             )
         # No warning emitted for the unit-norm case.
-        assert not any(
-            "not unit-norm" in rec.message for rec in caplog.records
-        )
+        assert not any("not unit-norm" in rec.message for rec in caplog.records)

@@ -68,9 +68,7 @@ class TestBGERerankerWithModel:
     def test_empty_candidates_returns_empty(self, reranker: BGEReranker) -> None:
         assert reranker.rerank("anything", []) == []
 
-    def test_ranks_relevant_higher_than_irrelevant(
-        self, reranker: BGEReranker
-    ) -> None:
+    def test_ranks_relevant_higher_than_irrelevant(self, reranker: BGEReranker) -> None:
         query = "user has a dog named Rex"
         candidates = [
             _candidate("user has a dog named Rex"),

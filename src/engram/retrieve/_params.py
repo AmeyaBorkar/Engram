@@ -187,9 +187,7 @@ class RetrieveParams:
         if self.recent_window_k < 0:
             raise ValueError(f"recent_window_k must be >= 0, got {self.recent_window_k}")
         if self.min_sessions_in_topk < 0:
-            raise ValueError(
-                f"min_sessions_in_topk must be >= 0, got {self.min_sessions_in_topk}"
-            )
+            raise ValueError(f"min_sessions_in_topk must be >= 0, got {self.min_sessions_in_topk}")
 
     def replace(self, **overrides: Any) -> RetrieveParams:
         """Return a copy of this `RetrieveParams` with `overrides` applied.

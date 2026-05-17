@@ -71,7 +71,8 @@ try:
     # at import).  Falls back to a placeholder if the package isn't
     # installed (e.g., running directly out of a checkout without
     # `pip install -e .`) so import never breaks.
-    from importlib.metadata import PackageNotFoundError, version as _pkg_version
+    from importlib.metadata import PackageNotFoundError
+    from importlib.metadata import version as _pkg_version
 
     __version__: str = _pkg_version("engrampy")
 except PackageNotFoundError:  # pragma: no cover - dev tree without install

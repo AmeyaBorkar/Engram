@@ -166,9 +166,7 @@ class TestMemoryMultiQueryRetrieve:
         memory.retrieve("query", k=1, reinforce=False)
         assert call_count == 0
 
-    def test_multi_query_uses_chat_and_fuses(
-        self, storage: SqliteStorage
-    ) -> None:
+    def test_multi_query_uses_chat_and_fuses(self, storage: SqliteStorage) -> None:
         """multi_query_n=3 -> chat IS called once for paraphrases;
         results from all 3 queries get fused via RRF."""
         embedder = FakeEmbedder(dim=8)
@@ -190,17 +188,11 @@ class TestMemoryMultiQueryRetrieve:
         # Script FakeChat to return 2 paraphrases for the multi-query prompt.
         mq_prompt = render_multi_query_prompt("question?", 2)
         chat = FakeChat(
-            scripts={
-                content_hash(mq_prompt): (
-                    "user has a dog\nuser prefers coffee"
-                )
-            },
+            scripts={content_hash(mq_prompt): ("user has a dog\nuser prefers coffee")},
         )
         memory = Memory(storage=storage, embedder=embedder, chat=chat)
 
-        results = memory.retrieve(
-            "question?", k=10, multi_query_n=3, reinforce=False
-        )
+        results = memory.retrieve("question?", k=10, multi_query_n=3, reinforce=False)
         # Both planted items should be in the fused result list.
         ids = {r.item_id for r in results}
         assert len(ids) >= 1

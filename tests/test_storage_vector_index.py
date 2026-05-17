@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import threading
 
-from engram.storage._vector_index import _IndexShard, VectorIndex
+from engram.storage._vector_index import VectorIndex, _IndexShard
 
 
 def test_shards_have_distinct_locks() -> None:

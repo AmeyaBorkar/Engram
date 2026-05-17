@@ -62,9 +62,9 @@ def format_context(
             # so a poisoned memory containing line breaks can't slip out
             # of its bullet and start a new directive block addressed to
             # the LLM as if from the system (audit H-11).
-            lines.append(
-                f"{bullet}{prefix} {_inline(r.procedure.situation)} -> {_inline(r.procedure.action)}"
-            )
+            sit = _inline(r.procedure.situation)
+            act = _inline(r.procedure.action)
+            lines.append(f"{bullet}{prefix} {sit} -> {act}")
         else:
             if include_level:
                 prefix_parts.append(r.level.value)

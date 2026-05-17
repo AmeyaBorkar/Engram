@@ -65,9 +65,7 @@ _dt = st.datetimes(
 ).map(lambda d: d.replace(tzinfo=timezone.utc))
 
 
-def _is_valid_at(
-    item: MemoryItem, as_of: datetime
-) -> bool:
+def _is_valid_at(item: MemoryItem, as_of: datetime) -> bool:
     """The visibility predicate that
     `search_memory_item_embeddings_as_of` implements in SQL. Pure
     Python here so the property test reads as a spec."""
@@ -102,18 +100,14 @@ class TestMemoryItemTemporalInvariants:
         self, content: str, vf: datetime, delta: timedelta
     ) -> None:
         vu = vf + delta
-        item = MemoryItem(
-            level=Level.SUMMARY, content=content, valid_from=vf, valid_until=vu
-        )
+        item = MemoryItem(level=Level.SUMMARY, content=content, valid_from=vf, valid_until=vu)
         assert item.valid_from == vf
         assert item.valid_until == vu
 
     @given(
         content=_text,
         vf=_dt,
-        delta=st.timedeltas(
-            min_value=timedelta(seconds=1), max_value=timedelta(days=365)
-        ),
+        delta=st.timedeltas(min_value=timedelta(seconds=1), max_value=timedelta(days=365)),
     )
     @_settings
     def test_valid_until_before_valid_from_rejected(
@@ -130,9 +124,7 @@ class TestMemoryItemTemporalInvariants:
 
     @given(content=_text, when=_dt)
     @_settings
-    def test_invalidated_by_without_at_rejected(
-        self, content: str, when: datetime
-    ) -> None:
+    def test_invalidated_by_without_at_rejected(self, content: str, when: datetime) -> None:
         winner = new_id()
         with pytest.raises(ValueError, match="invalidated_by"):
             MemoryItem(
@@ -165,9 +157,7 @@ class TestVisibilityPredicateAgreesWithStorage:
             st.none(),
             st.timedeltas(min_value=timedelta(days=1), max_value=timedelta(days=200)),
         ),
-        as_of_offset=st.timedeltas(
-            min_value=timedelta(days=-365), max_value=timedelta(days=365)
-        ),
+        as_of_offset=st.timedeltas(min_value=timedelta(days=-365), max_value=timedelta(days=365)),
     )
     @_settings
     def test_python_predicate_matches_sql(
@@ -243,9 +233,7 @@ class TestInvalidationIdempotency:
         first: datetime,
         offsets: list[timedelta],
     ) -> None:
-        item = MemoryItem(
-            level=Level.SUMMARY, content="x", created_at=first, valid_from=first
-        )
+        item = MemoryItem(level=Level.SUMMARY, content="x", created_at=first, valid_from=first)
         storage.insert_memory_item(item)
         storage.invalidate_memory_item(item.id, at=first)
         for offset in offsets:
@@ -256,12 +244,8 @@ class TestInvalidationIdempotency:
 
     @given(first=_dt)
     @_settings
-    def test_first_winner_id_wins(
-        self, storage: SqliteStorage, first: datetime
-    ) -> None:
-        item = MemoryItem(
-            level=Level.SUMMARY, content="x", created_at=first, valid_from=first
-        )
+    def test_first_winner_id_wins(self, storage: SqliteStorage, first: datetime) -> None:
+        item = MemoryItem(level=Level.SUMMARY, content="x", created_at=first, valid_from=first)
         storage.insert_memory_item(item)
         w1, w2 = new_id(), new_id()
         storage.invalidate_memory_item(item.id, at=first, by=w1)
@@ -331,9 +315,7 @@ def _seed_reconcile_pair(
                 cold_at=existing.cold_at,
             )
         )
-    conflict = Conflict(
-        source_item_id=source.id, target_item_id=target.id, similarity=0.9
-    )
+    conflict = Conflict(source_item_id=source.id, target_item_id=target.id, similarity=0.9)
     storage.record_conflict(conflict)
     return source, target, conflict
 
@@ -341,15 +323,9 @@ def _seed_reconcile_pair(
 class TestReconcileWinnerInvariants:
     @given(
         source_dt=_dt,
-        delta=st.timedeltas(
-            min_value=timedelta(seconds=1), max_value=timedelta(days=365)
-        ),
-        source_trust=st.one_of(
-            st.none(), st.floats(min_value=0.0, max_value=1.0, allow_nan=False)
-        ),
-        target_trust=st.one_of(
-            st.none(), st.floats(min_value=0.0, max_value=1.0, allow_nan=False)
-        ),
+        delta=st.timedeltas(min_value=timedelta(seconds=1), max_value=timedelta(days=365)),
+        source_trust=st.one_of(st.none(), st.floats(min_value=0.0, max_value=1.0, allow_nan=False)),
+        target_trust=st.one_of(st.none(), st.floats(min_value=0.0, max_value=1.0, allow_nan=False)),
         source_corr=st.integers(min_value=0, max_value=20),
         target_corr=st.integers(min_value=0, max_value=20),
         resolution=st.sampled_from(
@@ -391,9 +367,7 @@ class TestReconcileWinnerInvariants:
 
     @given(
         source_dt=_dt,
-        delta=st.timedeltas(
-            min_value=timedelta(seconds=1), max_value=timedelta(days=365)
-        ),
+        delta=st.timedeltas(min_value=timedelta(seconds=1), max_value=timedelta(days=365)),
     )
     @_settings
     def test_keep_both_no_winner(
@@ -403,9 +377,7 @@ class TestReconcileWinnerInvariants:
         delta: timedelta,
     ) -> None:
         target_dt = source_dt + delta
-        _, _, conflict = _seed_reconcile_pair(
-            storage, source_at=source_dt, target_at=target_dt
-        )
+        _, _, conflict = _seed_reconcile_pair(storage, source_at=source_dt, target_at=target_dt)
         out = Reconciler(storage).reconcile(
             conflict.id,
             resolution=Resolution.KEEP_BOTH,
@@ -416,9 +388,7 @@ class TestReconcileWinnerInvariants:
 
     @given(
         source_dt=_dt,
-        delta=st.timedeltas(
-            min_value=timedelta(seconds=1), max_value=timedelta(days=365)
-        ),
+        delta=st.timedeltas(min_value=timedelta(seconds=1), max_value=timedelta(days=365)),
     )
     @_settings
     def test_prefer_recent_picks_newer(
@@ -442,9 +412,7 @@ class TestReconcileWinnerInvariants:
 
     @given(
         source_dt=_dt,
-        delta=st.timedeltas(
-            min_value=timedelta(seconds=1), max_value=timedelta(days=365)
-        ),
+        delta=st.timedeltas(min_value=timedelta(seconds=1), max_value=timedelta(days=365)),
         source_trust=st.floats(min_value=0.0, max_value=1.0, allow_nan=False),
         target_trust=st.floats(min_value=0.0, max_value=1.0, allow_nan=False),
     )
@@ -468,11 +436,7 @@ class TestReconcileWinnerInvariants:
         """
         import math
 
-        assume(
-            not math.isclose(
-                source_trust, target_trust, rel_tol=1e-9, abs_tol=1e-12
-            )
-        )
+        assume(not math.isclose(source_trust, target_trust, rel_tol=1e-9, abs_tol=1e-12))
         target_dt = source_dt + delta
         source, target, conflict = _seed_reconcile_pair(
             storage,
@@ -498,9 +462,7 @@ class TestReconcileWinnerInvariants:
 class TestLoserInvalidationInvariant:
     @given(
         source_dt=_dt,
-        delta=st.timedeltas(
-            min_value=timedelta(seconds=1), max_value=timedelta(days=365)
-        ),
+        delta=st.timedeltas(min_value=timedelta(seconds=1), max_value=timedelta(days=365)),
         resolution=st.sampled_from(
             [
                 Resolution.PREFER_RECENT,
@@ -528,9 +490,7 @@ class TestLoserInvalidationInvariant:
             target_corroboration=5,
         )
         when = target_dt + timedelta(days=1)
-        out = Reconciler(storage).reconcile(
-            conflict.id, resolution=resolution, now=when
-        )
+        out = Reconciler(storage).reconcile(conflict.id, resolution=resolution, now=when)
         loser_id = source.id if out.resolved_winner_id == target.id else target.id
         loser = storage.get_memory_item(loser_id)
         assert loser is not None

@@ -55,9 +55,7 @@ class TestParser:
         assert out.refined_query == ""
 
     def test_parses_with_refined_query(self) -> None:
-        out = parse_react_response(
-            json.dumps({"sufficient": False, "refined_query": "dog name"})
-        )
+        out = parse_react_response(json.dumps({"sufficient": False, "refined_query": "dog name"}))
         assert not out.sufficient
         assert out.refined_query == "dog name"
 
@@ -74,9 +72,7 @@ class TestParser:
             parse_react_response("not json")
 
     def test_strips_code_fence(self) -> None:
-        out = parse_react_response(
-            "```json\n" + json.dumps({"sufficient": True}) + "\n```"
-        )
+        out = parse_react_response("```json\n" + json.dumps({"sufficient": True}) + "\n```")
         assert out.sufficient
 
 
@@ -97,9 +93,7 @@ class TestJudgeFallback:
         prompt = render_react_prompt("question?", [])
         chat = FakeChat(
             scripts={
-                content_hash(prompt): json.dumps(
-                    {"sufficient": False, "refined_query": "refined"}
-                )
+                content_hash(prompt): json.dumps({"sufficient": False, "refined_query": "refined"})
             }
         )
         verdict = react_judge("question?", [], chat, max_retries=0)
@@ -122,29 +116,21 @@ def memory_with_chat(storage: SqliteStorage) -> Memory:
 
 
 class TestRetrieveIterativeBasics:
-    def test_falls_back_to_one_shot_without_chat(
-        self, storage: SqliteStorage
-    ) -> None:
+    def test_falls_back_to_one_shot_without_chat(self, storage: SqliteStorage) -> None:
         memory = Memory(storage=storage, embedder=FakeEmbedder(dim=8))
         memory.observe("a fact")
         # No chat -> one-shot retrieve; doesn't crash.
         results = memory.retrieve_iterative("query", k=1)
         assert isinstance(results, list)
 
-    def test_stops_when_judge_says_sufficient(
-        self, memory_with_chat: Memory
-    ) -> None:
+    def test_stops_when_judge_says_sufficient(self, memory_with_chat: Memory) -> None:
         memory_with_chat.observe("user has a dog")
         # Judge always returns sufficient=True -> exactly one retrieve step.
-        results = memory_with_chat.retrieve_iterative(
-            "user has a dog", k=5, max_steps=10
-        )
+        results = memory_with_chat.retrieve_iterative("user has a dog", k=5, max_steps=10)
         assert results
         assert any("dog" in r.content for r in results)
 
-    def test_refines_query_when_insufficient(
-        self, storage: SqliteStorage
-    ) -> None:
+    def test_refines_query_when_insufficient(self, storage: SqliteStorage) -> None:
         embedder = FakeEmbedder(dim=8)
         memory = Memory(storage=storage, embedder=embedder, chat=None)
         # Plant two events: one matches "step 1", one matches "step 2".
@@ -170,9 +156,7 @@ class TestRetrieveIterativeBasics:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
-                return json.dumps(
-                    {"sufficient": False, "refined_query": "step 2"}
-                )
+                return json.dumps({"sufficient": False, "refined_query": "step 2"})
             return json.dumps({"sufficient": True})
 
         # Deliberate private-attr coupling (audit M-127): the test needs a
@@ -182,7 +166,7 @@ class TestRetrieveIterativeBasics:
         # FakeChat grows a counter API or Memory.set_chat() lands, prefer
         # those over this private-attr write.
         chat.chat = chat_fn  # type: ignore[method-assign,assignment]
-        memory._chat = chat  # noqa: SLF001 - see comment above (M-127)
+        memory._chat = chat
         # Wire reconciler back since we've now set chat.
         results = memory.retrieve_iterative("question?", k=5, max_steps=3)
         assert call_count == 2
@@ -203,23 +187,19 @@ class TestRetrieveIterativeBasics:
             call_count += 1
             # Each step returns a different refined query so we don't
             # short-circuit on the "no change" guard.
-            return json.dumps(
-                {"sufficient": False, "refined_query": f"q-{call_count}"}
-            )
+            return json.dumps({"sufficient": False, "refined_query": f"q-{call_count}"})
 
         chat = FakeChat(default="")
         # See M-127 note above: deliberate private-attr coupling for spy chat.
         chat.chat = chat_fn  # type: ignore[method-assign,assignment]
-        memory._chat = chat  # noqa: SLF001 - deliberate (M-127)
+        memory._chat = chat
         memory.retrieve_iterative("query", k=5, max_steps=4)
         # The judge is skipped on the final iteration (its verdict can't
         # change the outcome — the loop exits anyway), so max_steps=4
         # produces max_steps-1 chat calls.
         assert call_count == 3
 
-    def test_stops_on_no_change_refinement(
-        self, storage: SqliteStorage
-    ) -> None:
+    def test_stops_on_no_change_refinement(self, storage: SqliteStorage) -> None:
         """If the judge returns the same refined_query as the current
         query, we stop (defensive)."""
         embedder = FakeEmbedder(dim=8)
@@ -232,14 +212,12 @@ class TestRetrieveIterativeBasics:
             call_count += 1
             # Always returns the same query "query" -> retrieve_iterative
             # should bail after the first such response.
-            return json.dumps(
-                {"sufficient": False, "refined_query": "query"}
-            )
+            return json.dumps({"sufficient": False, "refined_query": "query"})
 
         chat = FakeChat(default="")
         # See M-127 note above: deliberate private-attr coupling for spy chat.
         chat.chat = chat_fn  # type: ignore[method-assign,assignment]
-        memory._chat = chat  # noqa: SLF001 - deliberate (M-127)
+        memory._chat = chat
         memory.retrieve_iterative("query", k=5, max_steps=10)
         # One step's retrieve, then judge with no change -> stop.
         assert call_count == 1

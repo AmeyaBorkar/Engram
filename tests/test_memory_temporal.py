@@ -84,9 +84,7 @@ def _record_and_resolve(
         similarity=1.0,
     )
     storage.record_conflict(c)
-    Reconciler(storage).reconcile(
-        c.id, resolution=Resolution.PREFER_RECENT, now=now
-    )
+    Reconciler(storage).reconcile(c.id, resolution=Resolution.PREFER_RECENT, now=now)
 
 
 # ---------------------------------------------------------------------------
@@ -98,15 +96,9 @@ class TestSingleInvalidation:
     def test_default_excludes_invalidated(
         self, memory: Memory, storage: SqliteStorage, embedder: FakeEmbedder
     ) -> None:
-        old = _seed_item(
-            storage, embedder, "X is true", created_at=_utc(2026, 1, 1)
-        )
-        new = _seed_item(
-            storage, embedder, "X is false", created_at=_utc(2026, 4, 1)
-        )
-        _record_and_resolve(
-            storage, new_item=new, invalidates=old, now=_utc(2026, 5, 1)
-        )
+        old = _seed_item(storage, embedder, "X is true", created_at=_utc(2026, 1, 1))
+        new = _seed_item(storage, embedder, "X is false", created_at=_utc(2026, 4, 1))
+        _record_and_resolve(storage, new_item=new, invalidates=old, now=_utc(2026, 5, 1))
         results = memory.retrieve(
             "X",
             k=10,
@@ -121,15 +113,9 @@ class TestSingleInvalidation:
     def test_as_of_before_invalidation_shows_loser(
         self, memory: Memory, storage: SqliteStorage, embedder: FakeEmbedder
     ) -> None:
-        old = _seed_item(
-            storage, embedder, "X is true", created_at=_utc(2026, 1, 1)
-        )
-        new = _seed_item(
-            storage, embedder, "X is false", created_at=_utc(2026, 4, 1)
-        )
-        _record_and_resolve(
-            storage, new_item=new, invalidates=old, now=_utc(2026, 5, 1)
-        )
+        old = _seed_item(storage, embedder, "X is true", created_at=_utc(2026, 1, 1))
+        new = _seed_item(storage, embedder, "X is false", created_at=_utc(2026, 4, 1))
+        _record_and_resolve(storage, new_item=new, invalidates=old, now=_utc(2026, 5, 1))
         # Mid-March 2026: only `old` had been written; new doesn't exist yet.
         results = memory.retrieve(
             "X",
@@ -149,15 +135,9 @@ class TestSingleInvalidation:
         """Between new's creation (2026-04-01) and resolution (2026-05-01),
         both items were valid -- the conflict had been detected but not
         reconciled yet. as_of=2026-04-15 should return both."""
-        old = _seed_item(
-            storage, embedder, "X is true", created_at=_utc(2026, 1, 1)
-        )
-        new = _seed_item(
-            storage, embedder, "X is false", created_at=_utc(2026, 4, 1)
-        )
-        _record_and_resolve(
-            storage, new_item=new, invalidates=old, now=_utc(2026, 5, 1)
-        )
+        old = _seed_item(storage, embedder, "X is true", created_at=_utc(2026, 1, 1))
+        new = _seed_item(storage, embedder, "X is false", created_at=_utc(2026, 4, 1))
+        _record_and_resolve(storage, new_item=new, invalidates=old, now=_utc(2026, 5, 1))
         results = memory.retrieve(
             "X",
             k=10,
@@ -173,15 +153,9 @@ class TestSingleInvalidation:
     def test_as_of_after_resolution_excludes_loser(
         self, memory: Memory, storage: SqliteStorage, embedder: FakeEmbedder
     ) -> None:
-        old = _seed_item(
-            storage, embedder, "X is true", created_at=_utc(2026, 1, 1)
-        )
-        new = _seed_item(
-            storage, embedder, "X is false", created_at=_utc(2026, 4, 1)
-        )
-        _record_and_resolve(
-            storage, new_item=new, invalidates=old, now=_utc(2026, 5, 1)
-        )
+        old = _seed_item(storage, embedder, "X is true", created_at=_utc(2026, 1, 1))
+        new = _seed_item(storage, embedder, "X is false", created_at=_utc(2026, 4, 1))
+        _record_and_resolve(storage, new_item=new, invalidates=old, now=_utc(2026, 5, 1))
         results = memory.retrieve(
             "X",
             k=10,
@@ -216,13 +190,9 @@ class TestMultiVersionChain:
         """
         v1 = _seed_item(storage, embedder, "v1", created_at=_utc(2026, 1, 1))
         v2 = _seed_item(storage, embedder, "v2", created_at=_utc(2026, 4, 1))
-        _record_and_resolve(
-            storage, new_item=v2, invalidates=v1, now=_utc(2026, 5, 1)
-        )
+        _record_and_resolve(storage, new_item=v2, invalidates=v1, now=_utc(2026, 5, 1))
         v3 = _seed_item(storage, embedder, "v3", created_at=_utc(2026, 7, 1))
-        _record_and_resolve(
-            storage, new_item=v3, invalidates=v2, now=_utc(2026, 8, 1)
-        )
+        _record_and_resolve(storage, new_item=v3, invalidates=v2, now=_utc(2026, 8, 1))
 
         def _ids_at(as_of: datetime | None) -> set[UUID]:
             results = memory.retrieve(
@@ -273,9 +243,7 @@ class TestKeepBothNoInvalidation:
         b = _seed_item(storage, embedder, "b", created_at=_utc(2026, 4, 1))
         c = Conflict(source_item_id=b.id, target_item_id=a.id, similarity=0.95)
         storage.record_conflict(c)
-        memory.reconcile(
-            c.id, resolution=Resolution.KEEP_BOTH, now=_utc(2026, 5, 1)
-        )
+        memory.reconcile(c.id, resolution=Resolution.KEEP_BOTH, now=_utc(2026, 5, 1))
         results = memory.retrieve(
             "x",
             k=10,
@@ -298,9 +266,7 @@ class TestValidityWindow:
         self, memory: Memory, storage: SqliteStorage, embedder: FakeEmbedder
     ) -> None:
         a = _seed_item(storage, embedder, "a", created_at=_utc(2026, 1, 1))
-        storage.set_validity_window(
-            a.id, valid_until=_utc(2026, 3, 1)
-        )
+        storage.set_validity_window(a.id, valid_until=_utc(2026, 3, 1))
         results = memory.retrieve(
             "x",
             k=10,

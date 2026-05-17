@@ -77,5 +77,3 @@ def new_id() -> UUID:
         (unix_ts_ms << 80) | (_VERSION_7 << 76) | (rand_a << 64) | (_VARIANT_RFC4122 << 62) | rand_b
     )
     return UUID(int=value)
-
-

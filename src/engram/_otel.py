@@ -35,11 +35,11 @@ INSTRUMENTATION_NAME = "engram"
 # Mirror the package version so OTel telemetry attribution doesn't drift
 # from the installed distribution's metadata.  Read once at import.
 try:
-    from importlib.metadata import PackageNotFoundError as _PNFE
+    from importlib.metadata import PackageNotFoundError
     from importlib.metadata import version as _pkg_version
 
     INSTRUMENTATION_VERSION: str = _pkg_version("engrampy")
-except _PNFE:  # pragma: no cover - dev tree without install
+except PackageNotFoundError:  # pragma: no cover - dev tree without install
     INSTRUMENTATION_VERSION = "0.0.0+unknown"
 
 
@@ -68,18 +68,14 @@ def get_tracer() -> Tracer:
     aligns the contract with the behavior.)
     """
     if _trace_mod is None:  # pragma: no cover - otel absent at import time
-        raise RuntimeError(
-            "opentelemetry-api is not installed; install engram-memory[otel]"
-        )
+        raise RuntimeError("opentelemetry-api is not installed; install engram-memory[otel]")
     return _trace_mod.get_tracer(INSTRUMENTATION_NAME, INSTRUMENTATION_VERSION)
 
 
 def get_meter() -> Meter:
     """Return a meter for the engram instrumentation."""
     if _metrics_mod is None:  # pragma: no cover - otel absent at import time
-        raise RuntimeError(
-            "opentelemetry-api is not installed; install engram-memory[otel]"
-        )
+        raise RuntimeError("opentelemetry-api is not installed; install engram-memory[otel]")
     return _metrics_mod.get_meter(INSTRUMENTATION_NAME, INSTRUMENTATION_VERSION)
 
 
@@ -92,7 +88,7 @@ def is_otel_available() -> bool:
     return _OTEL_AVAILABLE
 
 
-def _safe_set_attribute(span: "Span", key: str, value: Any) -> None:
+def _safe_set_attribute(span: Span, key: str, value: Any) -> None:
     """Set `key=value` on `span`, swallowing type errors.
 
     OTel rejects attribute values outside `bool | int | float | str |
@@ -106,9 +102,7 @@ def _safe_set_attribute(span: "Span", key: str, value: Any) -> None:
     try:
         span.set_attribute(key, value)
     except (TypeError, ValueError) as exc:  # pragma: no cover - defensive
-        _LOG.debug(
-            "otel: rejected attribute %s=%r: %s", key, value, exc
-        )
+        _LOG.debug("otel: rejected attribute %s=%r: %s", key, value, exc)
 
 
 @contextmanager

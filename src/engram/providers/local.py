@@ -35,6 +35,7 @@ that path bit-identical.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 from collections.abc import Sequence
 from typing import Any, Literal
@@ -246,7 +247,9 @@ class LocalEmbedder:
         # must not share a cache slot.
         return content_hash(self.model, self._dtype, kind, text)
 
-    def _encode(self, texts: list[str], *, extra: dict[str, Any] | None = None) -> list[list[float]]:
+    def _encode(
+        self, texts: list[str], *, extra: dict[str, Any] | None = None
+    ) -> list[list[float]]:
         kwargs: dict[str, Any] = {
             "batch_size": self._batch_size,
             "convert_to_numpy": True,
@@ -372,22 +375,20 @@ class LocalEmbedder:
         # is the documented way to actually release VRAM — without the
         # cache flush PyTorch retains the allocator's free blocks and
         # `nvidia-smi` still reports the model size as in use.
-        try:
+        with contextlib.suppress(AttributeError):  # pragma: no cover - second unload()
             del self._st
-        except AttributeError:  # pragma: no cover - second unload()
-            pass
         if self._cache is not None:
             self._cache.clear()
             self._cache = None
         try:
-            import torch  # noqa: PLC0415  # optional dep
+            import torch  # optional dep
 
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
-        except Exception:  # pragma: no cover - torch may be absent or already shut down
+        except Exception:  # noqa: S110
             pass
 
-    def __enter__(self) -> "LocalEmbedder":
+    def __enter__(self) -> LocalEmbedder:
         return self
 
     def __exit__(self, *_exc: Any) -> None:

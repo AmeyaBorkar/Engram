@@ -75,8 +75,7 @@ class BGEReranker:
             from sentence_transformers import CrossEncoder
         except ImportError as exc:  # pragma: no cover - tested via skip
             raise ImportError(
-                "BGEReranker requires the `[reranker]` extra "
-                "(pip install engram-memory[reranker])"
+                "BGEReranker requires the `[reranker]` extra (pip install engram-memory[reranker])"
             ) from exc
 
         self._model_name = model

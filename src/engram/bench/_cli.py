@@ -373,10 +373,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--mmr-pool-size",
         type=int,
         default=0,
-        help=(
-            "Override the MMR candidate pool size. 0 (default) uses "
-            "k * rerank-pool-multiplier."
-        ),
+        help=("Override the MMR candidate pool size. 0 (default) uses k * rerank-pool-multiplier."),
     )
     run.add_argument(
         "--recent-window-k",
@@ -758,9 +755,7 @@ def _resolve_suite_config(args: argparse.Namespace) -> dict[str, Any]:
     if args.consolidate:
         cfg["consolidate"] = True
     if args.consolidate_chat:
-        cfg["consolidate_chat"] = build_chat(
-            args.consolidate_chat, args.consolidate_chat_model
-        )
+        cfg["consolidate_chat"] = build_chat(args.consolidate_chat, args.consolidate_chat_model)
     if args.aconsolidate_concurrency != 8:
         cfg["aconsolidate_concurrency"] = args.aconsolidate_concurrency
     if args.judge_chat:
@@ -841,8 +836,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"--limit {args.limit} applied", file=sys.stderr)
         elif args.sample is not None:
             print(
-                f"--sample {args.sample} applied "
-                "(stratified across qtypes)",
+                f"--sample {args.sample} applied (stratified across qtypes)",
                 file=sys.stderr,
             )
         try:

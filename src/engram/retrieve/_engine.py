@@ -324,9 +324,7 @@ class HierarchicalRetriever:
             recent_fn = getattr(self._storage, "list_recent_events", None)
             if callable(recent_fn):
                 try:
-                    recent_hits = recent_fn(
-                        k=p.recent_window_k, include_cold=p.include_cold
-                    )
+                    recent_hits = recent_fn(k=p.recent_window_k, include_cold=p.include_cold)
                 except (ValueError, RuntimeError):  # pragma: no cover - defensive
                     recent_hits = []
                 if recent_hits:
@@ -341,7 +339,7 @@ class HierarchicalRetriever:
                         ((ItemKind.EVENT, eid), 1.0 - i / max(n, 1))
                         for i, (eid, _) in enumerate(recent_hits)
                     ]
-                    recent_by_id = {eid: content for eid, content in recent_hits}
+                    recent_by_id = dict(recent_hits)
                     rankings.append(recent_ranking)
                     weights.append(1.0)
 
@@ -354,9 +352,7 @@ class HierarchicalRetriever:
         # BM25 + recent so the parent map costs one round trip even
         # for a large pool.
         if dense_memory_item_ids and (bm25_hits or recent_hits):
-            event_ids_to_lookup = {eid for eid, *_ in bm25_hits} | {
-                eid for eid, _ in recent_hits
-            }
+            event_ids_to_lookup = {eid for eid, *_ in bm25_hits} | {eid for eid, _ in recent_hits}
             event_to_parents = self._event_to_dense_parents(
                 event_ids_to_lookup, dense_memory_item_ids
             )
@@ -365,9 +361,7 @@ class HierarchicalRetriever:
                     remapped_bm25: list[tuple[tuple[ItemKind, UUID], float]] = []
                     for eid, _content, score in bm25_hits:
                         for parent_id in event_to_parents.get(eid, ()):
-                            remapped_bm25.append(
-                                ((ItemKind.MEMORY_ITEM, parent_id), score)
-                            )
+                            remapped_bm25.append(((ItemKind.MEMORY_ITEM, parent_id), score))
                     if remapped_bm25:
                         rankings.append(remapped_bm25)
                         weights.append(float(p.bm25_weight))
@@ -568,9 +562,7 @@ class HierarchicalRetriever:
                         item_id=c.item_id,
                         level=c.level,
                         content=c.content,
-                        confidence=_clip01(
-                            c.dense_score if c.dense_score is not None else c.score
-                        ),
+                        confidence=_clip01(c.dense_score if c.dense_score is not None else c.score),
                         score=c.score,
                         supported_by=c.supported_by,
                     ),
@@ -599,14 +591,13 @@ class HierarchicalRetriever:
                 # the prior score so a single malformed cross-encoder
                 # response doesn't break every concurrent retrieve.
                 _LOG.warning(
-                    "reranker %r returned %d scores for %d candidates; "
-                    "padding with prior_score",
+                    "reranker %r returned %d scores for %d candidates; padding with prior_score",
                     getattr(reranker, "name", reranker.__class__.__name__),
                     len(rerank_scores_raw),
                     len(rerank_inputs),
                 )
                 padded = list(rerank_scores_raw) + [
-                    ri.prior_score for ri in rerank_inputs[len(rerank_scores_raw):]
+                    ri.prior_score for ri in rerank_inputs[len(rerank_scores_raw) :]
                 ]
                 rerank_scores = padded[: len(rerank_inputs)]
             else:
@@ -624,9 +615,7 @@ class HierarchicalRetriever:
             if p.mmr_lambda > 0 and len(unique) > 1:
                 doc_vecs = self._fetch_candidate_vectors(unique)
                 pool_size = (
-                    p.mmr_pool_size
-                    if p.mmr_pool_size > 0
-                    else p.k * max(p.candidate_multiplier, 1)
+                    p.mmr_pool_size if p.mmr_pool_size > 0 else p.k * max(p.candidate_multiplier, 1)
                 )
                 # Guarantee MMR returns at least k items so the final
                 # `unique[:p.k]` slice can fulfil the contract.  Otherwise
@@ -646,9 +635,7 @@ class HierarchicalRetriever:
                 # boost only ever applied PRE-MMR, so MMR's diversity
                 # calc saw boosted scores and recency drove diversity
                 # rather than relevance (audit H-49).
-                score_by_id = {
-                    id(c): s for c, s in zipped if id(c) in {id(u) for u in unique}
-                }
+                score_by_id = {id(c): s for c, s in zipped if id(c) in {id(u) for u in unique}}
                 # `mmr_select` returns the same _Candidate objects, so
                 # identity-based lookup is safe.  Items the MMR did NOT
                 # pick fall out of `unique`; we still need the score
@@ -658,9 +645,7 @@ class HierarchicalRetriever:
                 if all(id(c) in score_by_id for c in unique):
                     rerank_scores_sorted = [score_by_id[id(c)] for c in unique]
                 else:  # pragma: no cover - defensive
-                    by_key = {
-                        (c.item_kind, c.item_id): s for c, s in zipped
-                    }
+                    by_key = {(c.item_kind, c.item_id): s for c, s in zipped}
                     rerank_scores_sorted = [
                         by_key.get((c.item_kind, c.item_id), c.score) for c in unique
                     ]
@@ -669,9 +654,7 @@ class HierarchicalRetriever:
             # than scores already inflated by recency.  The sort below
             # then folds the recency bonus into the final order.
             if p.recency_lambda > 0 and unique:
-                rerank_scores_sorted = self._apply_recency_boost(
-                    unique, rerank_scores_sorted, p
-                )
+                rerank_scores_sorted = self._apply_recency_boost(unique, rerank_scores_sorted, p)
                 # Re-sort once the recency bonus has been folded in.
                 paired = sorted(
                     zip(unique, rerank_scores_sorted, strict=True),
@@ -703,9 +686,7 @@ class HierarchicalRetriever:
                 # range across RRF / rerank / recency stages.  Fall
                 # back to `score` when the candidate came in via a
                 # lexical-only path with no dense cosine.
-                confidence=_clip01(
-                    c.dense_score if c.dense_score is not None else c.score
-                ),
+                confidence=_clip01(c.dense_score if c.dense_score is not None else c.score),
                 score=c.score,
                 supported_by=c.supported_by,
             )
@@ -830,9 +811,7 @@ class HierarchicalRetriever:
         event = self._storage.get_event(cand.item_id)
         if event is None or not event.metadata:
             return False
-        return bool(
-            event.metadata.get("is_first_turn") or event.metadata.get("is_last_turn")
-        )
+        return bool(event.metadata.get("is_first_turn") or event.metadata.get("is_last_turn"))
 
     def _enforce_within_session_oversample(
         self,
@@ -903,11 +882,7 @@ class HierarchicalRetriever:
         new_top.sort(key=lambda c: index_of[id(c)])
         new_top = new_top[:k]
         new_top_set = {id(c) for c in new_top}
-        remainder = [
-            c
-            for c in candidates
-            if id(c) not in new_top_set and c not in demoted
-        ]
+        remainder = [c for c in candidates if id(c) not in new_top_set and c not in demoted]
         return new_top + demoted + remainder
 
     def _apply_recency_boost(
@@ -963,9 +938,7 @@ class HierarchicalRetriever:
             out.append(s + bonus)
         return out
 
-    def _get_created_at_batch(
-        self, candidates: Sequence[_Candidate]
-    ) -> dict[UUID, datetime]:
+    def _get_created_at_batch(self, candidates: Sequence[_Candidate]) -> dict[UUID, datetime]:
         batch = getattr(self._storage, "get_created_at_batch", None)
         if callable(batch):
             return batch([(c.item_id, c.item_kind) for c in candidates])
@@ -1057,6 +1030,4 @@ _LEVEL_PRIORITY: dict[Level, int] = {
 
 
 from engram._vec_math import normalize as _normalize  # noqa: E402
-
-
 from engram.decay._math import clamp01 as _clip01  # noqa: E402  # alias for legacy callers

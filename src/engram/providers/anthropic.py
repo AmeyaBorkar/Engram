@@ -16,6 +16,7 @@ ways we paper over:
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 from collections.abc import Sequence
@@ -78,6 +79,8 @@ def _redact_error(exc: BaseException) -> BaseException:
         return type(exc)(redacted)
     except Exception:  # pragma: no cover - exotic exception ctor
         return exc
+
+
 # Anthropic SDK's default request timeout is 600s — far longer than
 # anything an interactive workload should tolerate. A stuck endpoint
 # should bubble up promptly instead of hanging the caller for ten minutes.
@@ -89,11 +92,9 @@ def _build_sdk_kwargs(api_key: str | None, timeout: float | None) -> dict[str, A
     kwargs: dict[str, Any] = {"api_key": api_key}
     if timeout is not None:
         try:
-            import httpx  # noqa: PLC0415
+            import httpx
 
-            kwargs["timeout"] = httpx.Timeout(
-                timeout, connect=_DEFAULT_CONNECT_TIMEOUT_SECONDS
-            )
+            kwargs["timeout"] = httpx.Timeout(timeout, connect=_DEFAULT_CONNECT_TIMEOUT_SECONDS)
         except ImportError:  # pragma: no cover - httpx ships with anthropic SDK
             kwargs["timeout"] = timeout
     return kwargs
@@ -205,13 +206,13 @@ class AnthropicChat:
         _safe_close(self._client)
         await _safe_aclose(self._aclient)
 
-    def __enter__(self) -> "AnthropicChat":
+    def __enter__(self) -> AnthropicChat:
         return self
 
     def __exit__(self, *_exc: Any) -> None:
         self.close()
 
-    async def __aenter__(self) -> "AnthropicChat":
+    async def __aenter__(self) -> AnthropicChat:
         return self
 
     async def __aexit__(self, *_exc: Any) -> None:
@@ -223,10 +224,8 @@ def _safe_close(client: Any) -> None:
     close = getattr(client, "close", None)
     if not callable(close):
         return
-    try:
+    with contextlib.suppress(Exception):  # pragma: no cover - defensive
         close()
-    except Exception:  # pragma: no cover - defensive
-        pass
 
 
 async def _safe_aclose(client: Any) -> None:
@@ -237,7 +236,7 @@ async def _safe_aclose(client: Any) -> None:
             result = aclose()
             if hasattr(result, "__await__"):
                 await result
-        except Exception:  # pragma: no cover - defensive
+        except Exception:  # pragma: no cover - defensive  # noqa: S110
             pass
         return
     _safe_close(client)

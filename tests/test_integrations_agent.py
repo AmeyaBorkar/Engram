@@ -127,9 +127,7 @@ class TestEngramAgentBasics:
 
     def test_custom_system_prompt(self, memory: Memory) -> None:
         chat = FakeChat(default="Reply.")
-        agent = EngramAgent(
-            memory, chat, system_prompt="You are pirate-bot."
-        )
+        agent = EngramAgent(memory, chat, system_prompt="You are pirate-bot.")
         turn = agent.chat("hi")
         assert turn.system_prompt.startswith("You are pirate-bot.")
 

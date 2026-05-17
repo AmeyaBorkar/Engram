@@ -32,9 +32,9 @@ from __future__ import annotations
 import math
 import re
 from collections import Counter
-from collections.abc import Iterable, Sequence
+from collections.abc import Hashable, Sequence
 from dataclasses import dataclass
-from typing import Generic, Hashable, TypeVar
+from typing import Generic, TypeVar
 
 import numpy as np
 
@@ -99,9 +99,7 @@ class BM25Index(Generic[DocId]):
     def add_doc(self, doc_id: DocId, text: str) -> None:
         """Add a document to the index. Must be called before any `search`."""
         if self._frozen:
-            raise RuntimeError(
-                "BM25Index is frozen after the first search(); rebuild from scratch"
-            )
+            raise RuntimeError("BM25Index is frozen after the first search(); rebuild from scratch")
         tokens = tokenize(text)
         doc_idx = len(self._ids)
         self._ids.append(doc_id)
@@ -136,12 +134,8 @@ class BM25Index(Generic[DocId]):
         for term, postings in self._postings.items():
             df = len(postings)
             self._term_idf[term] = math.log(1.0 + (n - df + 0.5) / (df + 0.5))
-            self._term_doc_idx[term] = np.asarray(
-                [p.doc_idx for p in postings], dtype=np.int64
-            )
-            self._term_tf[term] = np.asarray(
-                [p.tf for p in postings], dtype=np.float32
-            )
+            self._term_doc_idx[term] = np.asarray([p.doc_idx for p in postings], dtype=np.int64)
+            self._term_tf[term] = np.asarray([p.tf for p in postings], dtype=np.float32)
 
     def search(self, query: str, k: int) -> list[tuple[DocId, float]]:
         """Return top-`k` `(doc_id, bm25_score)` pairs, score descending.

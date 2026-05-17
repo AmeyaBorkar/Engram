@@ -175,9 +175,7 @@ class TestPromotesWhenEligible:
 
         memory, storage = _make(
             tmp_path,
-            promotion_params=PromotionParams(
-                enabled=True, min_corroboration=2, min_weight=0.0
-            ),
+            promotion_params=PromotionParams(enabled=True, min_corroboration=2, min_weight=0.0),
         )
         try:
             item = _seed_summary(storage, content="conflicted", weight=1.0)
@@ -201,9 +199,7 @@ class TestPromotesWhenEligible:
         finally:
             storage.close()
 
-    def test_resolved_conflicts_do_not_block_promotion(
-        self, tmp_path: Path
-    ) -> None:
+    def test_resolved_conflicts_do_not_block_promotion(self, tmp_path: Path) -> None:
         """Audit H-57: once the reconciler flips OPEN -> RESOLVED, the
         item is eligible for promotion again. The old metadata-snapshot
         gate never cleared so a once-contradicted summary could never
@@ -214,9 +210,7 @@ class TestPromotesWhenEligible:
 
         memory, storage = _make(
             tmp_path,
-            promotion_params=PromotionParams(
-                enabled=True, min_corroboration=2, min_weight=0.0
-            ),
+            promotion_params=PromotionParams(enabled=True, min_corroboration=2, min_weight=0.0),
         )
         try:
             item = _seed_summary(storage, content="reconciled", weight=1.0)

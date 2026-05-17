@@ -133,12 +133,8 @@ def test_search_memory_item_embeddings_as_of_under_budget(
 
         p50 = _percentile(per_call_ms, 50.0)
         p99 = _percentile(per_call_ms, 99.0)
-        assert p50 < AS_OF_P50_MS, (
-            f"as_of retrieve P50 = {p50:.1f} ms (budget {AS_OF_P50_MS} ms)"
-        )
-        assert p99 < AS_OF_P99_MS, (
-            f"as_of retrieve P99 = {p99:.1f} ms (budget {AS_OF_P99_MS} ms)"
-        )
+        assert p50 < AS_OF_P50_MS, f"as_of retrieve P50 = {p50:.1f} ms (budget {AS_OF_P50_MS} ms)"
+        assert p99 < AS_OF_P99_MS, f"as_of retrieve P99 = {p99:.1f} ms (budget {AS_OF_P99_MS} ms)"
     finally:
         storage.close()
 

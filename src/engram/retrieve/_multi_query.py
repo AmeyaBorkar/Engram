@@ -27,18 +27,17 @@ from collections import defaultdict
 from collections.abc import Sequence
 from importlib import resources
 
+from engram._prompt_util import inline as _inline
+from engram._prompt_util import render_prompt
 from engram.providers._message import Message
 from engram.providers._protocols import ChatProvider
 from engram.schemas import RetrievalResult
-from engram._prompt_util import inline as _inline, render_prompt
 
 _LOG = logging.getLogger("engram.retrieve")
 
 MULTI_QUERY_PROMPT_NAME = "multi_query"
 MULTI_QUERY_PROMPT_VERSION = "v1"
-MULTI_QUERY_PROMPT_FILENAME = (
-    f"{MULTI_QUERY_PROMPT_NAME}_{MULTI_QUERY_PROMPT_VERSION}.txt"
-)
+MULTI_QUERY_PROMPT_FILENAME = f"{MULTI_QUERY_PROMPT_NAME}_{MULTI_QUERY_PROMPT_VERSION}.txt"
 
 
 def load_multi_query_prompt() -> str:
@@ -80,7 +79,8 @@ def expand_queries(query: str, n: int, chat: ChatProvider) -> list[str]:
     except Exception as exc:
         _LOG.warning(
             "expand_queries: chat raised %s: %s; falling back to [query]",
-            type(exc).__name__, exc,
+            type(exc).__name__,
+            exc,
         )
         return [query]
     lines = [line.strip() for line in response.splitlines() if line.strip()]
@@ -135,6 +135,7 @@ def reciprocal_rank_fusion(
         )
     out.sort(key=lambda r: r.score, reverse=True)
     return out
+
 
 def _strip_leading_marker(line: str) -> str:
     """Strip a leading list marker like '1. ' or '- '."""

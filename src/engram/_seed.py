@@ -48,6 +48,7 @@ def seed_everything(seed: int) -> dict[str, bool]:
 
     try:
         import numpy as np
+
         np.random.seed(seed)
         seeded["numpy"] = True
     except ImportError:  # pragma: no cover - numpy is a core dep
@@ -55,6 +56,7 @@ def seed_everything(seed: int) -> dict[str, bool]:
 
     try:
         import torch
+
         torch.manual_seed(seed)
         seeded["torch"] = True
         cuda: Any = getattr(torch, "cuda", None)

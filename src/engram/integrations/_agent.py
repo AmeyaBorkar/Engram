@@ -119,18 +119,12 @@ class EngramAgent:
         verify_max_retries: int = 1,
     ) -> None:
         if self_consistency_n < 1:
-            raise ValueError(
-                f"self_consistency_n must be >= 1, got {self_consistency_n}"
-            )
+            raise ValueError(f"self_consistency_n must be >= 1, got {self_consistency_n}")
         if verify_max_retries < 0:
-            raise ValueError(
-                f"verify_max_retries must be >= 0, got {verify_max_retries}"
-            )
+            raise ValueError(f"verify_max_retries must be >= 0, got {verify_max_retries}")
         self._memory = memory
         self._chat = chat
-        self._system_prompt = (
-            system_prompt if system_prompt is not None else self.DEFAULT_SYSTEM
-        )
+        self._system_prompt = system_prompt if system_prompt is not None else self.DEFAULT_SYSTEM
         self._retrieve_k = retrieve_k
         self._auto_observe = auto_observe
         self._include_level = include_level
@@ -158,9 +152,7 @@ class EngramAgent:
             include_score=self._include_score,
         )
         if context:
-            system = (
-                f"{self._system_prompt}\n\nRelevant memories:\n{context}"
-            )
+            system = f"{self._system_prompt}\n\nRelevant memories:\n{context}"
         else:
             system = self._system_prompt
         if self._cot:
@@ -169,9 +161,7 @@ class EngramAgent:
         messages.extend(history)
         messages.append(Message(role="user", content=user_message))
         if self._self_consistency_n >= 2:
-            samples = tuple(
-                self._chat.chat(messages) for _ in range(self._self_consistency_n)
-            )
+            samples = tuple(self._chat.chat(messages) for _ in range(self._self_consistency_n))
             # Vote over the stripped answers so identical answers with
             # divergent reasoning chains still collapse into one bucket.
             if self._cot:
@@ -212,18 +202,14 @@ class EngramAgent:
                 # `reinforce=False` on the retry path so the same items
                 # don't get double-counted into decay state — the surface
                 # retrieve already fired reinforcement once (audit M-47).
-                results = self._memory.retrieve(
-                    user_message, k=self._retrieve_k, reinforce=False
-                )
+                results = self._memory.retrieve(user_message, k=self._retrieve_k, reinforce=False)
                 context = format_context(
                     results,
                     include_level=self._include_level,
                     include_score=self._include_score,
                 )
                 if context:
-                    system = (
-                        f"{self._system_prompt}\n\nRelevant memories:\n{context}"
-                    )
+                    system = f"{self._system_prompt}\n\nRelevant memories:\n{context}"
                 else:
                     system = self._system_prompt
                 if self._cot:
@@ -254,13 +240,9 @@ class EngramAgent:
             # from authentic user input — self-amplifying drift on
             # hallucinations.  The downstream retrieve / consolidation
             # paths can filter or weight by source (audit H-07).
-            user_event = self._memory.observe(
-                Event(content=user_message, source="user")
-            )
+            user_event = self._memory.observe(Event(content=user_message, source="user"))
             observed_event_ids.append(user_event.id)
-            reply_event = self._memory.observe(
-                Event(content=reply, source="assistant")
-            )
+            reply_event = self._memory.observe(Event(content=reply, source="assistant"))
             observed_event_ids.append(reply_event.id)
 
         return EngramAgentTurn(
@@ -326,13 +308,13 @@ def _strip_cot(reply: str) -> str:
     matches = list(_COT_MARKER_RE.finditer(reply))
     if matches:
         last = matches[-1]
-        return reply[last.end():].strip()
+        return reply[last.end() :].strip()
     # Fall back to legacy behavior for models that put the marker mid-line.
     marker = "Answer:"
     idx = reply.rfind(marker)
     if idx == -1:
         return reply
-    return reply[idx + len(marker):].strip()
+    return reply[idx + len(marker) :].strip()
 
 
 def _majority_vote(samples: Sequence[str]) -> str:

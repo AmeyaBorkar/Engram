@@ -22,14 +22,18 @@ from importlib import resources
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
+from engram._prompt_util import (
+    inline as _inline,
+)
+from engram._prompt_util import (
+    render_prompt,
+)
+from engram._prompt_util import (
+    strip_code_fence as _strip_code_fence,
+)
 from engram.consolidation._abstraction import AbstractionParseError
 from engram.providers._message import Message
 from engram.providers._protocols import ChatProvider
-from engram._prompt_util import (
-    inline as _inline,
-    render_prompt,
-    strip_code_fence as _strip_code_fence,
-)
 
 MERGE_PROMPT_NAME = "merge"
 MERGE_PROMPT_VERSION = "v1"
@@ -204,9 +208,7 @@ def merge(
     output B" guidance. Stage 8's reconciler always passes `b` as the
     newer-created item so the fallback is conservatively sane.
     """
-    return merge_with_status(
-        a=a, b=b, chat=chat, max_retries=max_retries, fallback=fallback
-    ).merged
+    return merge_with_status(a=a, b=b, chat=chat, max_retries=max_retries, fallback=fallback).merged
 
 
 __all__ = [

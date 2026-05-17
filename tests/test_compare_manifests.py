@@ -10,8 +10,6 @@ import importlib.util
 import json
 from pathlib import Path
 
-import pytest
-
 _ROOT = Path(__file__).parent.parent
 _SCRIPT_PATH = _ROOT / "benchmarks" / "compare_manifests.py"
 
@@ -76,20 +74,56 @@ def test_qtype_accuracies_prefers_correct() -> None:
 
 def test_diff_questions_basic() -> None:
     base = [
-        {"question_id": "q1", "question_type": "ms", "score": 1.0,
-         "question": "A?", "gold": "yes", "response": "yes"},
-        {"question_id": "q2", "question_type": "ms", "score": 0.0,
-         "question": "B?", "gold": "yes", "response": "I don't know."},
-        {"question_id": "q3", "question_type": "ku", "score": 1.0,
-         "question": "C?", "gold": "no", "response": "no"},
+        {
+            "question_id": "q1",
+            "question_type": "ms",
+            "score": 1.0,
+            "question": "A?",
+            "gold": "yes",
+            "response": "yes",
+        },
+        {
+            "question_id": "q2",
+            "question_type": "ms",
+            "score": 0.0,
+            "question": "B?",
+            "gold": "yes",
+            "response": "I don't know.",
+        },
+        {
+            "question_id": "q3",
+            "question_type": "ku",
+            "score": 1.0,
+            "question": "C?",
+            "gold": "no",
+            "response": "no",
+        },
     ]
     new = [
-        {"question_id": "q1", "question_type": "ms", "score": 1.0,
-         "question": "A?", "gold": "yes", "response": "yes"},
-        {"question_id": "q2", "question_type": "ms", "score": 1.0,
-         "question": "B?", "gold": "yes", "response": "yes"},
-        {"question_id": "q3", "question_type": "ku", "score": 0.0,
-         "question": "C?", "gold": "no", "response": ""},
+        {
+            "question_id": "q1",
+            "question_type": "ms",
+            "score": 1.0,
+            "question": "A?",
+            "gold": "yes",
+            "response": "yes",
+        },
+        {
+            "question_id": "q2",
+            "question_type": "ms",
+            "score": 1.0,
+            "question": "B?",
+            "gold": "yes",
+            "response": "yes",
+        },
+        {
+            "question_id": "q3",
+            "question_type": "ku",
+            "score": 0.0,
+            "question": "C?",
+            "gold": "no",
+            "response": "",
+        },
     ]
     d = cm._diff_questions(base, new)
     assert len(d["PP"]) == 1
@@ -100,10 +134,26 @@ def test_diff_questions_basic() -> None:
 
 
 def test_diff_questions_handles_disjoint_sets() -> None:
-    base = [{"question_id": "x", "question_type": "ms", "score": 1.0,
-             "question": "?", "gold": "g", "response": "r"}]
-    new = [{"question_id": "y", "question_type": "ms", "score": 0.0,
-            "question": "?", "gold": "g", "response": ""}]
+    base = [
+        {
+            "question_id": "x",
+            "question_type": "ms",
+            "score": 1.0,
+            "question": "?",
+            "gold": "g",
+            "response": "r",
+        }
+    ]
+    new = [
+        {
+            "question_id": "y",
+            "question_type": "ms",
+            "score": 0.0,
+            "question": "?",
+            "gold": "g",
+            "response": "",
+        }
+    ]
     d = cm._diff_questions(base, new)
     assert len(d["PP"]) == 0
     assert len(d["only_in_base"]) == 1
@@ -113,8 +163,8 @@ def test_diff_questions_handles_disjoint_sets() -> None:
 def test_shape_summary_counts_cliff() -> None:
     pq = [
         {"response": "x" * 4500},  # in cliff range
-        {"response": "x" * 100},   # not cliff
-        {"response": ""},           # empty
+        {"response": "x" * 100},  # not cliff
+        {"response": ""},  # empty
         {"response": "x" * 3700},  # cliff
     ]
     s = cm._shape_summary(pq)
@@ -130,10 +180,22 @@ def test_build_report_end_to_end(tmp_path: Path) -> None:
         "engram_config": {"k": 10},
         "git_commit": "aaaaaaa",
         "per_question": [
-            {"question_id": "q1", "question_type": "multi-session", "score": 1.0,
-             "question": "A?", "gold": "a", "response": "a"},
-            {"question_id": "q2", "question_type": "multi-session", "score": 0.0,
-             "question": "B?", "gold": "b", "response": ""},
+            {
+                "question_id": "q1",
+                "question_type": "multi-session",
+                "score": 1.0,
+                "question": "A?",
+                "gold": "a",
+                "response": "a",
+            },
+            {
+                "question_id": "q2",
+                "question_type": "multi-session",
+                "score": 0.0,
+                "question": "B?",
+                "gold": "b",
+                "response": "",
+            },
         ],
     }
     new_manifest = {
@@ -141,10 +203,22 @@ def test_build_report_end_to_end(tmp_path: Path) -> None:
         "engram_config": {"k": 20, "max_tokens": 8192},
         "git_commit": "bbbbbbb",
         "per_question": [
-            {"question_id": "q1", "question_type": "multi-session", "score": 1.0,
-             "question": "A?", "gold": "a", "response": "a"},
-            {"question_id": "q2", "question_type": "multi-session", "score": 1.0,
-             "question": "B?", "gold": "b", "response": "b"},
+            {
+                "question_id": "q1",
+                "question_type": "multi-session",
+                "score": 1.0,
+                "question": "A?",
+                "gold": "a",
+                "response": "a",
+            },
+            {
+                "question_id": "q2",
+                "question_type": "multi-session",
+                "score": 1.0,
+                "question": "B?",
+                "gold": "b",
+                "response": "b",
+            },
         ],
     }
     base_p = tmp_path / "base.json"

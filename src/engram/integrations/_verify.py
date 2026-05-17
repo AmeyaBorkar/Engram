@@ -18,14 +18,18 @@ from importlib import resources
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
+from engram._prompt_util import (
+    inline as _inline,
+)
+from engram._prompt_util import (
+    render_prompt,
+)
+from engram._prompt_util import (
+    strip_code_fence as _strip_code_fence,
+)
 from engram.consolidation._abstraction import AbstractionParseError
 from engram.providers._message import Message
 from engram.providers._protocols import ChatProvider
-from engram._prompt_util import (
-    inline as _inline,
-    render_prompt,
-    strip_code_fence as _strip_code_fence,
-)
 
 VERIFY_PROMPT_NAME = "verify"
 VERIFY_PROMPT_VERSION = "v1"
@@ -140,6 +144,7 @@ def verify_answer(
     # infinite retry loops on a misbehaving verifier) but the reason
     # field now distinguishes the cases.
     return VerifyVerdict(supported=True, reason="verifier_unparsable")
+
 
 __all__ = [
     "VerifyVerdict",

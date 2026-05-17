@@ -136,7 +136,9 @@ def test_async_recovers_after_transient_failure() -> None:
     async def fake_sleep(d: float) -> None:
         sleeps.append(d)
 
-    r = Retry(max_attempts=3, base_delay=0.1, jitter=False, exceptions=(RuntimeError,), asleep=fake_sleep)
+    r = Retry(
+        max_attempts=3, base_delay=0.1, jitter=False, exceptions=(RuntimeError,), asleep=fake_sleep
+    )
     calls = 0
 
     async def afn() -> str:
@@ -155,7 +157,13 @@ def test_async_raises_after_max_attempts() -> None:
     async def afn() -> None:
         raise RuntimeError("boom")
 
-    r = Retry(max_attempts=2, base_delay=0.0, jitter=False, exceptions=(RuntimeError,), asleep=lambda _d: _noop_async())
+    r = Retry(
+        max_attempts=2,
+        base_delay=0.0,
+        jitter=False,
+        exceptions=(RuntimeError,),
+        asleep=lambda _d: _noop_async(),
+    )
 
     with pytest.raises(RuntimeError, match="boom"):
         asyncio.run(r.acall(afn))

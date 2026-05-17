@@ -25,7 +25,8 @@ from __future__ import annotations
 import logging
 from importlib import resources
 
-from engram._prompt_util import inline as _inline, render_prompt
+from engram._prompt_util import inline as _inline
+from engram._prompt_util import render_prompt
 from engram.providers._message import Message
 from engram.providers._protocols import ChatProvider
 
@@ -60,7 +61,9 @@ def hyde_transform(query: str, chat: ChatProvider) -> str:
         # Best-effort fallback: HyDE is a precision boost, not load-
         # bearing.  Log so a misconfigured chat provider surfaces to
         # operators as a warning instead of a silent feature-disable.
-        _LOG.warning("hyde transform: chat raised %s: %s; falling back to raw query", type(exc).__name__, exc)
+        _LOG.warning(
+            "hyde transform: chat raised %s: %s; falling back to raw query", type(exc).__name__, exc
+        )
         return query
     cleaned = response.strip()
     if not cleaned:
@@ -70,6 +73,7 @@ def hyde_transform(query: str, chat: ChatProvider) -> str:
     if len(cleaned) < max(8, len(query) // 4):
         return query
     return cleaned
+
 
 __all__ = [
     "hyde_transform",

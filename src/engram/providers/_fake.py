@@ -59,9 +59,7 @@ class FakeEmbedder:
         encoded = text.encode("utf-8")
         prefix = f"L={len(encoded)}|"
         while len(blob) < needed:
-            blob += hashlib.sha256(
-                f"{prefix}{text}:{counter}".encode("utf-8")
-            ).digest()
+            blob += hashlib.sha256(f"{prefix}{text}:{counter}".encode()).digest()
             counter += 1
         blob = blob[:needed]
 

@@ -94,9 +94,7 @@ class TestMemoryRetrieveWithDecompose:
         memory.retrieve("q", k=1, reinforce=False)
         assert call_count == 0
 
-    def test_decompose_uses_chat_and_fuses(
-        self, storage: SqliteStorage
-    ) -> None:
+    def test_decompose_uses_chat_and_fuses(self, storage: SqliteStorage) -> None:
         embedder = FakeEmbedder(dim=8)
         # Plant 3 events.
         memory_no_chat = Memory(storage=storage, embedder=embedder)
@@ -129,9 +127,7 @@ class TestMemoryRetrieveWithDecompose:
         assert "user works at Acme Corp" in contents
         assert "user has a dog Rex" in contents
 
-    def test_decompose_no_op_without_chat(
-        self, storage: SqliteStorage
-    ) -> None:
+    def test_decompose_no_op_without_chat(self, storage: SqliteStorage) -> None:
         memory = Memory(storage=storage, embedder=FakeEmbedder(dim=8))
         memory.observe("x")
         results = memory.retrieve("query", k=1, decompose=True, reinforce=False)
@@ -147,9 +143,7 @@ class TestLeafParamPassThrough:
     `params.replace(...)` so every knob the caller already set
     propagates to the leaves automatically."""
 
-    def test_decompose_leaf_inherits_bm25_weight(
-        self, storage: SqliteStorage
-    ) -> None:
+    def test_decompose_leaf_inherits_bm25_weight(self, storage: SqliteStorage) -> None:
         embedder = FakeEmbedder(dim=8)
         # Plant 2 events so BM25 has documents to score.
         memory_no_chat = Memory(storage=storage, embedder=embedder)
@@ -164,9 +158,7 @@ class TestLeafParamPassThrough:
             return real(query, **kw)  # type: ignore[arg-type]
 
         decompose_prompt = render_decompose_prompt("apple cherry?")
-        chat = FakeChat(
-            scripts={content_hash(decompose_prompt): "apple\ncherry"}
-        )
+        chat = FakeChat(scripts={content_hash(decompose_prompt): "apple\ncherry"})
         memory = Memory(storage=storage, embedder=embedder, chat=chat)
         memory._retriever.retrieve = _spy  # type: ignore[method-assign]
         try:
@@ -183,9 +175,7 @@ class TestLeafParamPassThrough:
         assert captured, "leaf retrieves never ran"
         assert all(w == 1.5 for w in captured), captured
 
-    def test_multi_query_leaf_inherits_recency_lambda(
-        self, storage: SqliteStorage
-    ) -> None:
+    def test_multi_query_leaf_inherits_recency_lambda(self, storage: SqliteStorage) -> None:
         from engram.retrieve._multi_query import render_multi_query_prompt
 
         embedder = FakeEmbedder(dim=8)
@@ -225,9 +215,7 @@ class TestMultiQueryParallelDispatch:
     `_parallel_leaf_retrieves` so the fan-out cost matches between
     the two surfaces."""
 
-    def test_multi_query_uses_parallel_leaf_retrieves(
-        self, storage: SqliteStorage
-    ) -> None:
+    def test_multi_query_uses_parallel_leaf_retrieves(self, storage: SqliteStorage) -> None:
         from engram.retrieve._multi_query import render_multi_query_prompt
 
         embedder = FakeEmbedder(dim=8)
@@ -279,16 +267,12 @@ class TestDecomposeRerankerUsesSubQuery:
         class _RecordingReranker:
             name = "recording"
 
-            def rerank(
-                self, query: str, candidates: list[RerankCandidate]
-            ) -> list[float]:
+            def rerank(self, query: str, candidates: list[RerankCandidate]) -> list[float]:
                 seen_queries.append(query)
                 return [c.prior_score for c in candidates]
 
         decompose_prompt = render_decompose_prompt("alpha + beta?")
-        chat = FakeChat(
-            scripts={content_hash(decompose_prompt): "alpha question\nbeta question"}
-        )
+        chat = FakeChat(scripts={content_hash(decompose_prompt): "alpha question\nbeta question"})
         memory = Memory(storage=storage, embedder=embedder, chat=chat)
         memory.retrieve(
             "alpha + beta?",

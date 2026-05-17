@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 import threading
 from collections.abc import Sequence
@@ -12,9 +11,9 @@ import pytest
 
 from engram.providers._disk_cache import (
     _EMBED_BINARY_MAGIC,
+    _HANDLES,
     CachedEmbedder,
     DiskCache,
-    _HANDLES,
     _decode_embed_blob,
     with_disk_cache,
 )
@@ -46,7 +45,7 @@ def test_embed_get_treats_corrupt_blob_as_miss(tmp_path: Path) -> None:
     try:
         key = cache.embed_key("p", "m", "t")
         # Inject a deliberately corrupt blob bypassing embed_set.
-        cache._conn.execute(  # noqa: SLF001 - test patches private state on purpose
+        cache._conn.execute(
             "INSERT OR REPLACE INTO embed (key, value) VALUES (?, ?)",
             (key, b"\xff\xfegarbage"),
         )
@@ -59,7 +58,7 @@ def test_embed_get_treats_malformed_json_as_miss(tmp_path: Path) -> None:
     cache = DiskCache(tmp_path / "cache.db")
     try:
         key = cache.embed_key("p", "m", "t")
-        cache._conn.execute(  # noqa: SLF001
+        cache._conn.execute(
             "INSERT OR REPLACE INTO embed (key, value) VALUES (?, ?)",
             (key, b'{"not": "a vector"}'),
         )
@@ -73,7 +72,7 @@ def test_embed_get_rejects_list_of_strings(tmp_path: Path) -> None:
     cache = DiskCache(tmp_path / "cache.db")
     try:
         key = cache.embed_key("p", "m", "t")
-        cache._conn.execute(  # noqa: SLF001
+        cache._conn.execute(
             "INSERT OR REPLACE INTO embed (key, value) VALUES (?, ?)",
             (key, b'["a", "b", "c"]'),
         )
@@ -216,7 +215,10 @@ def test_cached_embedder_uses_batch_lookup(tmp_path: Path) -> None:
     cache = DiskCache(tmp_path / "cache.db")
     try:
         # Pre-fill keys for two texts.
-        keys = [cache.embed_key("fake-embed", "stub", "a"), cache.embed_key("fake-embed", "stub", "b")]
+        keys = [
+            cache.embed_key("fake-embed", "stub", "a"),
+            cache.embed_key("fake-embed", "stub", "b"),
+        ]
         cache.embed_set(keys[0], [0.5])
         cache.embed_set(keys[1], [1.5])
 
@@ -284,12 +286,12 @@ def test_with_disk_cache_memoizes_same_path(tmp_path: Path) -> None:
         embed_wrapper = with_disk_cache(_StubEmbed(), path=path)
         # Both wrappers must share the underlying DiskCache instance,
         # which is exactly the goal — no double sqlite handles.
-        assert chat_wrapper._cache is embed_wrapper._cache  # noqa: SLF001
+        assert chat_wrapper._cache is embed_wrapper._cache
         # And the same handle is registered.
         assert len(_HANDLES) == 1
     finally:
         # Closing once should drop it from the registry.
-        chat_wrapper._cache.close()  # noqa: SLF001
+        chat_wrapper._cache.close()
 
 
 def test_with_disk_cache_normalizes_path_spelling(tmp_path: Path) -> None:
@@ -315,9 +317,9 @@ def test_with_disk_cache_normalizes_path_spelling(tmp_path: Path) -> None:
     try:
         a = with_disk_cache(_StubEmbed(), path=path1)
         b = with_disk_cache(_StubEmbed(), path=path2)
-        assert a._cache is b._cache  # noqa: SLF001
+        assert a._cache is b._cache
     finally:
-        a._cache.close()  # noqa: SLF001
+        a._cache.close()
 
 
 # ---------------------------------------------------------------------------
@@ -343,9 +345,7 @@ def test_disk_cache_accepts_path_under_allowed_root(tmp_path: Path) -> None:
         cache.close()
 
 
-def test_disk_cache_honors_env_root(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_disk_cache_honors_env_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     root = tmp_path / "envroot"
     root.mkdir()
     outside = tmp_path / "elsewhere.db"
@@ -364,9 +364,7 @@ def test_embed_blob_is_packed_binary(tmp_path: Path) -> None:
     try:
         key = cache.embed_key("p", "m", "t")
         cache.embed_set(key, [0.0, 1.5, -2.25])
-        row = cache._conn.execute(  # noqa: SLF001
-            "SELECT value FROM embed WHERE key = ?", (key,)
-        ).fetchone()
+        row = cache._conn.execute("SELECT value FROM embed WHERE key = ?", (key,)).fetchone()
         blob: bytes = bytes(row["value"])
         assert blob.startswith(_EMBED_BINARY_MAGIC)
         # 3 float64 -> 24 bytes after the magic.
@@ -387,7 +385,7 @@ def test_embed_get_reads_legacy_json_blob(tmp_path: Path) -> None:
         # Bypass `embed_set` to write the legacy text-encoded JSON
         # shape directly.
         legacy = json.dumps([0.1, 0.2, 0.3]).encode("utf-8")
-        cache._conn.execute(  # noqa: SLF001
+        cache._conn.execute(
             "INSERT OR REPLACE INTO embed (key, value) VALUES (?, ?)",
             (key, legacy),
         )

@@ -40,22 +40,24 @@ from importlib import resources
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
+from engram._prompt_util import (
+    inline as _inline,
+)
+from engram._prompt_util import (
+    render_prompt,
+)
+from engram._prompt_util import (
+    strip_code_fence as _strip_code_fence,
+)
 from engram.consolidation._abstraction import AbstractionParseError
 from engram.providers._message import Message
 from engram.providers._protocols import ChatProvider
-from engram._prompt_util import (
-    inline as _inline,
-    render_prompt,
-    strip_code_fence as _strip_code_fence,
-)
 
 _LOG = logging.getLogger("engram.retrieve")
 
 TEMPORAL_PROMPT_NAME = "temporal_anchor"
 TEMPORAL_PROMPT_VERSION = "v1"
-TEMPORAL_PROMPT_FILENAME = (
-    f"{TEMPORAL_PROMPT_NAME}_{TEMPORAL_PROMPT_VERSION}.txt"
-)
+TEMPORAL_PROMPT_FILENAME = f"{TEMPORAL_PROMPT_NAME}_{TEMPORAL_PROMPT_VERSION}.txt"
 
 
 # Heuristic gate so we don't burn a chat call on every retrieve. If
@@ -87,9 +89,7 @@ _DATE_TOKEN = (
 # The trailing `\w*` covers natural-language suffixes that aren't
 # themselves date-shaped (e.g. "5pm", "15th", "2024-03-15") so the
 # outer `\b` after the alternation group still finds a word boundary.
-_TEMPORAL_PREP = (
-    r"(?:since|before|after|until|by)\s+(?:the\s+)?" + _DATE_TOKEN + r"\w*"
-)
+_TEMPORAL_PREP = r"(?:since|before|after|until|by)\s+(?:the\s+)?" + _DATE_TOKEN + r"\w*"
 
 _TEMPORAL_CUES: tuple[re.Pattern[str], ...] = (
     re.compile(
@@ -256,6 +256,7 @@ def compute_temporal_anchor(
         # tests that work on the anchor.
         parsed = parsed.astimezone(timezone.utc)
     return parsed
+
 
 __all__ = [
     "TemporalAnchor",
