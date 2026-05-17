@@ -185,12 +185,13 @@ class VectorIndex:
             self._ensure_built(shard, conn, rebuild_sql, model)
             matrix = shard.matrix
             cold = shard.cold
-            levels_snapshot = shard.levels
             ids = shard.ids
             dim = shard.dim
             # Mask caches live on the shard but we resolve them inside
             # the lock so the rebuild that resets them can't race the
-            # lookup that's about to consume them.
+            # lookup that's about to consume them.  The masks already
+            # encode the `levels` and `exclude_ids` filters, so we
+            # don't need a separate snapshot of `shard.levels`.
             level_mask = (
                 _level_mask(shard, list(levels)) if levels is not None else None
             )

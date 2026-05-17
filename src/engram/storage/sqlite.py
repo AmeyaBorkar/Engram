@@ -386,6 +386,32 @@ def _chunked(items: list[Any], chunk_size: int = _IN_LIST_CHUNK) -> Iterator[lis
         yield items[i : i + chunk_size]
 
 
+# Lookup tables for `_fetch_kind_content` so the runtime path never
+# interpolates an untrusted string into SQL.  The closed ItemKind enum
+# is the safe boundary; ruff S608 stays honest.  Module-level (not
+# class-level) so they're immutable singletons shared by every
+# SqliteStorage instance.
+_KIND_TABLE: dict[ItemKind, str] = {
+    ItemKind.EVENT: "events",
+    ItemKind.MEMORY_ITEM: "memory_items",
+    ItemKind.PROCEDURE: "procedures",
+}
+_KIND_CONTENT_COL: dict[ItemKind, str] = {
+    ItemKind.EVENT: "content",
+    ItemKind.MEMORY_ITEM: "content",
+    # Procedures surface `situation` as the canonical content slot.
+    ItemKind.PROCEDURE: "situation",
+}
+# MEMORY_ITEM rows that have been retired by reconciliation
+# (invalidated_at IS NOT NULL) are kept on disk but filtered out
+# of the non-as_of search surface.  Other kinds have no such filter.
+_KIND_EXTRA_WHERE: dict[ItemKind, str] = {
+    ItemKind.EVENT: "",
+    ItemKind.MEMORY_ITEM: " AND invalidated_at IS NULL",
+    ItemKind.PROCEDURE: "",
+}
+
+
 class SqliteStorage:
     """SQLite-backed `Storage` implementation."""
 
@@ -1496,29 +1522,6 @@ class SqliteStorage:
         )
         return self._fetch_memory_item_content(hits)
 
-    # Lookup tables for `_fetch_kind_content` so it never interpolates
-    # untrusted strings into SQL.  The closed ItemKind enum is the safe
-    # boundary; ruff S608 stays honest.
-    _KIND_TABLE: dict[ItemKind, str] = {
-        ItemKind.EVENT: "events",
-        ItemKind.MEMORY_ITEM: "memory_items",
-        ItemKind.PROCEDURE: "procedures",
-    }
-    _KIND_CONTENT_COL: dict[ItemKind, str] = {
-        ItemKind.EVENT: "content",
-        ItemKind.MEMORY_ITEM: "content",
-        # Procedures surface `situation` as the canonical content slot.
-        ItemKind.PROCEDURE: "situation",
-    }
-    # MEMORY_ITEM rows that have been retired by reconciliation
-    # (invalidated_at IS NOT NULL) are kept on disk but filtered out
-    # of the non-as_of search surface.  Other kinds have no such filter.
-    _KIND_EXTRA_WHERE: dict[ItemKind, str] = {
-        ItemKind.EVENT: "",
-        ItemKind.MEMORY_ITEM: " AND invalidated_at IS NULL",
-        ItemKind.PROCEDURE: "",
-    }
-
     def _fetch_kind_content(
         self,
         kind: ItemKind,
@@ -1532,9 +1535,9 @@ class SqliteStorage:
         """
         if not hits:
             return []
-        table = self._KIND_TABLE[kind]
-        col = self._KIND_CONTENT_COL[kind]
-        extra = self._KIND_EXTRA_WHERE[kind]
+        table = _KIND_TABLE[kind]
+        col = _KIND_CONTENT_COL[kind]
+        extra = _KIND_EXTRA_WHERE[kind]
         ids = [u for u, _, _ in hits]
         id_bytes = [u.bytes for u in ids]
         content: dict[bytes, str] = {}
