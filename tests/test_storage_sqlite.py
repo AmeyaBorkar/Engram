@@ -399,6 +399,57 @@ def test_path_rejects_uri_with_caps() -> None:
         SqliteStorage("FILE:foo.db")
 
 
+# --- per-thread close ----------------------------------------------------
+
+
+def test_close_thread_is_a_noop_without_a_connection(tmp_path: object) -> None:
+    """close_thread() on a thread that never called _connect must not
+    raise — it's how a clean worker shutdown stays simple."""
+    from pathlib import Path as _Path
+
+    p = _Path(str(tmp_path)) / "close-thread.db"
+    storage = SqliteStorage(p)
+    try:
+        # No _connect() yet — no connection on this thread.
+        storage.close_thread()
+    finally:
+        storage.close()
+
+
+def test_close_thread_drops_connection_and_lets_new_one_open(tmp_path: object) -> None:
+    from pathlib import Path as _Path
+
+    p = _Path(str(tmp_path)) / "ct-drop.db"
+    storage = SqliteStorage(p)
+    storage.initialize()
+    try:
+        first = storage._connect()
+        storage.close_thread()
+        # The threading.local slot was cleared; next _connect() opens
+        # a fresh connection.  Different object than `first`.
+        second = storage._connect()
+        assert second is not first
+    finally:
+        storage.close()
+
+
+def test_close_thread_removes_from_sidecar(tmp_path: object) -> None:
+    """After close_thread, the global close() shouldn't try to re-close
+    the already-closed connection (the sidecar entry is removed)."""
+    from pathlib import Path as _Path
+
+    p = _Path(str(tmp_path)) / "ct-sidecar.db"
+    storage = SqliteStorage(p)
+    storage.initialize()
+    try:
+        storage._connect()
+        assert len(storage._all_connections) == 1
+        storage.close_thread()
+        assert len(storage._all_connections) == 0
+    finally:
+        storage.close()
+
+
 # --- delete_memory_item ----------------------------------------------------
 
 

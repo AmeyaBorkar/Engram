@@ -487,12 +487,25 @@ class SqliteStorage:
             self._initialized = True
 
     def close(self) -> None:
-        # close() can be invoked from any thread, but `sqlite3.Connection`
-        # with check_same_thread=True only allows `.close()` from its
-        # creating thread.  Wrap each close in suppress() so a
-        # cross-thread close call against an orphaned connection (e.g.,
-        # close() called from main after a worker thread exited) does
-        # not raise; the process exit reaps OS resources anyway.
+        """Best-effort close of every per-thread connection.
+
+        Because `check_same_thread=True`, only the thread that *opened*
+        a sqlite3.Connection can `.close()` it without raising
+        `ProgrammingError`.  This method runs from a single thread (the
+        caller of `close()` or `__exit__`) but tries every connection
+        in the sidecar list; cross-thread closes are caught by the
+        suppress() and surface as a connection that's not explicitly
+        closed.  The process exit reaps the OS-level file descriptor
+        either way.
+
+        Note for callers on Windows or other filesystems where an
+        unclosed connection blocks deletion of the underlying file
+        (the WAL/SHM sidecars in particular): worker threads should
+        call `close_thread()` from inside their own loop body before
+        exit, OR coordinate so close() runs on a thread that has
+        opened every connection (single-threaded code is the easy
+        case).  See `close_thread`.
+        """
         with self._lock:
             for conn in list(self._all_connections):
                 with contextlib.suppress(sqlite3.Error, sqlite3.ProgrammingError):
@@ -503,6 +516,36 @@ class SqliteStorage:
             if getattr(self._local, "conn", None) is not None:
                 self._local.conn = None
             self._initialized = False
+
+    def close_thread(self) -> None:
+        """Close *this thread's* connection deterministically.
+
+        Multi-threaded users that want clean teardown (e.g., Windows
+        deployments that need the WAL/SHM sidecars to be deletable on
+        exit) should call this from each worker thread before the
+        thread terminates.  Safe no-op if the current thread never
+        opened a connection.  The threading.local slot is cleared so a
+        later `_connect()` from the same thread will open a fresh
+        connection rather than reuse the just-closed one.
+        """
+        conn = getattr(self._local, "conn", None)
+        if conn is None:
+            return
+        try:
+            conn.close()
+        except sqlite3.Error:
+            # If the connection is already broken / closed, suppress
+            # and clear the slot anyway so the thread isn't stuck
+            # referencing a dead connection.
+            pass
+        # Remove from the sidecar list so `close()` doesn't try to
+        # double-close from a different thread.
+        with self._lock:
+            try:
+                self._all_connections.remove(conn)
+            except ValueError:
+                pass
+        self._local.conn = None
 
     def _connect(self) -> sqlite3.Connection:
         with self._lock:
