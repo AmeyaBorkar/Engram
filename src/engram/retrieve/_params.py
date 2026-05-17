@@ -4,13 +4,26 @@
 parameters are reproducible by construction. Validation lives in
 `__post_init__` -- the model is small enough that pydantic would be
 overkill, and we save the per-call validation cost on a hot path.
+
+Per-field pass-through contract
+-------------------------------
+
+Callers that fan out a single retrieve into per-leaf retrieves
+(`_multi_query_retrieve`, `_decomposed_retrieve`) MUST construct each
+leaf's `RetrieveParams` via `parent.replace(...)` rather than
+enumerating fields explicitly. Enumeration silently drops any field
+not listed -- so when a new tuning knob (`bm25_weight`,
+`lexical_filter`, `recency_lambda`, ...) is added the leaf retrieves
+quietly diverge from the caller's intent. `replace` preserves every
+field unless explicitly overridden, which is what the contract
+demands. See `replace` below.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, fields, replace
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 # `auto`     -- generalize when confident, drill when not (the default).
 # `specific` -- always surface events; abstractions are skipped.
@@ -162,3 +175,31 @@ class RetrieveParams:
             raise ValueError(f"mmr_pool_size must be >= 0, got {self.mmr_pool_size}")
         if self.recent_window_k < 0:
             raise ValueError(f"recent_window_k must be >= 0, got {self.recent_window_k}")
+
+    def replace(self, **overrides: Any) -> RetrieveParams:
+        """Return a copy of `self` with `overrides` applied to the named
+        fields, every other field carried over verbatim.
+
+        The pass-through contract this enforces: callers fanning a
+        single retrieve into N leaf retrieves (multi-query, decompose)
+        must propagate ALL tuning fields automatically. Constructing a
+        fresh `RetrieveParams(k=..., prefer=..., ...)` and enumerating
+        a subset of fields silently drops everything else -- so adding
+        a new field (`bm25_weight`, `lexical_filter`, `mmr_lambda`,
+        `recency_lambda`, ...) breaks leaf retrieves without any local
+        diff. `replace` carries everything over by construction.
+
+        Unknown override names raise `TypeError` via `dataclasses.replace`
+        rather than silently no-op.
+        """
+        # `dataclasses.replace` re-runs `__post_init__`, so any
+        # validation that depends on the new combination is re-checked.
+        return replace(self, **overrides)
+
+    def field_names(self) -> tuple[str, ...]:
+        """Tuple of every field name on `RetrieveParams`.
+
+        Helper for diagnostics + test assertions that want to verify
+        every field is propagated when fanning out leaf retrieves.
+        """
+        return tuple(f.name for f in fields(self))
