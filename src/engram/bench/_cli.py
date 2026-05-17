@@ -501,6 +501,32 @@ def build_parser() -> argparse.ArgumentParser:
         help="Model name for --consolidate-chat.",
     )
     run.add_argument(
+        "--distill-chat",
+        default=None,
+        choices=(
+            "fake",
+            "openai",
+            "anthropic",
+            "moonshot",
+            "opencode-zen",
+            "opencode-go",
+            "openrouter",
+        ),
+        help=(
+            "Two-Pass Answer Distillation (TPAD): after the primary "
+            "answer, run a separate chat to extract just the final "
+            "answer from a verbose response. Useful when the primary "
+            "LLM produces CoT preambles or hint-echoes that the judge "
+            "penalizes. Typically a cheaper model (Haiku, GPT-4o-mini). "
+            "Monotonic: falls back to the primary response on failure."
+        ),
+    )
+    run.add_argument(
+        "--distill-chat-model",
+        default=None,
+        help="Model name for --distill-chat (e.g. anthropic/claude-haiku-4-5).",
+    )
+    run.add_argument(
         "--aconsolidate-concurrency",
         type=int,
         default=8,
@@ -679,6 +705,8 @@ def _resolve_suite_config(args: argparse.Namespace) -> dict[str, Any]:
         cfg["aconsolidate_concurrency"] = args.aconsolidate_concurrency
     if args.judge_chat:
         cfg["judge_chat"] = build_chat(args.judge_chat, args.judge_chat_model)
+    if args.distill_chat:
+        cfg["distill_chat"] = build_chat(args.distill_chat, args.distill_chat_model)
     if args.sample is not None:
         cfg["sample_n"] = args.sample
     if args.parallel != 1:

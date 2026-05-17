@@ -825,6 +825,13 @@ class LongMemEvalSuite:
         # Kimi echoed hint instructions instead of answering.
         # "freeform" (default) is the original path.
         self._answer_form: str = "freeform"
+        # Two-Pass Answer Distillation (TPAD). When set, after the
+        # primary answer call, a separate (typically cheaper) chat
+        # is invoked to extract just the final answer from the
+        # verbose response.  Useful when the primary LLM produces
+        # CoT preambles or verbose explanations that the judge
+        # penalizes.  `None` (default) disables the second pass.
+        self._distill_chat: ChatProvider | None = None
 
     def configure(
         self,
@@ -865,6 +872,7 @@ class LongMemEvalSuite:
         within_session_oversample: bool = False,
         context_format: str = "flat",
         answer_form: str = "freeform",
+        distill_chat: ChatProvider | None = None,
     ) -> None:
         """Wire Phase E knobs from the CLI into the suite.
 
@@ -953,6 +961,7 @@ class LongMemEvalSuite:
                 f"answer_form must be 'freeform' or 'structured', got {answer_form!r}"
             )
         self._answer_form = answer_form
+        self._distill_chat = distill_chat
 
     def setup(self, provider: Provider) -> None:
         self._provider = provider
@@ -1521,7 +1530,53 @@ class LongMemEvalSuite:
                 ) + cot_suffix + aff_suffix
                 response = _one_call(fresh_prompt)
 
+        # Two-Pass Answer Distillation: extract just the final answer
+        # from the (possibly verbose) primary response using a
+        # separate chat. Runs AFTER all other steps including verify
+        # so the distiller sees the final response.
+        if self._distill_chat is not None and response.strip():
+            response = self._distill_answer(
+                primary_response=response, question=question, qtype=qtype
+            )
+
         return response
+
+    def _distill_answer(
+        self, *, primary_response: str, question: str, qtype: str
+    ) -> str:
+        """Run the configured `distill_chat` to extract just the
+        final answer from the primary response.
+
+        Falls back to `primary_response` on any failure (network,
+        empty output, parse). Monotonic: never returns worse output
+        than the input.
+        """
+        if self._distill_chat is None:
+            return primary_response
+        qtype_hint = _V2B_QTYPE_HINTS.get(qtype, "")
+        prompt = (
+            "Extract ONLY the final answer for the user's question from "
+            "the response below. Strip all reasoning, scratchpad, "
+            "preamble, and prefixes (no 'Based on...', no 'The user is "
+            "asking...', no markdown). Output the answer text alone, in "
+            "the most concise form possible.\n\n"
+            f"Question: {question}\n\n"
+            f"Form expected: {qtype_hint or 'concise, plain text'}\n\n"
+            "Response to distill:\n"
+            f"{primary_response}\n\n"
+            "Final answer:"
+        )
+        try:
+            distilled = self._distill_chat.chat(
+                [Message(role="user", content=prompt)]
+            )
+        except Exception as exc:  # noqa: BLE001 - monotonic fallback
+            _LOG.warning("  distill_chat failed: %s; using primary response", exc)
+            return primary_response
+        distilled = distilled.strip()
+        if not distilled:
+            return primary_response
+        return distilled
 
     def teardown(self) -> None:
         self._provider = None
