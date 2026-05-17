@@ -20,12 +20,15 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 from engram.providers._message import Message
 from engram.providers._redactor import Redactor
 from engram.providers._retry import Retry
+
+_LOG = logging.getLogger(__name__)
 
 try:
     import openai as _openai_module
@@ -334,6 +337,18 @@ def _extract_openai_content(resp: Any, model: str) -> str:
     block, server quirks, custom OpenAI-compatible endpoint returning a
     degenerate payload).  Without this guard the caller sees an IndexError
     deep in the adapter and has no idea which provider failed.
+
+    Also surfaces `finish_reason` truncation as a WARNING log. A response
+    with `finish_reason == "length"` means the model hit the `max_tokens`
+    cap and was cut off mid-generation -- the content returned is
+    incomplete. Without this signal, a 4000-char truncated reasoning
+    trace looks identical to a 4000-char complete answer, and the
+    benchmark scores it as a model-quality failure when it's actually
+    a provider-cap configuration problem.  See JOURNEY §24 for the
+    incident that motivated this check.
+
+    Content-filter blocks (`finish_reason == "content_filter"`) are also
+    surfaced because they explain otherwise mysterious empty responses.
     """
     choices = getattr(resp, "choices", None) or []
     if not choices:
@@ -342,5 +357,20 @@ def _extract_openai_content(resp: Any, model: str) -> str:
             "response may have been content-filter blocked or the endpoint "
             "is misbehaving."
         )
-    content = choices[0].message.content
-    return content if content is not None else ""
+    choice = choices[0]
+    content = choice.message.content
+    text = content if content is not None else ""
+    finish_reason = getattr(choice, "finish_reason", None)
+    if finish_reason == "length":
+        _LOG.warning(
+            "chat %r hit max_tokens cap; response truncated at %d chars "
+            "(finish_reason='length'). Raise max_tokens or shorten the prompt.",
+            model, len(text),
+        )
+    elif finish_reason == "content_filter":
+        _LOG.warning(
+            "chat %r returned content_filter block; partial content "
+            "(%d chars) returned.",
+            model, len(text),
+        )
+    return text

@@ -21,8 +21,14 @@ def _make_embed_response(vectors: list[list[float]]) -> SimpleNamespace:
     return SimpleNamespace(data=[SimpleNamespace(embedding=v) for v in vectors])
 
 
-def _make_chat_response(content: str) -> SimpleNamespace:
-    return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=content))])
+def _make_chat_response(
+    content: str | None, *, finish_reason: str | None = None
+) -> SimpleNamespace:
+    choice = SimpleNamespace(
+        message=SimpleNamespace(content=content),
+        finish_reason=finish_reason,
+    )
+    return SimpleNamespace(choices=[choice])
 
 
 # --- OpenAIEmbedder -------------------------------------------------------
@@ -132,6 +138,75 @@ def test_openai_chat_returns_empty_string_on_none_content() -> None:
     client.chat.completions.create.return_value = _make_chat_response(None)
     c = OpenAIChat(client=client, async_client=AsyncMock())
     assert c.chat([Message(role="user", content="x")]) == ""
+
+
+def test_openai_chat_warns_on_length_truncation(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """`finish_reason == "length"` means the model hit max_tokens and was
+    cut off; the adapter must log a WARNING so the caller can tell a
+    truncated response apart from a complete short one. See JOURNEY §24.
+    """
+    client = MagicMock()
+    client.chat.completions.create.return_value = _make_chat_response(
+        "cut off mid", finish_reason="length"
+    )
+    c = OpenAIChat(model="kimi-k2.6", client=client, async_client=AsyncMock())
+    with caplog.at_level("WARNING", logger="engram.providers.openai"):
+        out = c.chat([Message(role="user", content="x")])
+    assert out == "cut off mid"  # content still returned, not dropped
+    assert any(
+        "max_tokens" in rec.message and "kimi-k2.6" in rec.message
+        for rec in caplog.records
+    )
+
+
+def test_openai_chat_warns_on_length_truncation_with_null_content(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The empty-response failure mode from JOURNEY §24: model used the
+    full max_tokens budget for reasoning and emitted nothing to the
+    answer channel. `finish_reason` is the only signal that this isn't
+    a clean "model had nothing to say" empty response.
+    """
+    client = MagicMock()
+    client.chat.completions.create.return_value = _make_chat_response(
+        None, finish_reason="length"
+    )
+    c = OpenAIChat(model="kimi-k2.6", client=client, async_client=AsyncMock())
+    with caplog.at_level("WARNING", logger="engram.providers.openai"):
+        out = c.chat([Message(role="user", content="x")])
+    assert out == ""
+    assert any("0 chars" in rec.message for rec in caplog.records)
+
+
+def test_openai_chat_warns_on_content_filter(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    client = MagicMock()
+    client.chat.completions.create.return_value = _make_chat_response(
+        "blocked", finish_reason="content_filter"
+    )
+    c = OpenAIChat(client=client, async_client=AsyncMock())
+    with caplog.at_level("WARNING", logger="engram.providers.openai"):
+        c.chat([Message(role="user", content="x")])
+    assert any("content_filter" in rec.message for rec in caplog.records)
+
+
+def test_openai_chat_does_not_warn_on_clean_stop(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Sanity: a normal "stop" finish_reason must NOT emit a warning,
+    otherwise every benchmark run is noise.
+    """
+    client = MagicMock()
+    client.chat.completions.create.return_value = _make_chat_response(
+        "all done", finish_reason="stop"
+    )
+    c = OpenAIChat(client=client, async_client=AsyncMock())
+    with caplog.at_level("WARNING", logger="engram.providers.openai"):
+        c.chat([Message(role="user", content="x")])
+    assert not caplog.records
 
 
 def test_openai_chat_async() -> None:
