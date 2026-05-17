@@ -117,6 +117,19 @@ class RetrieveParams:
     # queries where the answer is in the freshest events regardless of
     # token overlap.
     recent_window_k: int = 0
+    # Per-session diversity floor: after all ranking steps, ensure the
+    # final top-k contains events from at least N distinct sessions
+    # (read from each event's metadata `session_id`).  When the current
+    # top-k contains < N sessions, swaps in the highest-ranked event
+    # from each underrepresented session.  `0` (default) is off (no
+    # diversity enforcement).  Targets within-session-rank failures:
+    # currently the top-k can be dominated by ~10 turns from one
+    # off-topic session that the cross-encoder ranked highly, drowning
+    # out the few gold turns from the answer session(s).  See JOURNEY
+    # sections 16-17.  Requires events to carry `session_id` in their
+    # metadata (LongMemEval ingest already does this); silently no-ops
+    # when metadata isn't available.
+    min_sessions_in_topk: int = 0
 
     def __post_init__(self) -> None:
         if self.k < 1:
@@ -162,6 +175,10 @@ class RetrieveParams:
             raise ValueError(f"mmr_pool_size must be >= 0, got {self.mmr_pool_size}")
         if self.recent_window_k < 0:
             raise ValueError(f"recent_window_k must be >= 0, got {self.recent_window_k}")
+        if self.min_sessions_in_topk < 0:
+            raise ValueError(
+                f"min_sessions_in_topk must be >= 0, got {self.min_sessions_in_topk}"
+            )
 
     def replace(self, **overrides: Any) -> RetrieveParams:
         """Return a copy of this `RetrieveParams` with `overrides` applied.

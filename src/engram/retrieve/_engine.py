@@ -505,6 +505,11 @@ class HierarchicalRetriever:
                     lambda_=p.mmr_lambda,
                 )
 
+        if p.min_sessions_in_topk > 0:
+            unique = self._enforce_session_diversity(
+                unique, k=p.k, min_sessions=p.min_sessions_in_topk
+            )
+
         sliced = unique[: p.k]
 
         return [
@@ -518,6 +523,112 @@ class HierarchicalRetriever:
             )
             for c in sliced
         ]
+
+    def _enforce_session_diversity(
+        self,
+        candidates: list[_Candidate],
+        *,
+        k: int,
+        min_sessions: int,
+    ) -> list[_Candidate]:
+        """Reorder candidates so the top-k contains >= min_sessions distinct sessions.
+
+        Reads `session_id` from each candidate event's metadata.  When a
+        candidate isn't an EVENT (e.g., abstraction) or has no session_id
+        in metadata, it's treated as belonging to a synthetic
+        '__unknown__' bucket -- so abstraction-heavy retrieval is
+        untouched.
+
+        Algorithm: walk candidates in current ranking order; pick the
+        highest-ranked candidate from each session (one per session)
+        until we have min_sessions distinct sessions OR we run out of
+        sessions; then fill the remaining top-k with the highest-ranked
+        unpicked candidates (relevance order).  Items beyond top-k stay
+        in relevance order so they're available to callers iterating
+        past k.
+
+        No-ops when the current top-k already has >= min_sessions
+        distinct sessions, when candidates carry no session_id
+        metadata, or when k >= len(candidates) (no rearrangement
+        possible).
+        """
+        if not candidates or k <= 0 or min_sessions <= 1:
+            return candidates
+        top = candidates[:k]
+        session_ids: list[str] = []
+        for c in top:
+            sid = self._session_id_for(c)
+            session_ids.append(sid)
+        distinct_in_top = len({s for s in session_ids if s != "__unknown__"})
+        if distinct_in_top >= min_sessions:
+            return candidates
+
+        # Look at candidates BEYOND top-k for under-represented sessions.
+        existing_sessions = set(session_ids)
+        promotions: list[_Candidate] = []
+        for c in candidates[k:]:
+            sid = self._session_id_for(c)
+            if sid == "__unknown__" or sid in existing_sessions:
+                continue
+            promotions.append(c)
+            existing_sessions.add(sid)
+            distinct_in_top += 1
+            if distinct_in_top >= min_sessions:
+                break
+
+        if not promotions:
+            # No under-represented sessions reachable. Leave order alone.
+            return candidates
+
+        # For each promotion, demote the lowest-ranked top-k candidate
+        # from the MOST over-represented session (preferring duplicates
+        # over uniques).  Stable preference: keep the first item per
+        # session, demote later same-session items.
+        from collections import Counter as _Counter
+
+        counts = _Counter(session_ids)
+        keepers: list[_Candidate] = []
+        demoted: list[_Candidate] = []
+        seen_per_session: _Counter = _Counter()
+        for c in top:
+            sid = self._session_id_for(c)
+            seen_per_session[sid] += 1
+            # Demote when this is a non-first item from a session that
+            # has multiple representatives AND we still need to make
+            # room for promotions.
+            if (
+                len(demoted) < len(promotions)
+                and counts.get(sid, 0) > 1
+                and seen_per_session[sid] > 1
+            ):
+                demoted.append(c)
+            else:
+                keepers.append(c)
+
+        # If we couldn't demote enough duplicates (rare: every top-k
+        # item is from a unique session but distinct < min_sessions),
+        # drop the trailing keepers in relevance order.
+        while len(keepers) + len(promotions) > k and keepers:
+            demoted.append(keepers.pop())
+
+        new_top = keepers + promotions
+        new_top = new_top[:k]
+        # Preserve overall relevance order: sort the new top-k by
+        # original index in `candidates`.
+        index_of = {id(c): i for i, c in enumerate(candidates)}
+        new_top.sort(key=lambda c: index_of[id(c)])
+        remainder = [c for c in candidates if c not in new_top and c not in demoted]
+        return new_top + demoted + remainder
+
+    def _session_id_for(self, cand: _Candidate) -> str:
+        """Fetch session_id from cand's event metadata; '__unknown__' fallback."""
+        if cand.item_kind is not ItemKind.EVENT:
+            return "__unknown__"
+        event = self._storage.get_event(cand.item_id)
+        if event is None or not event.metadata:
+            return "__unknown__"
+        sid = event.metadata.get("session_id")
+        return str(sid) if sid else "__unknown__"
 
     def _apply_recency_boost(
         self,

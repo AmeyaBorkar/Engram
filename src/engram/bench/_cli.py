@@ -374,6 +374,21 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     run.add_argument(
+        "--min-sessions-in-topk",
+        type=int,
+        default=0,
+        help=(
+            "Enforce >= N distinct session_ids in the final top-k. "
+            "Reorders the post-rerank candidate set to swap in events "
+            "from underrepresented sessions when the top-k is "
+            "dominated by one session. Targets within-session-rank "
+            "failures (JOURNEY sections 16-17): currently the cross-"
+            "encoder can fill top-k with 5-9 similar turns from one "
+            "wrong session, drowning out the gold turns from the "
+            "answer session(s). Default 0 (off). Try 3-5."
+        ),
+    )
+    run.add_argument(
         "--auto-temporal",
         action="store_true",
         help=(
@@ -587,6 +602,8 @@ def _resolve_suite_config(args: argparse.Namespace) -> dict[str, Any]:
         cfg["recent_window_k"] = args.recent_window_k
     if args.auto_temporal:
         cfg["auto_temporal"] = True
+    if args.min_sessions_in_topk > 0:
+        cfg["min_sessions_in_topk"] = args.min_sessions_in_topk
     if args.reranker and args.reranker != "none":
         from engram.retrieve._bge_reranker import BGEReranker
 
