@@ -230,6 +230,46 @@ class Memory:
             METRICS.observe_call()
             return event
 
+    def observe_many(self, contents: Sequence[str | Event]) -> list[Event]:
+        """Batch variant of `observe`: embeds every event in one provider call.
+
+        Equivalent to ``[self.observe(c) for c in contents]`` but issues
+        ONE embed request to the provider — important for bench /
+        ingest paths that previously made N separate calls when ingesting
+        a haystack.  Atomicity matches single-observe: each event +
+        embedding pair lands in its own transaction, but the embedding
+        batch itself is one provider RTT.  Empty input returns an empty
+        list (no provider call).
+        """
+        if not contents:
+            return []
+        events: list[Event] = []
+        for c in contents:
+            ev = c if isinstance(c, Event) else Event(content=c)
+            if self._tenant_id is not None and ev.tenant_id is None:
+                ev = ev.model_copy(update={"tenant_id": self._tenant_id})
+            events.append(ev)
+        # ONE provider call for the whole batch.
+        vectors = self._embedder.embed([ev.content for ev in events])
+        if len(vectors) != len(events):
+            raise RuntimeError(
+                f"embedder returned {len(vectors)} vectors for {len(events)} inputs"
+            )
+        for ev, vec in zip(events, vectors, strict=True):
+            normalized = _normalize(vec)
+            embedding = Embedding(
+                item_id=ev.id,
+                item_kind=ItemKind.EVENT,
+                model=self._embedder.model,
+                dim=self._embedder.dim,
+                vector=tuple(normalized),
+            )
+            with self._storage.transaction():
+                self._storage.insert_event(ev)
+                self._storage.insert_embedding(embedding)
+            METRICS.observe_call()
+        return events
+
     def retrieve(
         self,
         query: str,
@@ -1012,7 +1052,7 @@ class Memory:
         if params.reinforce_on_use:
             for r in sliced:
                 try:
-                    kind = ItemKind.EVENT if r.level.value == "event" else ItemKind.MEMORY_ITEM
+                    kind = ItemKind.EVENT if r.level is Level.EVENT else ItemKind.MEMORY_ITEM
                     self._engine.reinforce(r.item_id, kind)
                 except (KeyError, RuntimeError, ValueError):
                     pass
