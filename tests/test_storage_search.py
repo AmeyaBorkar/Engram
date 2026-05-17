@@ -88,3 +88,84 @@ def test_search_rejects_dim_mismatch(storage: SqliteStorage) -> None:
 def test_search_rejects_invalid_k(storage: SqliteStorage) -> None:
     with pytest.raises(ValueError, match="k must be"):
         storage.search_event_embeddings([0.5, 0.5], k=0, model="m")
+
+
+# --- vector-index concurrency ---------------------------------------------
+
+
+def test_vector_index_concurrent_rebuild_coalesces(tmp_path: object) -> None:
+    """A burst of searches after a write should produce one rebuild,
+    not one per searcher.
+
+    Wraps `_rebuild_shard` in a counter to verify the rebuild-in-progress
+    flag actually deduplicates concurrent rebuilders.
+    """
+    import threading
+    from pathlib import Path as _Path
+
+    from engram.schemas import Embedding, ItemKind
+    from engram.storage import _vector_index as vi
+    from engram.storage import SqliteStorage as _SS
+
+    p = _Path(str(tmp_path)) / "vi-race.db"
+    backend = _SS(p)
+    backend.initialize()
+    try:
+        # Seed a bunch of event embeddings so the rebuild is non-trivial.
+        for i in range(30):
+            e = Event(content=f"e{i}")
+            backend.insert_event(e)
+            backend.insert_embedding(
+                Embedding(
+                    item_id=e.id,
+                    item_kind=ItemKind.EVENT,
+                    model="m",
+                    dim=2,
+                    vector=tuple(_normalize([1.0, float(i) / 30.0])),
+                )
+            )
+        # Warm up cache so the first thread doesn't pay for the bootstrap.
+        backend.search_event_embeddings(_normalize([1.0, 0.0]), k=5, model="m")
+        # Mark dirty so the next search wave must rebuild.
+        backend._vector_index.mark_dirty(kind=ItemKind.EVENT.value, model="m")
+
+        rebuild_calls: list[int] = []
+        orig = vi._rebuild_shard
+
+        def counting_rebuild(*args: object, **kwargs: object) -> None:
+            rebuild_calls.append(1)
+            # Sleep a tiny bit so racing threads have time to converge
+            # on the rebuild-in-progress wait path.
+            import time
+
+            time.sleep(0.05)
+            orig(*args, **kwargs)  # type: ignore[arg-type]
+
+        # Monkeypatch the module-level function the shard uses.
+        vi._rebuild_shard = counting_rebuild  # type: ignore[assignment]
+        try:
+            errors: list[BaseException] = []
+
+            def searcher() -> None:
+                try:
+                    backend.search_event_embeddings(
+                        _normalize([1.0, 0.0]), k=5, model="m"
+                    )
+                except BaseException as exc:  # noqa: BLE001
+                    errors.append(exc)
+
+            threads = [threading.Thread(target=searcher) for _ in range(8)]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+            assert errors == []
+            # Only one rebuild should have run despite 8 racing searchers.
+            assert len(rebuild_calls) == 1, (
+                f"expected 1 rebuild, got {len(rebuild_calls)} — "
+                "rebuild-in-progress flag is not coalescing"
+            )
+        finally:
+            vi._rebuild_shard = orig  # type: ignore[assignment]
+    finally:
+        backend.close()
