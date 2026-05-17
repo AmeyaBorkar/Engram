@@ -416,3 +416,47 @@ def test_abstraction_result_field_named_supports() -> None:
     assert "supports" in fields
     assert "abstraction" in fields
     assert "confidence" in fields
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers (defensive guards)
+# ---------------------------------------------------------------------------
+
+
+def test_unique_members_rejects_duplicates() -> None:
+    """M-56: a cluster with a duplicate member index is a clustering
+    bug; the engine asserts up front so the failure is loud at the
+    boundary rather than silently truncating the provenance-weights
+    dict downstream."""
+    from engram.consolidation import ClusterAssignment
+    from engram.consolidation._engine import _unique_members
+
+    # Sanity: unique input passes through.
+    asg = ClusterAssignment(members=(0, 2, 3), cohesion=0.9)
+    assert _unique_members(asg) == [0, 2, 3]
+
+    dup = ClusterAssignment(members=(0, 1, 0), cohesion=0.8)
+    with pytest.raises(ValueError, match="duplicate member"):
+        _unique_members(dup)
+
+
+def test_dedupe_conflicts_keeps_first_by_candidate_id() -> None:
+    """H-60: vector recall can surface the same candidate id twice when
+    multiple levels share text + embedding. Recording two `Conflict`
+    rows for the same (source, target) pair raises a uniqueness error;
+    dedupe up front so the contradiction-detection pass survives."""
+    from uuid import uuid4
+
+    from engram.consolidation import DetectedConflict, Verdict
+    from engram.consolidation._engine import _dedupe_conflicts
+
+    a_id = uuid4()
+    b_id = uuid4()
+    d1 = DetectedConflict(candidate_id=a_id, similarity=0.95, verdict=Verdict.CONTRADICT)
+    d2 = DetectedConflict(candidate_id=b_id, similarity=0.91, verdict=Verdict.CONTRADICT)
+    d3 = DetectedConflict(candidate_id=a_id, similarity=0.88, verdict=Verdict.CONTRADICT)
+
+    out = _dedupe_conflicts([d1, d2, d3])
+    # First-seen wins; the d3 duplicate of a_id is dropped.
+    assert [c.candidate_id for c in out] == [a_id, b_id]
+    assert out[0].similarity == pytest.approx(0.95)

@@ -394,7 +394,7 @@ class ConsolidationEngine:
         without duplicating the body. Returns the number of detected
         contradictions (matching `_consolidate_one_cluster`'s return).
         """
-        member_indices = list(assignment.members)
+        member_indices = _unique_members(assignment)
         cluster_events = [events[i] for i in member_indices]
         request = AbstractionRequest(
             observations=tuple(e.content for e in cluster_events),
@@ -403,7 +403,7 @@ class ConsolidationEngine:
 
         ab_vec = self._embedder.embed([result.abstraction])[0]
         ab_unit = _normalize(ab_vec)
-        conflicts = self._detect_conflicts(ab_unit, result.abstraction)
+        conflicts = _dedupe_conflicts(self._detect_conflicts(ab_unit, result.abstraction))
 
         cluster = Cluster(cohesion=_clamp01(assignment.cohesion))
         metadata = _build_metadata(result, assignment, request, conflicts)
@@ -461,7 +461,7 @@ class ConsolidationEngine:
         None on parse/extraction failure (already logged); the events
         stay unconsolidated for the next pass.
         """
-        member_indices = list(assignment.members)
+        member_indices = _unique_members(assignment)
         cluster_events = [events[i] for i in member_indices]
 
         request = AbstractionRequest(
@@ -486,8 +486,11 @@ class ConsolidationEngine:
         ab_vec = self._embedder.embed([result.abstraction])[0]
         ab_unit = _normalize(ab_vec)
 
-        # Contradiction detection (vector recall + LLM judge).
-        conflicts = self._detect_conflicts(ab_unit, result.abstraction)
+        # Contradiction detection (vector recall + LLM judge). The recall
+        # can surface the same candidate twice if it appears at multiple
+        # levels (e.g. a SUMMARY and a TOPIC with identical text); the
+        # dedupe prevents duplicate Conflict rows from a single pass.
+        conflicts = _dedupe_conflicts(self._detect_conflicts(ab_unit, result.abstraction))
 
         # Build storage rows.
         cluster = Cluster(cohesion=_clamp01(assignment.cohesion))
@@ -678,6 +681,52 @@ def _has_recorded_conflicts(item: MemoryItem) -> bool:
         return False
     conflicts = consolidation.get("conflicts")
     return bool(conflicts)
+
+
+def _unique_members(assignment: ClusterAssignment) -> list[int]:
+    """Return the cluster's members as a deterministic ordered list of
+    unique indices.
+
+    M-56: `ClusterAssignment.members` is typed as `tuple[int, ...]` but
+    the schema does not enforce uniqueness, so a buggy clustering pass
+    could surface duplicate indices. Each duplicate would map to the
+    same supporting `event.id`, and the provenance-weights dict would
+    silently overwrite the earlier weight -- a subtle determinism bug
+    that produces different `load-bearing` weights depending on member
+    order. Assert here so the failure is loud at the engine boundary
+    instead of silently truncated downstream.
+    """
+    members = list(assignment.members)
+    if len(set(members)) != len(members):
+        raise ValueError(
+            f"cluster {assignment!r} has duplicate member indices; "
+            "clustering must return unique row positions"
+        )
+    return members
+
+
+def _dedupe_conflicts(conflicts: list[DetectedConflict]) -> list[DetectedConflict]:
+    """Drop duplicate conflicts pointing at the same candidate id.
+
+    H-60: vector recall can surface the same `candidate_id` more than
+    once when the storage layer has multiple rows representing the
+    "same" idea at different levels (e.g. SUMMARY + TOPIC with
+    identical text and identical embeddings). Recording two
+    `Conflict` rows with the same `(source_item_id, target_item_id)`
+    pair raises a storage IntegrityError on the second insert -- the
+    schema has a uniqueness constraint on the pair. Dedupe up front
+    so the contradiction-detection pass survives that case; keep the
+    first occurrence (highest similarity since the recall returns in
+    score-desc order).
+    """
+    seen: set[Any] = set()
+    out: list[DetectedConflict] = []
+    for dc in conflicts:
+        if dc.candidate_id in seen:
+            continue
+        seen.add(dc.candidate_id)
+        out.append(dc)
+    return out
 
 
 def _normalize(vec: Sequence[float]) -> list[float]:
