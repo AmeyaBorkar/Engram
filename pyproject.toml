@@ -300,6 +300,15 @@ warn_unreachable = true
 # (`embed(self, texts: Sequence[str])`); fixing those is follow-up
 # work, not part of this audit pass.
 [[tool.mypy.overrides]]
+# Optional deps from the `[bench]` extra are not installed in the
+# lint job's environment (CI installs `.[dev]` only).  Mypy needs
+# `ignore_missing_imports = true` for these so the import-not-found
+# error doesn't fail the gate when the runtime code already wraps
+# the import in `try/except ImportError`.
+module = ["sentence_transformers", "torch", "transformers", "hdbscan"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
 module = "tests.*"
 disallow_untyped_defs = false
 disallow_incomplete_defs = false

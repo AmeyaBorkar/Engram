@@ -85,7 +85,7 @@ def _hdbscan_available() -> bool:
         # the cache between our first read and the lock acquire.
         if _HDBSCAN_AVAILABLE is None:
             try:
-                import hdbscan  # type: ignore[import-untyped]  # noqa: F401
+                import hdbscan  # noqa: F401
 
                 _HDBSCAN_AVAILABLE = True
             except ImportError:

@@ -209,7 +209,12 @@ class LocalEmbedder:
             try:
                 self._st.half()
             except Exception:
-                self._st = None  # type: ignore[assignment]
+                # The assignment violates the declared type when
+                # sentence_transformers IS installed (mypy sees `_st:
+                # SentenceTransformer`); when it ISN'T, the import
+                # collapses to Any and the ignore becomes "unused" in
+                # CI.  `assignment, unused-ignore` covers both cases.
+                self._st = None  # type: ignore[assignment, unused-ignore]
                 raise
         native_dim = int(self._st.get_sentence_embedding_dimension() or 0)
         if dim is not None and dim != native_dim:
