@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib
+import inspect
 from pathlib import Path
 from typing import Any
 
@@ -102,7 +103,24 @@ def run(
     if suite_config:
         configure = getattr(suite, "configure", None)
         if configure is not None:
-            configure(**suite_config)
+            # Filter suite_config to only the kwargs configure() accepts.
+            # Lets the caller stash extra reproducibility-ledger entries
+            # (e.g. `chat`, `embedder` descriptors that the suite doesn't
+            # need at runtime because the provider already carries them)
+            # in suite_config without forcing every suite's configure()
+            # signature to grow a `**_extra` catch-all. The full
+            # suite_config is still serialized into engram_config below.
+            sig_params = inspect.signature(configure).parameters
+            accepts_var_kw = any(
+                p.kind is inspect.Parameter.VAR_KEYWORD for p in sig_params.values()
+            )
+            if accepts_var_kw:
+                accepted = suite_config
+            else:
+                accepted = {
+                    k: v for k, v in suite_config.items() if k in sig_params
+                }
+            configure(**accepted)
 
     suite.setup(provider)
     try:

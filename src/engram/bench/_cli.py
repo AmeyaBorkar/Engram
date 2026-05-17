@@ -775,6 +775,19 @@ def main(argv: list[str] | None = None) -> int:
         try:
             provider = _resolve_provider(args)
             suite_config = _resolve_suite_config(args)
+            # Capture the primary chat + embedder in engram_config so
+            # the manifest's reproducibility ledger includes them as
+            # structured descriptors (name / model / manifest_hash),
+            # not just the composite provider_hash. Previously only
+            # judge_chat / consolidate_chat / distill_chat appeared
+            # here, which made it impossible to tell from a manifest
+            # which answer-generation backend was in use — see JOURNEY
+            # §24 (had to grovel through provider_hash to identify
+            # the opencode-go thinking-mode regime shift).
+            if args.chat and "chat" not in suite_config:
+                suite_config["chat"] = provider.chat
+            if args.embedder and "embedder" not in suite_config:
+                suite_config["embedder"] = provider.embedder
             manifest_path = run_suite(
                 args.suite,
                 provider=provider,
