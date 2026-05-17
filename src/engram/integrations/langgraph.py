@@ -13,9 +13,19 @@ The classes are deliberately thin: they hold the Memory handle, the
 state-key conventions, and the retrieve params. The actual graph
 topology is the caller's call.
 
-Import is lazy: `import engram.integrations.langgraph` does not load
-LangGraph -- the LangGraph imports happen inside method bodies. This
-keeps `import engram` light for users who don't need the framework.
+No LangGraph dependency: these nodes are duck-typed against the
+LangGraph "callable that takes state, returns state-updates" contract.
+We don't import `langgraph` at all — the adapter works with any
+mapping-shaped state, which keeps `import engram` light AND lets the
+nodes be reused by other state-graph runtimes (LangChain LCEL, a
+hand-rolled scheduler, etc.) without forcing a LangGraph dep.
+
+Version compatibility: tested against LangGraph 0.2.x.  If LangGraph
+1.0 changes its node-callable contract (signature, return shape) we
+will need a guard — for now `Mapping[str, Any] -> dict[str, Any]` is
+stable.  The integration test in `tests/test_integrations_langgraph.py`
+imports `langgraph` itself and exercises a real `StateGraph` to catch
+breakage on bump.
 """
 
 from __future__ import annotations
