@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+from engram._prompt_util import inline as _inline
 from engram.schemas import ProcedureMatch, RetrievalResult
 
 
@@ -57,8 +58,12 @@ def format_context(
             if include_score:
                 prefix_parts.append(f"score={r.score:.2f}")
             prefix = "[" + ", ".join(prefix_parts) + "]"
+            # _inline collapses newlines / tabs / U+2028 in user content
+            # so a poisoned memory containing line breaks can't slip out
+            # of its bullet and start a new directive block addressed to
+            # the LLM as if from the system (audit H-11).
             lines.append(
-                f"{bullet}{prefix} {r.procedure.situation} -> {r.procedure.action}"
+                f"{bullet}{prefix} {_inline(r.procedure.situation)} -> {_inline(r.procedure.action)}"
             )
         else:
             if include_level:
@@ -66,5 +71,5 @@ def format_context(
             if include_score:
                 prefix_parts.append(f"score={r.score:.2f}")
             prefix = "[" + ", ".join(prefix_parts) + "] " if prefix_parts else ""
-            lines.append(f"{bullet}{prefix}{r.content}")
+            lines.append(f"{bullet}{prefix}{_inline(r.content)}")
     return "\n".join(lines)
