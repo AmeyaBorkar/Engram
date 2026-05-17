@@ -67,18 +67,19 @@ class TestDecayParams:
         # Clearing the lru_cache lets the test start from a known state.
         _alpha_for_half_life.cache_clear()
         params = DecayParams(half_life_seconds=1234.0)
-        params.alpha  # noqa: B018  - intentional first access
+        # First access: cache miss.
+        _ = params.alpha
         info = _alpha_for_half_life.cache_info()
         first_hits = info.hits
         first_misses = info.misses
         # Second access of same params -> cache hit, no new miss.
-        params.alpha  # noqa: B018
+        _ = params.alpha
         info_after = _alpha_for_half_life.cache_info()
         assert info_after.misses == first_misses
         assert info_after.hits == first_hits + 1
         # A second DecayParams with the same half_life also hits the cache.
         params2 = DecayParams(half_life_seconds=1234.0)
-        params2.alpha  # noqa: B018
+        _ = params2.alpha
         info_two = _alpha_for_half_life.cache_info()
         assert info_two.hits == first_hits + 2
         assert info_two.misses == first_misses

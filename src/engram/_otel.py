@@ -84,9 +84,7 @@ def get_tracer() -> Tracer:
     contextmanager, which yields `None` in that case.
     """
     if _trace_mod is None:  # pragma: no cover - otel absent at import time
-        raise RuntimeError(
-            "opentelemetry-api is not installed; install engrampy[otel]"
-        )
+        raise RuntimeError("opentelemetry-api is not installed; install engrampy[otel]")
     return _trace_mod.get_tracer(INSTRUMENTATION_NAME, INSTRUMENTATION_VERSION)
 
 
@@ -97,9 +95,7 @@ def get_meter() -> Meter:
     installed; see `get_tracer()` for the rationale.
     """
     if _metrics_mod is None:  # pragma: no cover - otel absent at import time
-        raise RuntimeError(
-            "opentelemetry-api is not installed; install engrampy[otel]"
-        )
+        raise RuntimeError("opentelemetry-api is not installed; install engrampy[otel]")
     return _metrics_mod.get_meter(INSTRUMENTATION_NAME, INSTRUMENTATION_VERSION)
 
 
@@ -128,9 +124,7 @@ def safe_set_attribute(span_obj: Span | None, key: str, value: Any) -> None:
     try:
         span_obj.set_attribute(key, value)
     except (TypeError, ValueError) as exc:
-        _log.debug(
-            "skipping span attribute %r=%r: %s", key, value, exc, exc_info=False
-        )
+        _log.debug("skipping span attribute %r=%r: %s", key, value, exc, exc_info=False)
 
 
 @contextmanager
@@ -192,70 +186,80 @@ class _Metrics:
         self._merge_fallback_count: Counter | None = None
 
     def _init(self) -> None:
-        # Fast path under the read of a plain bool (no lock cost in steady
-        # state). Lock only on the rare race where two threads see
-        # `_initialized=False` simultaneously.
-        if self._initialized or not _OTEL_AVAILABLE:
+        if not _OTEL_AVAILABLE:
+            return
+        # Fast path: read the initialized flag without the lock so the
+        # common case (already initialized) does not pay a lock-acquire
+        # cost. Only on the rare race where two callers see
+        # `_initialized=False` do we serialize on `self._lock`.
+        if self._initialized:
             return
         with self._lock:
-            # Double-check under the lock: another thread may have raced
-            # ahead while we waited.
-            if self._initialized:
-                return
-            meter = get_meter()
-            self._retrieve_count = meter.create_counter(
-                "engram.retrieve.calls",
-                description="Total number of Memory.retrieve calls",
-            )
-            self._retrieve_latency_ms = meter.create_histogram(
-                "engram.retrieve.latency_ms",
-                description="Memory.retrieve wall-clock latency in milliseconds",
-                unit="ms",
-            )
-            self._observe_count = meter.create_counter(
-                "engram.observe.calls",
-                description="Total number of Memory.observe calls",
-            )
-            self._consolidate_count = meter.create_counter(
-                "engram.consolidate.calls",
-                description="Total number of Memory.consolidate runs",
-            )
-            self._reconcile_count = meter.create_counter(
-                "engram.reconcile.calls",
-                description="Total number of Memory.reconcile calls",
-            )
-            # Gap-fill counters (I-05).
-            self._reinforce_error_count = meter.create_counter(
-                "engram.reinforce.errors",
-                description=(
-                    "Errors raised by Memory.reinforce / corroborate / "
-                    "contradict (item missing, cold pool, value errors)"
-                ),
-            )
-            self._auto_temporal_fallback_count = meter.create_counter(
-                "engram.retrieve.auto_temporal_fallback",
-                description=(
-                    "Times the auto-temporal retrieve path could not "
-                    "extract a temporal anchor and fell back to the "
-                    "non-temporal retrieve"
-                ),
-            )
-            self._verify_parse_fallback_count = meter.create_counter(
-                "engram.verify.parse_fallback",
-                description=(
-                    "Times the EngramAgent verify step could not parse "
-                    "the verifier's response and fell back to the "
-                    "unverified answer"
-                ),
-            )
-            self._merge_fallback_count = meter.create_counter(
-                "engram.reconcile.merge_fallback",
-                description=(
-                    "Times Resolution.MERGE could not synthesize a merged "
-                    "memory item and fell back to PREFER_RECENT"
-                ),
-            )
-            self._initialized = True
+            # Double-check under the lock: another caller may have raced
+            # ahead while we waited and already initialized. Read again
+            # because the value we read above was outside the lock; the
+            # winning thread's commit may have landed in between. Plain
+            # attribute read is atomic in CPython; the lock guards the
+            # create_counter / create_histogram block beneath.
+            if not self._initialized:
+                self._init_locked()
+
+    def _init_locked(self) -> None:
+        """Initialize counters/histograms under the held `self._lock`."""
+        meter = get_meter()
+        self._retrieve_count = meter.create_counter(
+            "engram.retrieve.calls",
+            description="Total number of Memory.retrieve calls",
+        )
+        self._retrieve_latency_ms = meter.create_histogram(
+            "engram.retrieve.latency_ms",
+            description="Memory.retrieve wall-clock latency in milliseconds",
+            unit="ms",
+        )
+        self._observe_count = meter.create_counter(
+            "engram.observe.calls",
+            description="Total number of Memory.observe calls",
+        )
+        self._consolidate_count = meter.create_counter(
+            "engram.consolidate.calls",
+            description="Total number of Memory.consolidate runs",
+        )
+        self._reconcile_count = meter.create_counter(
+            "engram.reconcile.calls",
+            description="Total number of Memory.reconcile calls",
+        )
+        # Gap-fill counters (I-05).
+        self._reinforce_error_count = meter.create_counter(
+            "engram.reinforce.errors",
+            description=(
+                "Errors raised by Memory.reinforce / corroborate / "
+                "contradict (item missing, cold pool, value errors)"
+            ),
+        )
+        self._auto_temporal_fallback_count = meter.create_counter(
+            "engram.retrieve.auto_temporal_fallback",
+            description=(
+                "Times the auto-temporal retrieve path could not "
+                "extract a temporal anchor and fell back to the "
+                "non-temporal retrieve"
+            ),
+        )
+        self._verify_parse_fallback_count = meter.create_counter(
+            "engram.verify.parse_fallback",
+            description=(
+                "Times the EngramAgent verify step could not parse "
+                "the verifier's response and fell back to the "
+                "unverified answer"
+            ),
+        )
+        self._merge_fallback_count = meter.create_counter(
+            "engram.reconcile.merge_fallback",
+            description=(
+                "Times Resolution.MERGE could not synthesize a merged "
+                "memory item and fell back to PREFER_RECENT"
+            ),
+        )
+        self._initialized = True
 
     def retrieve_call(self, k: int, *, mode: str | None = None) -> None:
         """Record one Memory.retrieve call.

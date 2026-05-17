@@ -91,9 +91,7 @@ def new_id() -> UUID:
 
     rand_b = int.from_bytes(os.urandom(8), "big") & ((1 << 62) - 1)
 
-    value = (
-        (now_ms << 80) | (_VERSION_7 << 76) | (rand_a << 64) | (_VARIANT_RFC4122 << 62) | rand_b
-    )
+    value = (now_ms << 80) | (_VERSION_7 << 76) | (rand_a << 64) | (_VARIANT_RFC4122 << 62) | rand_b
     return UUID(int=value)
 
 

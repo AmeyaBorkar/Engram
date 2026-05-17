@@ -165,15 +165,11 @@ class TestExtraForbid:
 
     def test_memory_item_rejects_unknown_field(self) -> None:
         with pytest.raises(ValidationError, match="extra"):
-            MemoryItem.model_validate(
-                {"level": "event", "content": "x", "unknown_field": 1}
-            )
+            MemoryItem.model_validate({"level": "event", "content": "x", "unknown_field": 1})
 
     def test_procedure_rejects_unknown_field(self) -> None:
         with pytest.raises(ValidationError, match="extra"):
-            Procedure.model_validate(
-                {"situation": "s", "action": "a", "unknown_field": 1}
-            )
+            Procedure.model_validate({"situation": "s", "action": "a", "unknown_field": 1})
 
     def test_embedding_rejects_unknown_field(self) -> None:
         with pytest.raises(ValidationError, match="extra"):

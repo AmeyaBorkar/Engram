@@ -38,7 +38,6 @@ from engram.decay._metrics import DecayMetrics, KindCounters
 from engram.schemas import DecayState, ItemKind
 from engram.storage._protocol import Storage
 
-
 # Message-substring marker that storage layers use when they refuse to
 # hard-delete cold events because they participate in provenance links.
 # The decay engine catches RuntimeError narrowly by message so unrelated
@@ -293,9 +292,7 @@ class DecayEngine:
         self._last_tick = result
         return result
 
-    def _tick_kind(
-        self, kind: ItemKind, *, moment: datetime
-    ) -> tuple[int, int, int]:
+    def _tick_kind(self, kind: ItemKind, *, moment: datetime) -> tuple[int, int, int]:
         """Sweep one kind; return (processed, pruned, deleted) for it.
 
         Reads the iterator into per-batch chunks and flushes each chunk

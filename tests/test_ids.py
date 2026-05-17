@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import itertools
 import threading
 import time
 
@@ -54,10 +55,8 @@ class TestMonotonicCounter:
     def test_tight_loop_is_strictly_monotonic(self) -> None:
         # Generate a burst quickly enough that many calls land in one ms.
         ids = [new_id() for _ in range(10_000)]
-        for prev, curr in zip(ids, ids[1:], strict=False):
-            assert prev.bytes < curr.bytes, (
-                f"ids must be strictly monotonic; got {prev} >= {curr}"
-            )
+        for prev, curr in itertools.pairwise(ids):
+            assert prev.bytes < curr.bytes, f"ids must be strictly monotonic; got {prev} >= {curr}"
 
     def test_same_ms_ids_share_timestamp_but_differ(self) -> None:
         # Generate two fast and verify same-or-stepped ms with different
