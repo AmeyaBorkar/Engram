@@ -442,6 +442,68 @@ def _format_memory(results: Sequence[Any]) -> str:
     return "\n".join(lines)
 
 
+def _format_memory_grouped(results: Sequence[Any], storage: Any) -> str:
+    """Group retrieved events by session_id; order sessions by best
+    in-session score; within session, order by turn_index.
+
+    Falls back to flat formatting when no metadata is available (e.g.
+    abstractions or events without session_id).  The grouped form
+    drops the `level/score` noise that may distract the answerer and
+    instead shows session-level context blocks the LLM can reason
+    across.  Designed to help on multi-session and _abs questions
+    where structural context matters more than rank-ordered bullets.
+    """
+    if not results:
+        return "(no relevant memory found)"
+
+    # Buckets keyed by session_id; abstractions / no-metadata go to
+    # an "_other_" bucket rendered first.
+    buckets: dict[str, list[tuple[int, Any, dict[str, Any]]]] = {}
+    for i, r in enumerate(results):
+        event = storage.get_event(r.item_id) if hasattr(r, "item_id") else None
+        meta: dict[str, Any] = dict(event.metadata) if event and event.metadata else {}
+        session_id = str(meta.get("session_id", "_other_"))
+        buckets.setdefault(session_id, []).append((i, r, meta))
+
+    # Sort sessions by the BEST score within each (highest first); within
+    # each session, order by turn_index ascending so chronology is
+    # preserved.
+    def session_best_score(items: list[tuple[int, Any, dict[str, Any]]]) -> float:
+        return max(item[1].score for item in items)
+
+    if "_other_" in buckets:
+        ordered_sessions = ["_other_"] + sorted(
+            (s for s in buckets if s != "_other_"),
+            key=lambda s: -session_best_score(buckets[s]),
+        )
+    else:
+        ordered_sessions = sorted(buckets, key=lambda s: -session_best_score(buckets[s]))
+
+    lines: list[str] = []
+    for session_idx, sid in enumerate(ordered_sessions, start=1):
+        items = buckets[sid]
+        # Sort within-session by turn_index when available; otherwise
+        # by retrieval rank.
+        items.sort(key=lambda triple: triple[2].get("turn_index", triple[0]))
+        if sid == "_other_":
+            lines.append(f"=== Other memory items ({len(items)}) ===")
+        else:
+            n_total = items[0][2].get("session_n_turns", "?")
+            lines.append(
+                f"=== Session {session_idx} (id={sid[:12]}{'...' if len(sid) > 12 else ''}, "
+                f"{len(items)} of {n_total} turns retrieved) ==="
+            )
+        for _, r, meta in items:
+            role = meta.get("role", "memory")
+            turn_idx = meta.get("turn_index")
+            prefix = f"[{role}]"
+            if turn_idx is not None:
+                prefix = f"[turn {turn_idx} {role}]"
+            lines.append(f"{prefix} {r.content}")
+        lines.append("")  # blank line between sessions
+    return "\n".join(lines).rstrip()
+
+
 def _generate_answer(
     chat: Any,
     *,
@@ -750,6 +812,12 @@ class LongMemEvalSuite:
         # session in top-k. False = off (default). Complements
         # min_sessions_in_topk.
         self._within_session_oversample: bool = False
+        # Context format passed to the answerer.  "flat" is the
+        # original bulleted-rank format; "grouped" groups by session
+        # with explicit boundary markers + speaker labels + turn
+        # indices, dropping the score/level annotations.  Default
+        # "flat" for backward compatibility.
+        self._context_format: str = "flat"
 
     def configure(
         self,
@@ -788,6 +856,7 @@ class LongMemEvalSuite:
         auto_temporal: bool = False,
         min_sessions_in_topk: int = 0,
         within_session_oversample: bool = False,
+        context_format: str = "flat",
     ) -> None:
         """Wire Phase E knobs from the CLI into the suite.
 
@@ -866,6 +935,11 @@ class LongMemEvalSuite:
             )
         self._min_sessions_in_topk = min_sessions_in_topk
         self._within_session_oversample = within_session_oversample
+        if context_format not in ("flat", "grouped"):
+            raise ValueError(
+                f"context_format must be 'flat' or 'grouped', got {context_format!r}"
+            )
+        self._context_format = context_format
 
     def setup(self, provider: Provider) -> None:
         self._provider = provider
@@ -952,6 +1026,9 @@ class LongMemEvalSuite:
             "min_sessions_in_topk": self._min_sessions_in_topk,
             "within_session_oversample": self._within_session_oversample,
         }
+        # `context_format` is a bench-side rendering choice, not a
+        # RetrieveParams field. The suite reads `self._context_format`
+        # directly when formatting memory for the answerer.
         if self._drill_k is not None:
             base_params_kwargs["drill_k"] = self._drill_k
         if self._confidence_threshold is not None:
@@ -1217,7 +1294,7 @@ class LongMemEvalSuite:
                     results = memory.retrieve(q.question, **retrieve_kwargs)
                 retrieve_ms_v = (time.perf_counter() - t0) * 1000.0
 
-                memory_text = _format_memory(results)
+                memory_text = self._format_memory_for_answer(results, storage)
 
                 t0 = time.perf_counter()
                 response = self._answer_with_phase_e(
@@ -1272,6 +1349,16 @@ class LongMemEvalSuite:
             judge_ms=judge_ms_v,
             error_msg=error_msg,
         )
+
+    def _format_memory_for_answer(
+        self, results: Sequence[Any], storage: Any
+    ) -> str:
+        """Dispatch on `self._context_format`. 'flat' is bit-identical
+        to the legacy `_format_memory`; 'grouped' uses session-grouped
+        formatting with metadata."""
+        if self._context_format == "grouped":
+            return _format_memory_grouped(results, storage)
+        return _format_memory(results)
 
     def _answer_with_phase_e(
         self,
@@ -1346,7 +1433,9 @@ class LongMemEvalSuite:
                 # version as the first attempt; ReAct-style refinement
                 # is the `retrieve_iterative` job, not the verifier's.
                 fresh = memory.retrieve(question, k=self._k, reinforce=False)
-                current_memory_text = _format_memory(fresh)
+                current_memory_text = self._format_memory_for_answer(
+                    fresh, memory.storage
+                )
                 fresh_prompt = _read_prompt(
                     "answer", version=template_version
                 ).format(

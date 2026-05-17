@@ -374,6 +374,20 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     run.add_argument(
+        "--context-format",
+        default="flat",
+        choices=("flat", "grouped"),
+        help=(
+            "How retrieved memory is rendered into the answer prompt. "
+            "'flat' (default) is the original bulleted-rank list with "
+            "score/level annotations. 'grouped' groups retrieved events "
+            "by session_id with explicit boundary markers, speaker "
+            "labels, and turn indices, dropping the score noise. "
+            "Targets multi-session and _abs questions where structural "
+            "context matters more than rank ordering."
+        ),
+    )
+    run.add_argument(
         "--within-session-oversample",
         action="store_true",
         help=(
@@ -619,6 +633,8 @@ def _resolve_suite_config(args: argparse.Namespace) -> dict[str, Any]:
         cfg["min_sessions_in_topk"] = args.min_sessions_in_topk
     if args.within_session_oversample:
         cfg["within_session_oversample"] = True
+    if args.context_format != "flat":
+        cfg["context_format"] = args.context_format
     if args.reranker and args.reranker != "none":
         from engram.retrieve._bge_reranker import BGEReranker
 
