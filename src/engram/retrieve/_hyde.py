@@ -22,11 +22,14 @@ re-rank against the original query so we don't lose intent signal.
 
 from __future__ import annotations
 
+import logging
 from importlib import resources
 
 from engram._prompt_util import inline as _inline, render_prompt
 from engram.providers._message import Message
 from engram.providers._protocols import ChatProvider
+
+_LOG = logging.getLogger("engram.retrieve")
 
 HYDE_PROMPT_NAME = "hyde"
 HYDE_PROMPT_VERSION = "v1"
@@ -53,7 +56,11 @@ def hyde_transform(query: str, chat: ChatProvider) -> str:
     prompt = render_hyde_prompt(query)
     try:
         response = chat.chat([Message(role="user", content=prompt)])
-    except Exception:
+    except Exception as exc:
+        # Best-effort fallback: HyDE is a precision boost, not load-
+        # bearing.  Log so a misconfigured chat provider surfaces to
+        # operators as a warning instead of a silent feature-disable.
+        _LOG.warning("hyde transform: chat raised %s: %s; falling back to raw query", type(exc).__name__, exc)
         return query
     cleaned = response.strip()
     if not cleaned:

@@ -22,6 +22,7 @@ Memory.retrieve threads them together when `RetrieveParams.multi_query_n
 
 from __future__ import annotations
 
+import logging
 from collections import defaultdict
 from collections.abc import Sequence
 from importlib import resources
@@ -30,6 +31,8 @@ from engram.providers._message import Message
 from engram.providers._protocols import ChatProvider
 from engram.schemas import RetrievalResult
 from engram._prompt_util import inline as _inline, render_prompt
+
+_LOG = logging.getLogger("engram.retrieve")
 
 MULTI_QUERY_PROMPT_NAME = "multi_query"
 MULTI_QUERY_PROMPT_VERSION = "v1"
@@ -58,7 +61,11 @@ def expand_queries(query: str, n: int, chat: ChatProvider) -> list[str]:
     prompt = render_multi_query_prompt(query, paraphrase_count)
     try:
         response = chat.chat([Message(role="user", content=prompt)])
-    except Exception:
+    except Exception as exc:
+        _LOG.warning(
+            "expand_queries: chat raised %s: %s; falling back to [query]",
+            type(exc).__name__, exc,
+        )
         return [query]
     lines = [line.strip() for line in response.splitlines() if line.strip()]
     # Drop blanks / leading numbering ("1." / "1)" / "- ").

@@ -19,6 +19,7 @@ retrieval system's.
 from __future__ import annotations
 
 import json
+import logging
 from importlib import resources
 
 from pydantic import BaseModel, ConfigDict, ValidationError
@@ -32,6 +33,8 @@ from engram._prompt_util import (
     render_prompt,
     strip_code_fence as _strip_code_fence,
 )
+
+_LOG = logging.getLogger("engram.retrieve")
 
 REACT_PROMPT_NAME = "react"
 REACT_PROMPT_VERSION = "v1"
@@ -105,7 +108,7 @@ def react_judge(
     for _ in range(max_retries + 1):
         try:
             last_response = chat.chat(messages)
-        except Exception:
+        except Exception as exc:
             # Sibling helpers (decompose, hyde, multi_query, temporal) all
             # treat a chat-provider failure as best-effort: log/swallow and
             # return a sensible fallback.  react_judge previously let the
@@ -113,6 +116,10 @@ def react_judge(
             # the surrounding Memory.retrieve_iterative call — on the
             # first transient network blip.  Match the sibling pattern
             # and gracefully exit the loop instead.
+            _LOG.warning(
+                "react_judge: chat raised %s: %s; exiting iterative loop",
+                type(exc).__name__, exc,
+            )
             return ReactVerdict(sufficient=True, refined_query="")
         try:
             return parse_react_response(last_response)

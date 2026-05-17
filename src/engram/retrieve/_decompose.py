@@ -18,11 +18,14 @@ paraphrases, decompose splits.
 
 from __future__ import annotations
 
+import logging
 from importlib import resources
 
 from engram.providers._message import Message
 from engram.providers._protocols import ChatProvider
 from engram._prompt_util import inline as _inline, render_prompt
+
+_LOG = logging.getLogger("engram.retrieve")
 
 DECOMPOSE_PROMPT_NAME = "decompose"
 DECOMPOSE_PROMPT_VERSION = "v1"
@@ -63,7 +66,11 @@ def decompose_query(query: str, chat: ChatProvider) -> list[str]:
     prompt = render_decompose_prompt(query)
     try:
         response = chat.chat([Message(role="user", content=prompt)])
-    except Exception:
+    except Exception as exc:
+        _LOG.warning(
+            "decompose_query: chat raised %s: %s; falling back to [query]",
+            type(exc).__name__, exc,
+        )
         return [query]
     lines = [_strip_marker(line.strip()) for line in response.splitlines()]
     cleaned = [line for line in lines if line and line != query]

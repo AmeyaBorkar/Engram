@@ -218,6 +218,8 @@ def reciprocal_rank_fusion(
         raise ValueError(
             f"weights length {len(weights)} does not match rankings length {len(rankings)}"
         )
+    if weights is not None and any(w < 0 for w in weights):
+        raise ValueError(f"weights must be >= 0, got {list(weights)!r}")
     fused: dict[DocId, float] = {}
     for i, ranking in enumerate(rankings):
         w = float(weights[i]) if weights is not None else 1.0

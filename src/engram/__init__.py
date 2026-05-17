@@ -1,6 +1,7 @@
 """Engram: hierarchical memory with consolidation and principled decay for LLM systems."""
 
 from engram._preference import is_preference
+from engram._vec_math import normalize
 from engram.decay import DecayParams
 from engram.ids import new_id
 from engram.memory import Memory
@@ -62,6 +63,7 @@ __all__ = [
     "Verdict",
     "is_preference",
     "new_id",
+    "normalize",
     "stats",
 ]
 try:

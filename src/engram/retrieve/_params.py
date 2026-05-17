@@ -8,9 +8,9 @@ overkill, and we save the per-call validation cost on a hot path.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, fields, replace
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 # `auto`     -- generalize when confident, drill when not (the default).
 # `specific` -- always surface events; abstractions are skipped.
@@ -162,3 +162,27 @@ class RetrieveParams:
             raise ValueError(f"mmr_pool_size must be >= 0, got {self.mmr_pool_size}")
         if self.recent_window_k < 0:
             raise ValueError(f"recent_window_k must be >= 0, got {self.recent_window_k}")
+
+    def replace(self, **overrides: Any) -> RetrieveParams:
+        """Return a copy of this `RetrieveParams` with `overrides` applied.
+
+        Used by leaf-retrieve dispatch (`_decomposed_retrieve`,
+        `_multi_query_retrieve`) so every per-call knob the caller set
+        propagates to the leaves automatically.  The old pattern was to
+        enumerate fields by hand, which silently dropped any new knob
+        until the enumeration got updated — covered by audit H-47.
+
+        Re-runs `__post_init__` validation so a typo'd override surfaces
+        as a `ValueError` at the leaf-construction site.
+        """
+        return replace(self, **overrides)
+
+    @classmethod
+    def field_names(cls) -> tuple[str, ...]:
+        """Names of every field on the dataclass, in declaration order.
+
+        A single source of truth so tooling that walks the knob set
+        (CLI sweep, manifest engram_config) doesn't drift from the
+        actual field list.
+        """
+        return tuple(f.name for f in fields(cls))

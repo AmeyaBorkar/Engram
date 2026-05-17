@@ -33,6 +33,7 @@ filter, matching the default (current-state) behavior.
 from __future__ import annotations
 
 import json
+import logging
 import re
 from datetime import datetime, timezone
 from importlib import resources
@@ -47,6 +48,8 @@ from engram._prompt_util import (
     render_prompt,
     strip_code_fence as _strip_code_fence,
 )
+
+_LOG = logging.getLogger("engram.retrieve")
 
 TEMPORAL_PROMPT_NAME = "temporal_anchor"
 TEMPORAL_PROMPT_VERSION = "v1"
@@ -155,7 +158,11 @@ def compute_temporal_anchor(
     for _ in range(max_retries + 1):
         try:
             last_response = chat.chat(messages)
-        except Exception:
+        except Exception as exc:
+            _LOG.warning(
+                "temporal anchor: chat raised %s: %s; falling back to None",
+                type(exc).__name__, exc,
+            )
             return None
         try:
             anchor_obj = parse_temporal_response(last_response)
