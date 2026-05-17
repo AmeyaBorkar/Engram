@@ -259,6 +259,62 @@ class TestResolveConflict:
                 resolved_at=_utc(2026, 5, 1),
             )
 
+    def test_validation_failure_rolls_back(self, storage: SqliteStorage) -> None:
+        # If validation raises mid-resolve, the conflict must remain OPEN
+        # (not partially flipped).  Simulates a caller passing a bad
+        # winner_id; verify the status stayed OPEN.
+        a = _seed_item(storage, "a")
+        b = _seed_item(storage, "b")
+        c_third = _seed_item(storage, "c")
+        c = Conflict(source_item_id=a.id, target_item_id=b.id, similarity=0.9)
+        storage.record_conflict(c)
+        with pytest.raises(ValueError):
+            storage.resolve_conflict(
+                c.id,
+                resolution=Resolution.PREFER_RECENT,
+                resolved_winner_id=c_third.id,  # not source or target
+                resolved_at=_utc(2026, 5, 1),
+            )
+        # Still OPEN; the transaction rolled back any partial state.
+        again = storage.get_conflict(c.id)
+        assert again is not None
+        assert again.status is ConflictStatus.OPEN
+
+    def test_concurrent_resolver_raises(
+        self, storage: SqliteStorage, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Simulate a racing writer that flips status between our SELECT
+        # and our UPDATE: monkeypatch get_conflict to also flip the
+        # row's status to 'resolved' after returning the snapshot.  The
+        # UPDATE's `WHERE status = 'open'` then rowcount=0 and we raise.
+        a = _seed_item(storage, "a")
+        b = _seed_item(storage, "b")
+        c = Conflict(source_item_id=a.id, target_item_id=b.id, similarity=0.9)
+        storage.record_conflict(c)
+
+        orig = storage.get_conflict
+
+        def racing_get(conflict_id: UUID) -> object:
+            out = orig(conflict_id)
+            if out is not None and out.status is ConflictStatus.OPEN:
+                # Stub a concurrent resolver flipping the row under us.
+                storage._connect().execute(
+                    "UPDATE conflicts SET status='resolved', "
+                    "resolution='prefer_recent', resolved_winner_id=?, "
+                    "resolved_at=? WHERE id=?",
+                    (b.id.bytes, _utc(2026, 1, 1).isoformat(), conflict_id.bytes),
+                )
+            return out
+
+        monkeypatch.setattr(storage, "get_conflict", racing_get)
+        with pytest.raises(RuntimeError, match="concurrent writer"):
+            storage.resolve_conflict(
+                c.id,
+                resolution=Resolution.PREFER_RECENT,
+                resolved_winner_id=a.id,
+                resolved_at=_utc(2026, 5, 2),
+            )
+
 
 # ---------------------------------------------------------------------------
 # count_conflicts / count_conflicts_by_status
@@ -362,6 +418,28 @@ class TestSetValidityWindow:
                 valid_from=_utc(2026, 5, 1),
                 valid_until=_utc(2026, 1, 1),
             )
+
+    def test_invalid_window_does_not_persist(self, storage: SqliteStorage) -> None:
+        # Pre-fix: the UPDATE happened, then the read-back validation
+        # raised, leaving the malformed window on disk.  The transaction
+        # now rolls back so the row stays untouched.
+        a = _seed_item(storage, "a", valid_from=_utc(2026, 1, 1))
+        with pytest.raises(ValueError, match="precedes"):
+            storage.set_validity_window(
+                a.id, valid_until=_utc(2025, 1, 1)
+            )
+        item = storage.get_memory_item(a.id)
+        assert item is not None
+        # valid_until was never written; valid_from kept its seeded value.
+        assert item.valid_until is None
+        assert item.valid_from == _utc(2026, 1, 1)
+
+    def test_invalid_window_against_stored_from(self, storage: SqliteStorage) -> None:
+        # If only `valid_until` is passed and it's before the stored
+        # `valid_from`, validation must catch it pre-UPDATE.
+        a = _seed_item(storage, "a", valid_from=_utc(2026, 5, 1))
+        with pytest.raises(ValueError, match="precedes"):
+            storage.set_validity_window(a.id, valid_until=_utc(2025, 1, 1))
 
     def test_missing_id_raises(self, storage: SqliteStorage) -> None:
         with pytest.raises(KeyError):

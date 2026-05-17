@@ -806,37 +806,47 @@ class SqliteStorage:
         valid_from: datetime | None = None,
         valid_until: datetime | None = None,
     ) -> None:
-        sets: list[str] = []
-        params: list[Any] = []
-        if valid_from is not None:
-            sets.append("valid_from = ?")
-            params.append(iso(valid_from))
-        if valid_until is not None:
-            sets.append("valid_until = ?")
-            params.append(iso(valid_until))
-        if not sets:
+        if valid_from is None and valid_until is None:
             return
-        sets.append("updated_at = ?")
-        params.append(iso(datetime.now(tz=timezone.utc)))
-        params.append(item_id.bytes)
-        sql = f"UPDATE memory_items SET {', '.join(sets)} WHERE id = ?"  # noqa: S608
-        cursor = self._connect().execute(sql, params)
-        if cursor.rowcount == 0:
-            raise KeyError(f"memory_item {item_id} not found")
-        # If the new window would put valid_until before valid_from, the
-        # DB has no CHECK to catch it (CHECK across nullable columns is
-        # awkward); validate via a read-back.
-        row = self._connect().execute(
-            "SELECT valid_from, valid_until FROM memory_items WHERE id = ?",
-            (item_id.bytes,),
-        ).fetchone()
-        if row is not None and row["valid_from"] and row["valid_until"]:
-            vf = parse_iso(row["valid_from"])
-            vu = parse_iso(row["valid_until"])
-            if vu < vf:
+        # Read-then-validate-then-UPDATE inside a single transaction.  The
+        # old code wrote first and validated via read-back, which left the
+        # bad row persisted when the validation raised.  Now: SELECT
+        # current values under BEGIN IMMEDIATE (writer lock), merge the
+        # caller's overrides, check the invariant, then UPDATE — so a
+        # raise rolls back the unwritten transaction without leaving a
+        # malformed window on disk.
+        with self.transaction():
+            conn = self._connect()
+            row = conn.execute(
+                "SELECT valid_from, valid_until FROM memory_items WHERE id = ?",
+                (item_id.bytes,),
+            ).fetchone()
+            if row is None:
+                raise KeyError(f"memory_item {item_id} not found")
+            # Merge: caller's override wins; otherwise keep the stored value.
+            new_vf = valid_from if valid_from is not None else (
+                parse_iso(row["valid_from"]) if row["valid_from"] else None
+            )
+            new_vu = valid_until if valid_until is not None else (
+                parse_iso(row["valid_until"]) if row["valid_until"] else None
+            )
+            if new_vf is not None and new_vu is not None and new_vu < new_vf:
                 raise ValueError(
-                    f"valid_until {vu.isoformat()} precedes valid_from {vf.isoformat()}"
+                    f"valid_until {new_vu.isoformat()} precedes valid_from {new_vf.isoformat()}"
                 )
+            sets: list[str] = []
+            params: list[Any] = []
+            if valid_from is not None:
+                sets.append("valid_from = ?")
+                params.append(iso(valid_from))
+            if valid_until is not None:
+                sets.append("valid_until = ?")
+                params.append(iso(valid_until))
+            sets.append("updated_at = ?")
+            params.append(iso(datetime.now(tz=timezone.utc)))
+            params.append(item_id.bytes)
+            sql = f"UPDATE memory_items SET {', '.join(sets)} WHERE id = ?"  # noqa: S608
+            conn.execute(sql, params)
         self._vector_index.mark_dirty(kind=ItemKind.MEMORY_ITEM.value)
 
     def set_source_trust(self, item_id: UUID, trust: float | None) -> None:
@@ -1048,42 +1058,58 @@ class SqliteStorage:
         resolved_winner_id: UUID | None,
         resolved_at: datetime,
     ) -> Conflict:
-        # Read first so we can validate winner-vs-source/target and the
-        # status precondition without racing the UPDATE.
-        existing = self.get_conflict(conflict_id)
-        if existing is None:
-            raise KeyError(f"conflict {conflict_id} not found")
-        if existing.status is ConflictStatus.RESOLVED:
-            raise RuntimeError(
-                f"conflict {conflict_id} is already resolved "
-                f"(resolution={existing.resolution})"
+        # Wrap the read-validate-UPDATE in a transaction (BEGIN IMMEDIATE
+        # grabs the writer lock at the start, see `transaction()`).  The
+        # UPDATE itself is guarded by `WHERE status = 'open'` so a racing
+        # worker that already resolved this conflict can't be silently
+        # overwritten — we detect rowcount == 0 and raise.  The earlier
+        # code read-then-UPDATEd without a transaction or status guard,
+        # letting two concurrent resolvers both pass the status check and
+        # both write, with the second silently winning.
+        with self.transaction():
+            existing = self.get_conflict(conflict_id)
+            if existing is None:
+                raise KeyError(f"conflict {conflict_id} not found")
+            if existing.status is ConflictStatus.RESOLVED:
+                raise RuntimeError(
+                    f"conflict {conflict_id} is already resolved "
+                    f"(resolution={existing.resolution})"
+                )
+            # KEEP_BOTH and MERGE legitimately leave the winner field NULL.
+            if (
+                resolution not in (Resolution.KEEP_BOTH, Resolution.MERGE)
+                and resolved_winner_id is None
+            ):
+                raise ValueError(
+                    f"resolution={resolution.value} requires resolved_winner_id"
+                )
+            if resolved_winner_id is not None and resolved_winner_id not in (
+                existing.source_item_id,
+                existing.target_item_id,
+            ):
+                raise ValueError(
+                    "resolved_winner_id must equal source_item_id or target_item_id"
+                )
+            cursor = self._connect().execute(
+                "UPDATE conflicts SET status = 'resolved', resolution = ?, "
+                "resolved_winner_id = ?, resolved_at = ? "
+                "WHERE id = ? AND status = 'open'",
+                (
+                    resolution.value,
+                    resolved_winner_id.bytes if resolved_winner_id is not None else None,
+                    iso(resolved_at),
+                    conflict_id.bytes,
+                ),
             )
-        # KEEP_BOTH and MERGE legitimately leave the winner field NULL.
-        if (
-            resolution not in (Resolution.KEEP_BOTH, Resolution.MERGE)
-            and resolved_winner_id is None
-        ):
-            raise ValueError(
-                f"resolution={resolution.value} requires resolved_winner_id"
-            )
-        if resolved_winner_id is not None and resolved_winner_id not in (
-            existing.source_item_id,
-            existing.target_item_id,
-        ):
-            raise ValueError(
-                "resolved_winner_id must equal source_item_id or target_item_id"
-            )
-        self._connect().execute(
-            "UPDATE conflicts SET status = 'resolved', resolution = ?, "
-            "resolved_winner_id = ?, resolved_at = ? WHERE id = ?",
-            (
-                resolution.value,
-                resolved_winner_id.bytes if resolved_winner_id is not None else None,
-                iso(resolved_at),
-                conflict_id.bytes,
-            ),
-        )
-        result = self.get_conflict(conflict_id)
+            if cursor.rowcount != 1:
+                # Status guard caught a concurrent resolver that beat us
+                # to the UPDATE.  We already loaded `existing` and saw
+                # OPEN, so a rowcount of 0 here means another writer
+                # flipped it under us.
+                raise RuntimeError(
+                    f"conflict {conflict_id} was resolved by a concurrent writer"
+                )
+            result = self.get_conflict(conflict_id)
         if result is None:  # pragma: no cover - raced delete
             raise KeyError(conflict_id)
         return result
@@ -1734,24 +1760,33 @@ class SqliteStorage:
         # For events, refuse to delete rows that participate in provenance
         # links - a foreign key with ON DELETE RESTRICT would raise a generic
         # IntegrityError; we'd rather give the caller an actionable message.
-        if kind is ItemKind.EVENT:
-            blockers = (
-                self._connect()
-                .execute(
-                    "SELECT COUNT(*) FROM events e "
-                    "JOIN provenance_links p ON p.event_id = e.id "
-                    "WHERE e.cold_at IS NOT NULL"
+        #
+        # The provenance-count check + DELETE run in a single transaction
+        # (BEGIN IMMEDIATE grabs the writer lock).  Without it, a second
+        # writer could insert a provenance_links row pointing at a cold
+        # event between our check and our DELETE — the DELETE would then
+        # fail with a bare ON DELETE RESTRICT IntegrityError instead of
+        # our typed ProvenanceProtectedError, *and* it would have left
+        # the other rows in the cold set already deleted.
+        with self.transaction():
+            if kind is ItemKind.EVENT:
+                blockers = (
+                    self._connect()
+                    .execute(
+                        "SELECT COUNT(*) FROM events e "
+                        "JOIN provenance_links p ON p.event_id = e.id "
+                        "WHERE e.cold_at IS NOT NULL"
+                    )
+                    .fetchone()[0]
                 )
-                .fetchone()[0]
-            )
-            if blockers:
-                raise ProvenanceProtectedError(
-                    f"cannot delete {blockers} cold event(s) with provenance links; "
-                    "use the 'cold' prune policy instead"
-                )
-        sql = _DELETE_COLD_SQL[kind]
-        cursor = self._connect().execute(sql)
-        deleted = int(cursor.rowcount)
+                if blockers:
+                    raise ProvenanceProtectedError(
+                        f"cannot delete {blockers} cold event(s) with provenance links; "
+                        "use the 'cold' prune policy instead"
+                    )
+            sql = _DELETE_COLD_SQL[kind]
+            cursor = self._connect().execute(sql)
+            deleted = int(cursor.rowcount)
         if deleted:
             self._vector_index.mark_dirty(kind=kind.value)
             # BM25 covers events only; if we just dropped cold event rows
