@@ -509,6 +509,8 @@ class HierarchicalRetriever:
             unique = self._enforce_session_diversity(
                 unique, k=p.k, min_sessions=p.min_sessions_in_topk
             )
+        if p.within_session_oversample:
+            unique = self._enforce_within_session_oversample(unique, k=p.k)
 
         sliced = unique[: p.k]
 
@@ -629,6 +631,98 @@ class HierarchicalRetriever:
             return "__unknown__"
         sid = event.metadata.get("session_id")
         return str(sid) if sid else "__unknown__"
+
+    def _is_boundary_turn(self, cand: _Candidate) -> bool:
+        """True iff cand is the first or last turn of its session.
+
+        Reads `is_first_turn` / `is_last_turn` from event metadata
+        (LongMemEval ingest writes these).  Returns False for
+        non-events or events without metadata.
+        """
+        if cand.item_kind is not ItemKind.EVENT:
+            return False
+        event = self._storage.get_event(cand.item_id)
+        if event is None or not event.metadata:
+            return False
+        return bool(
+            event.metadata.get("is_first_turn") or event.metadata.get("is_last_turn")
+        )
+
+    def _enforce_within_session_oversample(
+        self,
+        candidates: list[_Candidate],
+        *,
+        k: int,
+    ) -> list[_Candidate]:
+        """For each session in top-k, ensure its boundary turns are also in top-k.
+
+        Looks in the wider candidate pool (beyond k) for first-turn /
+        last-turn events of each session represented in the current
+        top-k.  Promotes any boundary turns found by swapping out the
+        lowest-ranked NON-boundary items.  No-ops when no boundary
+        turns are available in the candidate pool or when k <= 0.
+
+        Designed to complement `min_sessions_in_topk`: diversity widens
+        the SET of sessions in top-k, oversampling deepens our coverage
+        of EACH session that's already there with its structural
+        anchors.  Stacking is safe (this runs after diversity).
+        """
+        if not candidates or k <= 0 or len(candidates) <= k:
+            return candidates
+
+        top = candidates[:k]
+        top_ids = {c.item_id for c in top}
+        sessions_in_top: set[str] = set()
+        for c in top:
+            sid = self._session_id_for(c)
+            if sid != "__unknown__":
+                sessions_in_top.add(sid)
+        if not sessions_in_top:
+            return candidates
+
+        # Look beyond top-k for boundary turns whose session is in
+        # the current top-k.
+        promotions: list[_Candidate] = []
+        for c in candidates[k:]:
+            if c.item_id in top_ids:
+                continue
+            sid = self._session_id_for(c)
+            if sid not in sessions_in_top:
+                continue
+            if not self._is_boundary_turn(c):
+                continue
+            promotions.append(c)
+
+        if not promotions:
+            return candidates
+
+        # Demote the lowest-ranked NON-boundary items from top-k to
+        # make room.  Prefer to keep boundary turns already in top-k.
+        keepers: list[_Candidate] = []
+        demotable: list[_Candidate] = []
+        for c in top:
+            if self._is_boundary_turn(c):
+                keepers.append(c)
+            else:
+                demotable.append(c)
+
+        # Demote from the END of demotable (lowest-ranked first).
+        n_demote = min(len(promotions), len(demotable))
+        keep_demotables = demotable[: len(demotable) - n_demote]
+        demoted = demotable[len(demotable) - n_demote :]
+
+        new_top = keepers + keep_demotables + promotions
+        # Preserve overall relevance order within the new top-k.
+        index_of = {id(c): i for i, c in enumerate(candidates)}
+        new_top.sort(key=lambda c: index_of[id(c)])
+        new_top = new_top[:k]
+        new_top_set = {id(c) for c in new_top}
+        remainder = [
+            c
+            for c in candidates
+            if id(c) not in new_top_set and c not in demoted
+        ]
+        return new_top + demoted + remainder
 
     def _apply_recency_boost(
         self,

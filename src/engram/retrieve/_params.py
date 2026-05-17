@@ -130,6 +130,17 @@ class RetrieveParams:
     # metadata (LongMemEval ingest already does this); silently no-ops
     # when metadata isn't available.
     min_sessions_in_topk: int = 0
+    # Within-session over-sampling: for each unique session present in
+    # the current top-k, promote that session's first-turn and last-turn
+    # events (boundary turns) from the wider candidate pool into the
+    # top-k if they're not already there.  First turns often establish
+    # the session's topic; last turns often carry the resolution /
+    # closing fact. _abs questions in particular need these structural
+    # anchors. Requires events to carry `is_first_turn` / `is_last_turn`
+    # in metadata (LongMemEval ingest already does this). Silently
+    # no-ops when metadata isn't available or no boundary turns are in
+    # the candidate pool. `False` (default) is off.
+    within_session_oversample: bool = False
 
     def __post_init__(self) -> None:
         if self.k < 1:

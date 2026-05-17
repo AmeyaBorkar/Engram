@@ -746,6 +746,10 @@ class LongMemEvalSuite:
         # Set to 3-5 to combat within-session-rank failures where the
         # cross-encoder fills top-k with similar turns from one session.
         self._min_sessions_in_topk: int = 0
+        # Within-session over-sampling: promote first/last turn of each
+        # session in top-k. False = off (default). Complements
+        # min_sessions_in_topk.
+        self._within_session_oversample: bool = False
 
     def configure(
         self,
@@ -783,6 +787,7 @@ class LongMemEvalSuite:
         recent_window_k: int = 0,
         auto_temporal: bool = False,
         min_sessions_in_topk: int = 0,
+        within_session_oversample: bool = False,
     ) -> None:
         """Wire Phase E knobs from the CLI into the suite.
 
@@ -860,6 +865,7 @@ class LongMemEvalSuite:
                 f"min_sessions_in_topk must be >= 0, got {min_sessions_in_topk}"
             )
         self._min_sessions_in_topk = min_sessions_in_topk
+        self._within_session_oversample = within_session_oversample
 
     def setup(self, provider: Provider) -> None:
         self._provider = provider
@@ -944,6 +950,7 @@ class LongMemEvalSuite:
             "mmr_pool_size": self._mmr_pool_size,
             "recent_window_k": self._recent_window_k,
             "min_sessions_in_topk": self._min_sessions_in_topk,
+            "within_session_oversample": self._within_session_oversample,
         }
         if self._drill_k is not None:
             base_params_kwargs["drill_k"] = self._drill_k

@@ -374,6 +374,19 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     run.add_argument(
+        "--within-session-oversample",
+        action="store_true",
+        help=(
+            "For each session present in top-k, promote that session's "
+            "first-turn and last-turn events from the wider candidate "
+            "pool into top-k (substituting lowest-ranked non-boundary "
+            "items). First turns often establish topic; last turns "
+            "often carry resolution. Boundary turns are read from "
+            "`is_first_turn` / `is_last_turn` event metadata (LongMemEval "
+            "ingest writes these). Complements --min-sessions-in-topk."
+        ),
+    )
+    run.add_argument(
         "--min-sessions-in-topk",
         type=int,
         default=0,
@@ -604,6 +617,8 @@ def _resolve_suite_config(args: argparse.Namespace) -> dict[str, Any]:
         cfg["auto_temporal"] = True
     if args.min_sessions_in_topk > 0:
         cfg["min_sessions_in_topk"] = args.min_sessions_in_topk
+    if args.within_session_oversample:
+        cfg["within_session_oversample"] = True
     if args.reranker and args.reranker != "none":
         from engram.retrieve._bge_reranker import BGEReranker
 
