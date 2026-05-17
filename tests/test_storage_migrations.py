@@ -107,6 +107,42 @@ def test_hot_partial_indexes_present(tmp_path: Path) -> None:
             assert expected in names, f"missing partial index {expected}"
 
 
+def test_tenant_id_length_triggers_reject_long_values(tmp_path: Path) -> None:
+    """Migration 0012 adds BEFORE INSERT/UPDATE triggers that abort on
+    `length(tenant_id) > 256`.
+    """
+    from engram.schemas import Event
+
+    with SqliteStorage(tmp_path / "tenant-cap.db") as storage:
+        long_tid = "x" * 257
+        # Direct SQL insert so we bypass the Pydantic-level validation
+        # and exercise the DB trigger.
+        with pytest.raises(sqlite3.IntegrityError, match="tenant_id"):
+            storage._connect().execute(
+                "INSERT INTO events "
+                "(id, content, metadata, created_at, last_decayed_at, tenant_id) "
+                "VALUES (?, ?, '{}', '2026-01-01', '2026-01-01', ?)",
+                (b"\x00" * 16, "x", long_tid),
+            )
+        # Boundary: 256 chars is fine.
+        e = Event(content="x", tenant_id="x" * 256)
+        storage.insert_event(e)
+        assert storage.get_event(e.id) is not None
+
+
+def test_tenant_id_length_trigger_on_update(tmp_path: Path) -> None:
+    from engram.schemas import Event
+
+    with SqliteStorage(tmp_path / "tenant-cap-up.db") as storage:
+        e = Event(content="x", tenant_id="ok")
+        storage.insert_event(e)
+        with pytest.raises(sqlite3.IntegrityError, match="tenant_id"):
+            storage._connect().execute(
+                "UPDATE events SET tenant_id = ? WHERE id = ?",
+                ("y" * 257, e.id.bytes),
+            )
+
+
 def test_missing_version_record_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A migration that fails to record its own version is a runner error."""
     from engram.storage import migrations as mig

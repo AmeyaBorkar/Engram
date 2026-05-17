@@ -372,6 +372,20 @@ _INDEX_REBUILD_SQL: dict[str, str] = {
 }
 
 
+# SQLite's default `SQLITE_MAX_VARIABLE_NUMBER` is 999 (compile-time
+# constant; some distros raise it).  Splitting `id IN (?, ?, ...)` lists
+# into chunks of this size keeps us comfortably under the limit on any
+# build.  At 500 we still issue one query per ~500 candidates, which is
+# negligible compared to the per-row cost of the underlying SELECT.
+_IN_LIST_CHUNK = 500
+
+
+def _chunked(items: list[Any], chunk_size: int = _IN_LIST_CHUNK) -> Iterator[list[Any]]:
+    """Yield `items` in slices of at most `chunk_size`."""
+    for i in range(0, len(items), chunk_size):
+        yield items[i : i + chunk_size]
+
+
 class SqliteStorage:
     """SQLite-backed `Storage` implementation."""
 
@@ -968,28 +982,35 @@ class SqliteStorage:
             if not hits:
                 return []
             ids = [u for u, _, _ in hits]
-            placeholders = ",".join("?" for _ in ids)
-            if as_of is None:
-                # Default: current-state. Exclude any row that has been
-                # invalidated, regardless of when.
-                sql = (
-                    "SELECT id, content FROM memory_items "  # noqa: S608
-                    f"WHERE id IN ({placeholders}) "
-                    "AND invalidated_at IS NULL"
-                )
-                params: list[Any] = [u.bytes for u in ids]
-            else:
-                # As-of mode: surface items whose validity covers `as_of`.
-                sql = (
-                    "SELECT id, content FROM memory_items "  # noqa: S608
-                    f"WHERE id IN ({placeholders}) "
-                    "  AND (valid_from IS NULL OR valid_from <= ?) "
-                    "  AND (valid_until IS NULL OR valid_until > ?) "
-                    "  AND (invalidated_at IS NULL OR invalidated_at > ?)"
-                )
-                params = [*(u.bytes for u in ids), as_of_iso, as_of_iso, as_of_iso]
-            rows = self._connect().execute(sql, params).fetchall()
-            content: dict[bytes, str] = {bytes(r["id"]): r["content"] for r in rows}
+            id_bytes = [u.bytes for u in ids]
+            # Chunk the IN-list to stay under SQLite's variable limit
+            # (default 999).  Each batch is bounded by `_IN_LIST_CHUNK`
+            # placeholders; results are merged into the same content
+            # dict before the post-filter step.
+            content: dict[bytes, str] = {}
+            for chunk in _chunked(id_bytes):
+                placeholders = ",".join("?" for _ in chunk)
+                if as_of is None:
+                    # Default: current-state. Exclude any row that has been
+                    # invalidated, regardless of when.
+                    sql = (
+                        "SELECT id, content FROM memory_items "  # noqa: S608
+                        f"WHERE id IN ({placeholders}) "
+                        "AND invalidated_at IS NULL"
+                    )
+                    params: list[Any] = list(chunk)
+                else:
+                    # As-of mode: surface items whose validity covers `as_of`.
+                    sql = (
+                        "SELECT id, content FROM memory_items "  # noqa: S608
+                        f"WHERE id IN ({placeholders}) "
+                        "  AND (valid_from IS NULL OR valid_from <= ?) "
+                        "  AND (valid_until IS NULL OR valid_until > ?) "
+                        "  AND (invalidated_at IS NULL OR invalidated_at > ?)"
+                    )
+                    params = [*chunk, as_of_iso, as_of_iso, as_of_iso]
+                rows = self._connect().execute(sql, params).fetchall()
+                content.update({bytes(r["id"]): r["content"] for r in rows})
             # Preserve vector-search ordering for items that passed the filter.
             filtered = [
                 (u, content[u.bytes], score)
@@ -1438,16 +1459,21 @@ class SqliteStorage:
         if not hits:
             return []
         ids = [u for u, _, _ in hits]
-        placeholders = ",".join("?" for _ in ids)
-        rows = (
-            self._connect()
-            .execute(
-                f"SELECT id, content FROM events WHERE id IN ({placeholders})",  # noqa: S608
-                [u.bytes for u in ids],
+        # Chunk so a large k * candidate_multiplier doesn't overrun
+        # SQLite's variable limit.
+        id_bytes = [u.bytes for u in ids]
+        content: dict[bytes, str] = {}
+        for chunk in _chunked(id_bytes):
+            placeholders = ",".join("?" for _ in chunk)
+            rows = (
+                self._connect()
+                .execute(
+                    f"SELECT id, content FROM events WHERE id IN ({placeholders})",  # noqa: S608
+                    chunk,
+                )
+                .fetchall()
             )
-            .fetchall()
-        )
-        content: dict[bytes, str] = {bytes(r["id"]): r["content"] for r in rows}
+            content.update({bytes(r["id"]): r["content"] for r in rows})
         return [(u, content[u.bytes], score) for u, _, score in hits if u.bytes in content]
 
     def _fetch_memory_item_content(
@@ -1456,22 +1482,25 @@ class SqliteStorage:
         if not hits:
             return []
         ids = [u for u, _, _ in hits]
-        placeholders = ",".join("?" for _ in ids)
+        id_bytes = [u.bytes for u in ids]
         # Filter invalidated rows here.  The in-memory vector shard keeps
         # them (so search_memory_item_embeddings_as_of can look them up
         # historically) and the non-as_of caller drops them at content-
         # fetch time.  Without this, the non-as_of search variant would
         # surface items that have already been retired by reconciliation.
-        rows = (
-            self._connect()
-            .execute(
-                f"SELECT id, content FROM memory_items "  # noqa: S608
-                f"WHERE invalidated_at IS NULL AND id IN ({placeholders})",
-                [u.bytes for u in ids],
+        content: dict[bytes, str] = {}
+        for chunk in _chunked(id_bytes):
+            placeholders = ",".join("?" for _ in chunk)
+            rows = (
+                self._connect()
+                .execute(
+                    "SELECT id, content FROM memory_items "  # noqa: S608
+                    f"WHERE invalidated_at IS NULL AND id IN ({placeholders})",
+                    chunk,
+                )
+                .fetchall()
             )
-            .fetchall()
-        )
-        content: dict[bytes, str] = {bytes(r["id"]): r["content"] for r in rows}
+            content.update({bytes(r["id"]): r["content"] for r in rows})
         return [(u, content[u.bytes], score) for u, _, score in hits if u.bytes in content]
 
     def search_procedure_embeddings(
@@ -1512,16 +1541,19 @@ class SqliteStorage:
         if not hits:
             return []
         ids = [u for u, _, _ in hits]
-        placeholders = ",".join("?" for _ in ids)
-        rows = (
-            self._connect()
-            .execute(
-                f"SELECT id, situation FROM procedures WHERE id IN ({placeholders})",  # noqa: S608
-                [u.bytes for u in ids],
+        id_bytes = [u.bytes for u in ids]
+        content: dict[bytes, str] = {}
+        for chunk in _chunked(id_bytes):
+            placeholders = ",".join("?" for _ in chunk)
+            rows = (
+                self._connect()
+                .execute(
+                    f"SELECT id, situation FROM procedures WHERE id IN ({placeholders})",  # noqa: S608
+                    chunk,
+                )
+                .fetchall()
             )
-            .fetchall()
-        )
-        content: dict[bytes, str] = {bytes(r["id"]): r["situation"] for r in rows}
+            content.update({bytes(r["id"]): r["situation"] for r in rows})
         return [(u, content[u.bytes], score) for u, _, score in hits if u.bytes in content]
 
     def bm25_search_events(
@@ -1571,19 +1603,22 @@ class SqliteStorage:
         hits = index.search(query, k=k)
         if not hits:
             return []
-        # Fetch content for the returned ids in a single SQL round-trip,
-        # then preserve BM25 ordering when assembling the response.
+        # Fetch content for the returned ids in chunks to stay under
+        # SQLite's variable limit if a caller passes a large k.
         ids = [doc_id for doc_id, _ in hits]
-        placeholders = ",".join("?" for _ in ids)
-        rows = (
-            self._connect()
-            .execute(
-                f"SELECT id, content FROM events WHERE id IN ({placeholders})",  # noqa: S608
-                [u.bytes for u in ids],
+        id_bytes = [u.bytes for u in ids]
+        content: dict[bytes, str] = {}
+        for chunk in _chunked(id_bytes):
+            placeholders = ",".join("?" for _ in chunk)
+            rows = (
+                self._connect()
+                .execute(
+                    f"SELECT id, content FROM events WHERE id IN ({placeholders})",  # noqa: S608
+                    chunk,
+                )
+                .fetchall()
             )
-            .fetchall()
-        )
-        content: dict[bytes, str] = {bytes(r["id"]): r["content"] for r in rows}
+            content.update({bytes(r["id"]): r["content"] for r in rows})
         return [
             (doc_id, content[doc_id.bytes], score)
             for doc_id, score in hits
@@ -1649,17 +1684,18 @@ class SqliteStorage:
             by_kind.setdefault(kind, []).append(item_id.bytes)
         out: dict[UUID, list[float]] = {}
         for kind, id_bytes_list in by_kind.items():
-            placeholders = ",".join("?" for _ in id_bytes_list)
-            sql = (
-                f"SELECT item_id, vector, dim FROM embeddings "  # noqa: S608
-                f"WHERE model = ? AND item_kind = ? AND item_id IN ({placeholders})"
-            )
-            rows = self._connect().execute(
-                sql, (model, kind.value, *id_bytes_list)
-            ).fetchall()
-            for row in rows:
-                uid = UUID(bytes=row["item_id"])
-                out[uid] = list(unpack_vector(row["vector"], int(row["dim"])))
+            for chunk in _chunked(id_bytes_list):
+                placeholders = ",".join("?" for _ in chunk)
+                sql = (
+                    "SELECT item_id, vector, dim FROM embeddings "  # noqa: S608
+                    f"WHERE model = ? AND item_kind = ? AND item_id IN ({placeholders})"
+                )
+                rows = self._connect().execute(
+                    sql, (model, kind.value, *chunk)
+                ).fetchall()
+                for row in rows:
+                    uid = UUID(bytes=row["item_id"])
+                    out[uid] = list(unpack_vector(row["vector"], int(row["dim"])))
         return out
 
     def get_created_at_batch(
@@ -1683,14 +1719,15 @@ class SqliteStorage:
             table = _DECAY_TABLES.get(kind)
             if table is None:
                 continue
-            placeholders = ",".join("?" for _ in id_bytes_list)
-            sql = (
-                f"SELECT id, created_at FROM {table} "  # noqa: S608
-                f"WHERE id IN ({placeholders})"
-            )
-            rows = self._connect().execute(sql, id_bytes_list).fetchall()
-            for row in rows:
-                out[UUID(bytes=row["id"])] = parse_iso(row["created_at"])
+            for chunk in _chunked(id_bytes_list):
+                placeholders = ",".join("?" for _ in chunk)
+                sql = (
+                    f"SELECT id, created_at FROM {table} "  # noqa: S608
+                    f"WHERE id IN ({placeholders})"
+                )
+                rows = self._connect().execute(sql, chunk).fetchall()
+                for row in rows:
+                    out[UUID(bytes=row["id"])] = parse_iso(row["created_at"])
         return out
 
     def list_recent_events(
@@ -1724,39 +1761,57 @@ class SqliteStorage:
         ids_list = list(event_ids)
         if not ids_list:
             return []
-        # `id IN (...)` with up to ~1000 ids fits within sqlite's default
-        # 32k variable limit; the drill path emits at most a few hundred,
-        # so we stay well clear. This path is small enough to bypass the
-        # vector index cache and just read its candidates inline.
-        placeholders = ",".join("?" for _ in ids_list)
-        sql = (
-            "SELECT e.id AS event_id, e.content AS content, "
-            "       emb.vector AS vector, emb.dim AS dim "
-            "FROM embeddings emb "
-            "JOIN events e ON emb.item_id = e.id "
-            "WHERE emb.item_kind = 'event' AND emb.model = ?"
-        )
-        sql += f" AND e.id IN ({placeholders})"
-        if not include_cold:
-            sql += " AND e.cold_at IS NULL"
-        params: list[Any] = [model, *(eid.bytes for eid in ids_list)]
-        rows = self._connect().execute(sql, params).fetchall()
-        if not rows:
+        # Chunked IN-list scan so a caller passing a few thousand ids
+        # doesn't trip SQLite's default 999 variable limit.  Rows
+        # accumulate across chunks; the matmul runs once over the
+        # collected vectors.
+        id_bytes = [eid.bytes for eid in ids_list]
+        all_rows: list[sqlite3.Row] = []
+        for chunk in _chunked(id_bytes):
+            placeholders = ",".join("?" for _ in chunk)
+            sql = (
+                "SELECT e.id AS event_id, e.content AS content, "
+                "       emb.vector AS vector, emb.dim AS dim "
+                "FROM embeddings emb "
+                "JOIN events e ON emb.item_id = e.id "
+                "WHERE emb.item_kind = 'event' AND emb.model = ?"
+            )
+            sql += f" AND e.id IN ({placeholders})"
+            if not include_cold:
+                sql += " AND e.cold_at IS NULL"
+            params: list[Any] = [model, *chunk]
+            all_rows.extend(self._connect().execute(sql, params).fetchall())
+        if not all_rows:
             return []
-        dim = int(rows[0]["dim"])
+        dim = int(all_rows[0]["dim"])
+        # Defensive: every embedding for the same model MUST share the
+        # same dim.  If a mixed-model corpus slipped through (UNIQUE
+        # constraint is on (item_id, item_kind, model) so this would
+        # require a different model name producing the same id by
+        # accident), reshape would silently truncate or pad.  Raise
+        # loudly instead.
+        for r in all_rows:
+            if int(r["dim"]) != dim:
+                raise ValueError(
+                    f"score_events_by_ids got mixed embedding dims "
+                    f"({dim} vs {int(r['dim'])}) for model={model!r}; "
+                    "every event embedding under one model must share a dim"
+                )
         if len(query_vec) != dim:
             raise ValueError(
                 f"query_vec dim {len(query_vec)} does not match stored embedding dim {dim}"
             )
-        raw = b"".join(row["vector"] for row in rows)
-        vecs = np.frombuffer(raw, dtype=np.float32, count=len(rows) * dim).reshape(len(rows), dim)
+        raw = b"".join(row["vector"] for row in all_rows)
+        vecs = np.frombuffer(raw, dtype=np.float32, count=len(all_rows) * dim).reshape(
+            len(all_rows), dim
+        )
         q = np.asarray(query_vec, dtype=np.float32)
         scores = vecs @ q
         order = np.argsort(-scores, kind="stable")
         return [
             (
-                UUID(bytes=rows[i]["event_id"]),
-                str(rows[i]["content"]),
+                UUID(bytes=all_rows[i]["event_id"]),
+                str(all_rows[i]["content"]),
                 float(scores[i]),
             )
             for i in order

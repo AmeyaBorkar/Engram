@@ -90,6 +90,67 @@ def test_search_rejects_invalid_k(storage: SqliteStorage) -> None:
         storage.search_event_embeddings([0.5, 0.5], k=0, model="m")
 
 
+# --- chunked IN-list -----------------------------------------------------
+
+
+def test_score_events_by_ids_handles_large_id_list(storage: SqliteStorage) -> None:
+    """Pass more event ids than SQLite's default variable limit (999) and
+    verify the chunked IN-list path returns all hits.
+    """
+    n = 1100  # above the 999 default
+    events: list[Event] = []
+    for i in range(n):
+        e = _store_event_with_vec(storage, f"e{i}", [1.0, 0.0])
+        events.append(e)
+    ids = [e.id for e in events]
+    out = storage.score_events_by_ids(_normalize([1.0, 0.0]), ids, model="m")
+    assert len(out) == n
+    # Every returned tuple corresponds to a real seeded event.
+    returned_ids = {tup[0] for tup in out}
+    assert returned_ids == set(ids)
+
+
+def test_search_event_embeddings_handles_large_k(storage: SqliteStorage) -> None:
+    """search_event_embeddings goes through the vector index but the
+    post-fetch SQL uses the chunked IN-list helper.  Validate a k that
+    exceeds the variable limit still returns everything.
+    """
+    n = 1100
+    for i in range(n):
+        _store_event_with_vec(storage, f"e{i}", [1.0, 0.0])
+    out = storage.search_event_embeddings(_normalize([1.0, 0.0]), k=n, model="m")
+    assert len(out) == n
+
+
+# --- mixed dim guard -----------------------------------------------------
+
+
+def test_score_events_by_ids_rejects_mixed_dim(storage: SqliteStorage) -> None:
+    """Two events under the same model but with different stored dims is
+    a corruption-class invariant violation.  The scorer should raise
+    rather than silently truncate or pad.
+    """
+    e1 = _store_event_with_vec(storage, "a", [1.0, 0.0])  # dim=2
+    # Sneak a dim=3 row in via direct SQL — the Embedding pydantic model
+    # would reject the mismatch, but the DB only enforces the UNIQUE
+    # (item_id, item_kind, model) constraint.
+    e2 = Event(content="b")
+    storage.insert_event(e2)
+    import struct
+    blob3 = struct.pack("<3f", 0.6, 0.6, 0.6)
+    from uuid import uuid4
+    storage._connect().execute(
+        "INSERT INTO embeddings "
+        "(id, item_id, item_kind, model, dim, vector, created_at) "
+        "VALUES (?, ?, 'event', 'm', 3, ?, '2026-01-01')",
+        (uuid4().bytes, e2.id.bytes, blob3),
+    )
+    with pytest.raises(ValueError, match="mixed embedding dims"):
+        storage.score_events_by_ids(
+            _normalize([1.0, 0.0]), [e1.id, e2.id], model="m"
+        )
+
+
 # --- vector-index concurrency ---------------------------------------------
 
 
