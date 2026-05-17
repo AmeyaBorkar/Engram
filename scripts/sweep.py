@@ -55,7 +55,6 @@ from benchmarks.suites.longmemeval import (  # noqa: E402
     DATASET_ROOT,
     DEFAULT_FILENAME,
     _Question,
-    _build_auto_temporal_filter,
     _ingest_haystack,
     _load_dataset,
     _parse_haystack_date,
@@ -163,9 +162,7 @@ def _evaluate_one(
     try:
         results = memory.retrieve(q.question, **retrieve_kwargs)
     except Exception as exc:
-        _LOG.warning(
-            "retrieve failed for qid=%s knob=%s val=%s: %s", q.qid, knob, value, exc
-        )
+        _LOG.warning("retrieve failed for qid=%s knob=%s val=%s: %s", q.qid, knob, value, exc)
         results = []
     latency_ms = (time.perf_counter() - t0) * 1000.0
     retrieved = _retrieved_session_ids(memory, results)
@@ -250,9 +247,7 @@ def _markdown_sweep_report(
 
     # Per-value aggregates with bootstrap CIs (overall, then per-qtype).
     lines.append("## Overall (bootstrap 95% CI)\n")
-    lines.append(
-        "| value | n | recall@k | hit@k | multi-recall@k | mrr |"
-    )
+    lines.append("| value | n | recall@k | hit@k | multi-recall@k | mrr |")
     lines.append("|---|---:|---|---|---|---|")
     baseline_rows = per_value[baseline_value]
     baseline_recall = [r["recall_at_k"] for r in baseline_rows]
@@ -489,9 +484,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"dataset not found: {dataset_path}", file=sys.stderr)
         return 2
     qids = [q.strip() for q in args.qid.split(",") if q.strip()] if args.qid else None
-    questions = _filter_questions(
-        all_questions, qtype=args.qtype, qids=qids, limit=args.limit
-    )
+    questions = _filter_questions(all_questions, qtype=args.qtype, qids=qids, limit=args.limit)
     if not questions:
         print("no questions match the filter", file=sys.stderr)
         return 2
@@ -514,9 +507,7 @@ def main(argv: list[str] | None = None) -> int:
         storage = SqliteStorage(":memory:")
         storage.initialize()
         try:
-            ingest_memory = Memory(
-                storage=storage, embedder=embedder, chat=chat, reranker=reranker
-            )
+            ingest_memory = Memory(storage=storage, embedder=embedder, chat=chat, reranker=reranker)
             t_ingest = time.perf_counter()
             turns = _ingest_haystack(ingest_memory, q)
             ingest_ms = (time.perf_counter() - t_ingest) * 1000.0

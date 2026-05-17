@@ -332,9 +332,7 @@ def _contradiction_scores(
             vec_source=memory.embedder,
             created_at=b_when,
         )
-        conflict = Conflict(
-            source_item_id=b.id, target_item_id=a.id, similarity=1.0
-        )
+        conflict = Conflict(source_item_id=b.id, target_item_id=a.id, similarity=1.0)
         storage.record_conflict(conflict)
         pair_records.append((pair, a, b, conflict))
 
@@ -530,9 +528,7 @@ class ContradictionTemporalSuite:
             # M-165: 1.0 iff the count was clipped at the 1000-row cap.
             # A manifest reader can flag truncated counts as suspect
             # without re-running the suite.
-            "n_observed_open_conflicts_truncated": (
-                1.0 if n_open_truncated else 0.0
-            ),
+            "n_observed_open_conflicts_truncated": (1.0 if n_open_truncated else 0.0),
             "n_resolved_conflicts": float(n_resolved),
             "n_temporal_triples": float(len(TEMPORAL_TRIPLES)),
         }

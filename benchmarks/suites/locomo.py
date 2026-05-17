@@ -202,11 +202,49 @@ _TOKEN_RE = __import__("re").compile(r"\w+")
 # common cases.  Kept inline so the suite has no NLTK runtime dep.
 _LOCOMO_STOPWORDS: frozenset[str] = frozenset(
     {
-        "a", "an", "the", "and", "or", "but", "if", "of", "in", "on", "to",
-        "for", "with", "is", "are", "was", "were", "be", "been", "being",
-        "do", "does", "did", "have", "has", "had", "this", "that", "these",
-        "those", "it", "its", "as", "at", "by", "from", "into", "i", "you",
-        "we", "they", "he", "she",
+        "a",
+        "an",
+        "the",
+        "and",
+        "or",
+        "but",
+        "if",
+        "of",
+        "in",
+        "on",
+        "to",
+        "for",
+        "with",
+        "is",
+        "are",
+        "was",
+        "were",
+        "be",
+        "been",
+        "being",
+        "do",
+        "does",
+        "did",
+        "have",
+        "has",
+        "had",
+        "this",
+        "that",
+        "these",
+        "those",
+        "it",
+        "its",
+        "as",
+        "at",
+        "by",
+        "from",
+        "into",
+        "i",
+        "you",
+        "we",
+        "they",
+        "he",
+        "she",
     }
 )
 
@@ -358,11 +396,7 @@ class LoCoMoSuite:
                             # LoCoMo numbers (or against the BM25/Chroma
                             # baselines) were not apples-to-apples.
                             norm = math.sqrt(sum(x * x for x in v))
-                            normalized = (
-                                tuple(x / norm for x in v)
-                                if norm > 0.0
-                                else tuple(v)
-                            )
+                            normalized = tuple(x / norm for x in v) if norm > 0.0 else tuple(v)
                             storage.insert_embedding(
                                 Embedding(
                                     item_id=e.id,

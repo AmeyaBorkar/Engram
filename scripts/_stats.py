@@ -87,13 +87,16 @@ def bootstrap_paired_diff_ci(
     """
     n = len(values_a)
     if n != len(values_b):
-        raise ValueError(
-            f"values_a and values_b must be same length: {n} != {len(values_b)}"
-        )
+        raise ValueError(f"values_a and values_b must be same length: {n} != {len(values_b)}")
     if n == 0:
         return _DiffCIResult(
-            mean_a=0.0, mean_b=0.0, diff=0.0, ci_low=0.0, ci_high=0.0,
-            excludes_zero=False, n_samples=0,
+            mean_a=0.0,
+            mean_b=0.0,
+            diff=0.0,
+            ci_low=0.0,
+            ci_high=0.0,
+            excludes_zero=False,
+            n_samples=0,
         )
     a = np.asarray(values_a, dtype=np.float64)
     b = np.asarray(values_b, dtype=np.float64)
@@ -103,8 +106,13 @@ def bootstrap_paired_diff_ci(
     diff = float(diff_per_q.mean())
     if n == 1:
         return _DiffCIResult(
-            mean_a=mean_a, mean_b=mean_b, diff=diff,
-            ci_low=diff, ci_high=diff, excludes_zero=False, n_samples=1,
+            mean_a=mean_a,
+            mean_b=mean_b,
+            diff=diff,
+            ci_low=diff,
+            ci_high=diff,
+            excludes_zero=False,
+            n_samples=1,
         )
     rng = np.random.default_rng(seed)
     idx = rng.integers(0, n, size=(n_iters, n))
@@ -113,8 +121,13 @@ def bootstrap_paired_diff_ci(
     hi = float(np.quantile(resamples, 1 - alpha / 2))
     excludes = (lo > 0.0) or (hi < 0.0)
     return _DiffCIResult(
-        mean_a=mean_a, mean_b=mean_b, diff=diff,
-        ci_low=lo, ci_high=hi, excludes_zero=excludes, n_samples=n,
+        mean_a=mean_a,
+        mean_b=mean_b,
+        diff=diff,
+        ci_low=lo,
+        ci_high=hi,
+        excludes_zero=excludes,
+        n_samples=n,
     )
 
 
@@ -141,9 +154,7 @@ def mcnemar(
     """
     n = len(passes_a)
     if n != len(passes_b):
-        raise ValueError(
-            f"passes_a and passes_b must be same length: {n} != {len(passes_b)}"
-        )
+        raise ValueError(f"passes_a and passes_b must be same length: {n} != {len(passes_b)}")
     only_a = 0  # baseline pass, candidate fail
     only_b = 0  # candidate pass, baseline fail
     both_pass = 0
@@ -162,9 +173,12 @@ def mcnemar(
     disc = only_a + only_b
     if disc == 0:
         return _McNemarResult(
-            n_passes_only_a=only_a, n_passes_only_b=only_b,
-            n_both_pass=both_pass, n_both_fail=both_fail,
-            p_value=1.0, test="degenerate",
+            n_passes_only_a=only_a,
+            n_passes_only_b=only_b,
+            n_both_pass=both_pass,
+            n_both_fail=both_fail,
+            p_value=1.0,
+            test="degenerate",
         )
     if disc < 25:
         # Exact binomial two-sided test: under H0, only_b ~ Binomial(disc, 0.5).
@@ -172,17 +186,23 @@ def mcnemar(
         # Two-sided p = 2 * P(X <= k) capped at 1.
         p = _binomial_cdf(k, disc, 0.5) * 2.0
         return _McNemarResult(
-            n_passes_only_a=only_a, n_passes_only_b=only_b,
-            n_both_pass=both_pass, n_both_fail=both_fail,
-            p_value=min(p, 1.0), test="exact-binomial",
+            n_passes_only_a=only_a,
+            n_passes_only_b=only_b,
+            n_both_pass=both_pass,
+            n_both_fail=both_fail,
+            p_value=min(p, 1.0),
+            test="exact-binomial",
         )
     # Yates-corrected chi-square.
     stat = ((abs(only_a - only_b) - 1) ** 2) / disc
     p = _chi2_sf_df1(stat)
     return _McNemarResult(
-        n_passes_only_a=only_a, n_passes_only_b=only_b,
-        n_both_pass=both_pass, n_both_fail=both_fail,
-        p_value=p, test="chi2",
+        n_passes_only_a=only_a,
+        n_passes_only_b=only_b,
+        n_both_pass=both_pass,
+        n_both_fail=both_fail,
+        p_value=p,
+        test="chi2",
     )
 
 

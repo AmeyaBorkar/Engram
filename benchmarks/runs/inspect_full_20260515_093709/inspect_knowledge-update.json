@@ -1,0 +1,13 @@
+[
+  {
+    "qid": "6a1eabeb",
+    "qtype": "knowledge-update",
+    "config": "baseline",
+    "session_recall": 1.0,
+    "session_hit": 1.0,
+    "event_recall": 1.0,
+    "event_hit": 1.0,
+    "n_gold_events": 2,
+    "n_gold_retrieved": 2
+  }
+]

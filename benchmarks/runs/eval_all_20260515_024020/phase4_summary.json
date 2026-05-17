@@ -1,0 +1,22 @@
+{
+  "single-session-user": {
+    "qid": "5d3d2817",
+    "trace_path": "traces\\single-session-user__5d3d2817.txt"
+  },
+  "single-session-preference": {
+    "qid": "06f04340",
+    "trace_path": "traces\\single-session-preference__06f04340.txt"
+  },
+  "multi-session": {
+    "qid": "3a704032",
+    "trace_path": "traces\\multi-session__3a704032.txt"
+  },
+  "knowledge-update": {
+    "qid": "c4ea545c",
+    "trace_path": "traces\\knowledge-update__c4ea545c.txt"
+  },
+  "temporal-reasoning": {
+    "qid": "gpt4_59149c77",
+    "trace_path": "traces\\temporal-reasoning__gpt4_59149c7.txt"
+  }
+}

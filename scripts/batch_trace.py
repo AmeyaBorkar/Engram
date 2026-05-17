@@ -22,7 +22,6 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import Any
 
 # M-122: shared helpers in scripts/_common.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -152,7 +151,14 @@ def main(argv: list[str] | None = None) -> int:
             out.write_text(text, encoding="utf-8")
             _LOG.info(
                 "%3d/%3d qid=%s [%s] turns=%d ingest=%.1fs trace=%.1fs -> %s",
-                i, len(resolved), qid[:12], q.qtype, turns, ingest_s, trace_s, out.name,
+                i,
+                len(resolved),
+                qid[:12],
+                q.qtype,
+                turns,
+                ingest_s,
+                trace_s,
+                out.name,
             )
         finally:
             storage.close()

@@ -1,0 +1,3602 @@
+[
+  {
+    "qid": "6a1eabeb",
+    "qtype": "knowledge-update",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2049.5798000010836
+  },
+  {
+    "qid": "6a1eabeb",
+    "qtype": "knowledge-update",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3265.2372999982617
+  },
+  {
+    "qid": "6a1eabeb",
+    "qtype": "knowledge-update",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2064.3425000016578
+  },
+  {
+    "qid": "6a1eabeb",
+    "qtype": "knowledge-update",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2052.4506000001566
+  },
+  {
+    "qid": "6a1eabeb",
+    "qtype": "knowledge-update",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2723.982799998339
+  },
+  {
+    "qid": "6a1eabeb",
+    "qtype": "knowledge-update",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2053.6396999996214
+  },
+  {
+    "qid": "6a1eabeb",
+    "qtype": "knowledge-update",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2048.4408999982406
+  },
+  {
+    "qid": "6a1eabeb",
+    "qtype": "knowledge-update",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3155.1213999991887
+  },
+  {
+    "qid": "6a1eabeb",
+    "qtype": "knowledge-update",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3177.9627000032633
+  },
+  {
+    "qid": "6a1eabeb",
+    "qtype": "knowledge-update",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3854.1965000003984
+  },
+  {
+    "qid": "6a1eabeb",
+    "qtype": "knowledge-update",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3858.6400999993202
+  },
+  {
+    "qid": "6a1eabeb",
+    "qtype": "knowledge-update",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3161.0706000028586
+  },
+  {
+    "qid": "6aeb4375",
+    "qtype": "knowledge-update",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2074.6452000021236
+  },
+  {
+    "qid": "6aeb4375",
+    "qtype": "knowledge-update",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3297.3325999992085
+  },
+  {
+    "qid": "6aeb4375",
+    "qtype": "knowledge-update",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2050.6397999997716
+  },
+  {
+    "qid": "6aeb4375",
+    "qtype": "knowledge-update",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2048.100500000146
+  },
+  {
+    "qid": "6aeb4375",
+    "qtype": "knowledge-update",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2254.974700001185
+  },
+  {
+    "qid": "6aeb4375",
+    "qtype": "knowledge-update",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2048.5385000029055
+  },
+  {
+    "qid": "6aeb4375",
+    "qtype": "knowledge-update",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2053.5901000002923
+  },
+  {
+    "qid": "6aeb4375",
+    "qtype": "knowledge-update",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3189.297400000214
+  },
+  {
+    "qid": "6aeb4375",
+    "qtype": "knowledge-update",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3185.667099998682
+  },
+  {
+    "qid": "6aeb4375",
+    "qtype": "knowledge-update",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3418.2648999994854
+  },
+  {
+    "qid": "6aeb4375",
+    "qtype": "knowledge-update",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3401.731900001323
+  },
+  {
+    "qid": "6aeb4375",
+    "qtype": "knowledge-update",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3191.372600002069
+  },
+  {
+    "qid": "830ce83f",
+    "qtype": "knowledge-update",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2040.9713000008196
+  },
+  {
+    "qid": "830ce83f",
+    "qtype": "knowledge-update",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3107.052300001669
+  },
+  {
+    "qid": "830ce83f",
+    "qtype": "knowledge-update",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2024.621800002933
+  },
+  {
+    "qid": "830ce83f",
+    "qtype": "knowledge-update",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2024.3972999996913
+  },
+  {
+    "qid": "830ce83f",
+    "qtype": "knowledge-update",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2689.051400000608
+  },
+  {
+    "qid": "830ce83f",
+    "qtype": "knowledge-update",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2024.9589000013657
+  },
+  {
+    "qid": "830ce83f",
+    "qtype": "knowledge-update",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2030.0664000023971
+  },
+  {
+    "qid": "830ce83f",
+    "qtype": "knowledge-update",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2987.8778000020247
+  },
+  {
+    "qid": "830ce83f",
+    "qtype": "knowledge-update",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3012.7272000027006
+  },
+  {
+    "qid": "830ce83f",
+    "qtype": "knowledge-update",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3669.548300000315
+  },
+  {
+    "qid": "830ce83f",
+    "qtype": "knowledge-update",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3679.799700003059
+  },
+  {
+    "qid": "830ce83f",
+    "qtype": "knowledge-update",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2979.4638999992458
+  },
+  {
+    "qid": "852ce960",
+    "qtype": "knowledge-update",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2109.2246000007435
+  },
+  {
+    "qid": "852ce960",
+    "qtype": "knowledge-update",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3518.07010000266
+  },
+  {
+    "qid": "852ce960",
+    "qtype": "knowledge-update",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2093.6366000023554
+  },
+  {
+    "qid": "852ce960",
+    "qtype": "knowledge-update",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2097.0676000033563
+  },
+  {
+    "qid": "852ce960",
+    "qtype": "knowledge-update",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2754.279500000848
+  },
+  {
+    "qid": "852ce960",
+    "qtype": "knowledge-update",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2083.6073999998916
+  },
+  {
+    "qid": "852ce960",
+    "qtype": "knowledge-update",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2090.532299996994
+  },
+  {
+    "qid": "852ce960",
+    "qtype": "knowledge-update",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3447.269000000233
+  },
+  {
+    "qid": "852ce960",
+    "qtype": "knowledge-update",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3457.398499998817
+  },
+  {
+    "qid": "852ce960",
+    "qtype": "knowledge-update",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4116.665600002307
+  },
+  {
+    "qid": "852ce960",
+    "qtype": "knowledge-update",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4119.3810000004305
+  },
+  {
+    "qid": "852ce960",
+    "qtype": "knowledge-update",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3445.4092999985733
+  },
+  {
+    "qid": "945e3d21",
+    "qtype": "knowledge-update",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2080.38779999697
+  },
+  {
+    "qid": "945e3d21",
+    "qtype": "knowledge-update",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3463.263599998754
+  },
+  {
+    "qid": "945e3d21",
+    "qtype": "knowledge-update",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2114.5319000024756
+  },
+  {
+    "qid": "945e3d21",
+    "qtype": "knowledge-update",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2085.4261000022234
+  },
+  {
+    "qid": "945e3d21",
+    "qtype": "knowledge-update",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2683.5724000011396
+  },
+  {
+    "qid": "945e3d21",
+    "qtype": "knowledge-update",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2083.5015999982716
+  },
+  {
+    "qid": "945e3d21",
+    "qtype": "knowledge-update",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2089.6003999987443
+  },
+  {
+    "qid": "945e3d21",
+    "qtype": "knowledge-update",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3093.8869999990857
+  },
+  {
+    "qid": "945e3d21",
+    "qtype": "knowledge-update",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3104.273600001761
+  },
+  {
+    "qid": "945e3d21",
+    "qtype": "knowledge-update",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3707.246899997699
+  },
+  {
+    "qid": "945e3d21",
+    "qtype": "knowledge-update",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3693.981399999757
+  },
+  {
+    "qid": "945e3d21",
+    "qtype": "knowledge-update",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3100.733899998886
+  },
+  {
+    "qid": "d7c942c3",
+    "qtype": "knowledge-update",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2061.0968000000867
+  },
+  {
+    "qid": "d7c942c3",
+    "qtype": "knowledge-update",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3526.3214000005974
+  },
+  {
+    "qid": "d7c942c3",
+    "qtype": "knowledge-update",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2082.7013999987685
+  },
+  {
+    "qid": "d7c942c3",
+    "qtype": "knowledge-update",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2078.6955000003218
+  },
+  {
+    "qid": "d7c942c3",
+    "qtype": "knowledge-update",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2537.3075000024983
+  },
+  {
+    "qid": "d7c942c3",
+    "qtype": "knowledge-update",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2063.236899997719
+  },
+  {
+    "qid": "d7c942c3",
+    "qtype": "knowledge-update",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2062.3940999976185
+  },
+  {
+    "qid": "d7c942c3",
+    "qtype": "knowledge-update",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3425.842199998442
+  },
+  {
+    "qid": "d7c942c3",
+    "qtype": "knowledge-update",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3432.4730999978783
+  },
+  {
+    "qid": "d7c942c3",
+    "qtype": "knowledge-update",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3769.6711999997206
+  },
+  {
+    "qid": "d7c942c3",
+    "qtype": "knowledge-update",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3776.8566999984614
+  },
+  {
+    "qid": "d7c942c3",
+    "qtype": "knowledge-update",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3447.141799999372
+  },
+  {
+    "qid": "71315a70",
+    "qtype": "knowledge-update",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2094.838000000891
+  },
+  {
+    "qid": "71315a70",
+    "qtype": "knowledge-update",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2796.5564999976777
+  },
+  {
+    "qid": "71315a70",
+    "qtype": "knowledge-update",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2114.4223000010243
+  },
+  {
+    "qid": "71315a70",
+    "qtype": "knowledge-update",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2093.5964999989665
+  },
+  {
+    "qid": "71315a70",
+    "qtype": "knowledge-update",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2754.5546000001195
+  },
+  {
+    "qid": "71315a70",
+    "qtype": "knowledge-update",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2094.6055999993405
+  },
+  {
+    "qid": "71315a70",
+    "qtype": "knowledge-update",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2086.1460999985866
+  },
+  {
+    "qid": "71315a70",
+    "qtype": "knowledge-update",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2733.027900001616
+  },
+  {
+    "qid": "71315a70",
+    "qtype": "knowledge-update",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2742.8331000010076
+  },
+  {
+    "qid": "71315a70",
+    "qtype": "knowledge-update",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3435.694899999362
+  },
+  {
+    "qid": "71315a70",
+    "qtype": "knowledge-update",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3456.4017999982752
+  },
+  {
+    "qid": "71315a70",
+    "qtype": "knowledge-update",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2749.345899999753
+  },
+  {
+    "qid": "89941a93",
+    "qtype": "knowledge-update",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2087.6798999997845
+  },
+  {
+    "qid": "89941a93",
+    "qtype": "knowledge-update",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3521.5614999979152
+  },
+  {
+    "qid": "89941a93",
+    "qtype": "knowledge-update",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2081.0020999997505
+  },
+  {
+    "qid": "89941a93",
+    "qtype": "knowledge-update",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2091.060099999595
+  },
+  {
+    "qid": "89941a93",
+    "qtype": "knowledge-update",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2774.4254999997793
+  },
+  {
+    "qid": "89941a93",
+    "qtype": "knowledge-update",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2075.5534999989322
+  },
+  {
+    "qid": "89941a93",
+    "qtype": "knowledge-update",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2070.643499999278
+  },
+  {
+    "qid": "89941a93",
+    "qtype": "knowledge-update",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3476.0314999984985
+  },
+  {
+    "qid": "89941a93",
+    "qtype": "knowledge-update",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3489.857900000061
+  },
+  {
+    "qid": "89941a93",
+    "qtype": "knowledge-update",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4173.383299999841
+  },
+  {
+    "qid": "89941a93",
+    "qtype": "knowledge-update",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4187.878299999284
+  },
+  {
+    "qid": "89941a93",
+    "qtype": "knowledge-update",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3472.407799999928
+  },
+  {
+    "qid": "ce6d2d27",
+    "qtype": "knowledge-update",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2097.517700000026
+  },
+  {
+    "qid": "ce6d2d27",
+    "qtype": "knowledge-update",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3501.490000002377
+  },
+  {
+    "qid": "ce6d2d27",
+    "qtype": "knowledge-update",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2109.870600001159
+  },
+  {
+    "qid": "ce6d2d27",
+    "qtype": "knowledge-update",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2104.4526000005135
+  },
+  {
+    "qid": "ce6d2d27",
+    "qtype": "knowledge-update",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2746.165699998528
+  },
+  {
+    "qid": "ce6d2d27",
+    "qtype": "knowledge-update",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2087.2931000012613
+  },
+  {
+    "qid": "ce6d2d27",
+    "qtype": "knowledge-update",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2086.799799999426
+  },
+  {
+    "qid": "ce6d2d27",
+    "qtype": "knowledge-update",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3390.070299999934
+  },
+  {
+    "qid": "ce6d2d27",
+    "qtype": "knowledge-update",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3411.6104999993695
+  },
+  {
+    "qid": "ce6d2d27",
+    "qtype": "knowledge-update",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4057.2954999988724
+  },
+  {
+    "qid": "ce6d2d27",
+    "qtype": "knowledge-update",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4064.5249000008334
+  },
+  {
+    "qid": "ce6d2d27",
+    "qtype": "knowledge-update",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3390.253699999448
+  },
+  {
+    "qid": "9ea5eabc",
+    "qtype": "knowledge-update",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2059.0444000008574
+  },
+  {
+    "qid": "9ea5eabc",
+    "qtype": "knowledge-update",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3397.155800001201
+  },
+  {
+    "qid": "9ea5eabc",
+    "qtype": "knowledge-update",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2067.564900000434
+  },
+  {
+    "qid": "9ea5eabc",
+    "qtype": "knowledge-update",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2058.879200001684
+  },
+  {
+    "qid": "9ea5eabc",
+    "qtype": "knowledge-update",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2738.179100000707
+  },
+  {
+    "qid": "9ea5eabc",
+    "qtype": "knowledge-update",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2062.1511000026658
+  },
+  {
+    "qid": "9ea5eabc",
+    "qtype": "knowledge-update",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2059.3635000004724
+  },
+  {
+    "qid": "9ea5eabc",
+    "qtype": "knowledge-update",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2944.161700001132
+  },
+  {
+    "qid": "9ea5eabc",
+    "qtype": "knowledge-update",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2950.0503999988723
+  },
+  {
+    "qid": "9ea5eabc",
+    "qtype": "knowledge-update",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3611.058199996478
+  },
+  {
+    "qid": "9ea5eabc",
+    "qtype": "knowledge-update",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3619.0433999981906
+  },
+  {
+    "qid": "9ea5eabc",
+    "qtype": "knowledge-update",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2930.4517000018677
+  },
+  {
+    "qid": "07741c44",
+    "qtype": "knowledge-update",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2106.996700000309
+  },
+  {
+    "qid": "07741c44",
+    "qtype": "knowledge-update",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3177.8644999976677
+  },
+  {
+    "qid": "07741c44",
+    "qtype": "knowledge-update",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2083.393900000374
+  },
+  {
+    "qid": "07741c44",
+    "qtype": "knowledge-update",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2096.0640000012063
+  },
+  {
+    "qid": "07741c44",
+    "qtype": "knowledge-update",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2769.312500000524
+  },
+  {
+    "qid": "07741c44",
+    "qtype": "knowledge-update",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2095.4817999991064
+  },
+  {
+    "qid": "07741c44",
+    "qtype": "knowledge-update",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2085.5370000026596
+  },
+  {
+    "qid": "07741c44",
+    "qtype": "knowledge-update",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3049.367199997505
+  },
+  {
+    "qid": "07741c44",
+    "qtype": "knowledge-update",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3045.2046999998856
+  },
+  {
+    "qid": "07741c44",
+    "qtype": "knowledge-update",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3697.748999999021
+  },
+  {
+    "qid": "07741c44",
+    "qtype": "knowledge-update",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3740.275099997234
+  },
+  {
+    "qid": "07741c44",
+    "qtype": "knowledge-update",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3036.044000000402
+  },
+  {
+    "qid": "a1eacc2a",
+    "qtype": "knowledge-update",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2107.323300002463
+  },
+  {
+    "qid": "a1eacc2a",
+    "qtype": "knowledge-update",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2806.931400002213
+  },
+  {
+    "qid": "a1eacc2a",
+    "qtype": "knowledge-update",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2114.1088000003947
+  },
+  {
+    "qid": "a1eacc2a",
+    "qtype": "knowledge-update",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2093.9947000006214
+  },
+  {
+    "qid": "a1eacc2a",
+    "qtype": "knowledge-update",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2765.2594999999565
+  },
+  {
+    "qid": "a1eacc2a",
+    "qtype": "knowledge-update",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2092.5137999984145
+  },
+  {
+    "qid": "a1eacc2a",
+    "qtype": "knowledge-update",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2087.8410000004806
+  },
+  {
+    "qid": "a1eacc2a",
+    "qtype": "knowledge-update",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2767.938699998922
+  },
+  {
+    "qid": "a1eacc2a",
+    "qtype": "knowledge-update",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2772.816300002887
+  },
+  {
+    "qid": "a1eacc2a",
+    "qtype": "knowledge-update",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3468.0793000006815
+  },
+  {
+    "qid": "a1eacc2a",
+    "qtype": "knowledge-update",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3469.061799998599
+  },
+  {
+    "qid": "a1eacc2a",
+    "qtype": "knowledge-update",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2766.8034000016632
+  },
+  {
+    "qid": "184da446",
+    "qtype": "knowledge-update",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2080.241499999829
+  },
+  {
+    "qid": "184da446",
+    "qtype": "knowledge-update",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3288.2339999996475
+  },
+  {
+    "qid": "184da446",
+    "qtype": "knowledge-update",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2069.971999997506
+  },
+  {
+    "qid": "184da446",
+    "qtype": "knowledge-update",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2068.8794999987294
+  },
+  {
+    "qid": "184da446",
+    "qtype": "knowledge-update",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2738.342199998442
+  },
+  {
+    "qid": "184da446",
+    "qtype": "knowledge-update",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2077.2582000026887
+  },
+  {
+    "qid": "184da446",
+    "qtype": "knowledge-update",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2065.3658999981417
+  },
+  {
+    "qid": "184da446",
+    "qtype": "knowledge-update",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3224.690200000623
+  },
+  {
+    "qid": "184da446",
+    "qtype": "knowledge-update",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3247.757699999056
+  },
+  {
+    "qid": "184da446",
+    "qtype": "knowledge-update",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3913.0347999998776
+  },
+  {
+    "qid": "184da446",
+    "qtype": "knowledge-update",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3926.506799998606
+  },
+  {
+    "qid": "184da446",
+    "qtype": "knowledge-update",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3226.0296999993443
+  },
+  {
+    "qid": "031748ae",
+    "qtype": "knowledge-update",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2060.6680999990203
+  },
+  {
+    "qid": "031748ae",
+    "qtype": "knowledge-update",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3779.162200000428
+  },
+  {
+    "qid": "031748ae",
+    "qtype": "knowledge-update",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2063.2910000022093
+  },
+  {
+    "qid": "031748ae",
+    "qtype": "knowledge-update",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2060.635399997409
+  },
+  {
+    "qid": "031748ae",
+    "qtype": "knowledge-update",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2674.8754999971425
+  },
+  {
+    "qid": "031748ae",
+    "qtype": "knowledge-update",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2057.5064000004204
+  },
+  {
+    "qid": "031748ae",
+    "qtype": "knowledge-update",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2051.7220000001544
+  },
+  {
+    "qid": "031748ae",
+    "qtype": "knowledge-update",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3413.781999999628
+  },
+  {
+    "qid": "031748ae",
+    "qtype": "knowledge-update",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3436.1226000000897
+  },
+  {
+    "qid": "031748ae",
+    "qtype": "knowledge-update",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4045.8999999973457
+  },
+  {
+    "qid": "031748ae",
+    "qtype": "knowledge-update",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4048.101800002769
+  },
+  {
+    "qid": "031748ae",
+    "qtype": "knowledge-update",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3421.245400000771
+  },
+  {
+    "qid": "4d6b87c8",
+    "qtype": "knowledge-update",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2060.4246000002604
+  },
+  {
+    "qid": "4d6b87c8",
+    "qtype": "knowledge-update",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3451.6594000015175
+  },
+  {
+    "qid": "4d6b87c8",
+    "qtype": "knowledge-update",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2067.5254999987374
+  },
+  {
+    "qid": "4d6b87c8",
+    "qtype": "knowledge-update",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2065.9602000014274
+  },
+  {
+    "qid": "4d6b87c8",
+    "qtype": "knowledge-update",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2755.496400000993
+  },
+  {
+    "qid": "4d6b87c8",
+    "qtype": "knowledge-update",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2059.7988000008627
+  },
+  {
+    "qid": "4d6b87c8",
+    "qtype": "knowledge-update",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2055.322600001091
+  },
+  {
+    "qid": "4d6b87c8",
+    "qtype": "knowledge-update",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3332.701999999699
+  },
+  {
+    "qid": "4d6b87c8",
+    "qtype": "knowledge-update",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3357.683199999883
+  },
+  {
+    "qid": "4d6b87c8",
+    "qtype": "knowledge-update",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3917.613800000254
+  },
+  {
+    "qid": "4d6b87c8",
+    "qtype": "knowledge-update",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3884.3629000002693
+  },
+  {
+    "qid": "4d6b87c8",
+    "qtype": "knowledge-update",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3341.5094999982102
+  },
+  {
+    "qid": "0f05491a",
+    "qtype": "knowledge-update",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2058.599600000889
+  },
+  {
+    "qid": "0f05491a",
+    "qtype": "knowledge-update",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2359.2143999994732
+  },
+  {
+    "qid": "0f05491a",
+    "qtype": "knowledge-update",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2069.7736000001896
+  },
+  {
+    "qid": "0f05491a",
+    "qtype": "knowledge-update",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2062.106600002153
+  },
+  {
+    "qid": "0f05491a",
+    "qtype": "knowledge-update",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2729.615299998841
+  },
+  {
+    "qid": "0f05491a",
+    "qtype": "knowledge-update",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2050.448800000595
+  },
+  {
+    "qid": "0f05491a",
+    "qtype": "knowledge-update",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2055.4970999983198
+  },
+  {
+    "qid": "0f05491a",
+    "qtype": "knowledge-update",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2242.1766000006755
+  },
+  {
+    "qid": "0f05491a",
+    "qtype": "knowledge-update",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2247.2546999997576
+  },
+  {
+    "qid": "0f05491a",
+    "qtype": "knowledge-update",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2867.2465000017837
+  },
+  {
+    "qid": "0f05491a",
+    "qtype": "knowledge-update",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2854.6674999997776
+  },
+  {
+    "qid": "0f05491a",
+    "qtype": "knowledge-update",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2249.6796000014
+  },
+  {
+    "qid": "08e075c7",
+    "qtype": "knowledge-update",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2065.0265000003856
+  },
+  {
+    "qid": "08e075c7",
+    "qtype": "knowledge-update",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3570.4342999997607
+  },
+  {
+    "qid": "08e075c7",
+    "qtype": "knowledge-update",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2063.883500002703
+  },
+  {
+    "qid": "08e075c7",
+    "qtype": "knowledge-update",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2062.3290999974415
+  },
+  {
+    "qid": "08e075c7",
+    "qtype": "knowledge-update",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2719.5393000001786
+  },
+  {
+    "qid": "08e075c7",
+    "qtype": "knowledge-update",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2058.6726000001363
+  },
+  {
+    "qid": "08e075c7",
+    "qtype": "knowledge-update",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2054.067400000349
+  },
+  {
+    "qid": "08e075c7",
+    "qtype": "knowledge-update",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3458.9551000026404
+  },
+  {
+    "qid": "08e075c7",
+    "qtype": "knowledge-update",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3470.4737000029127
+  },
+  {
+    "qid": "08e075c7",
+    "qtype": "knowledge-update",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4143.428300001688
+  },
+  {
+    "qid": "08e075c7",
+    "qtype": "knowledge-update",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4139.980800002377
+  },
+  {
+    "qid": "08e075c7",
+    "qtype": "knowledge-update",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3455.6402999987768
+  },
+  {
+    "qid": "f9e8c073",
+    "qtype": "knowledge-update",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2124.8832999990555
+  },
+  {
+    "qid": "f9e8c073",
+    "qtype": "knowledge-update",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3514.788499996939
+  },
+  {
+    "qid": "f9e8c073",
+    "qtype": "knowledge-update",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2155.1542000015615
+  },
+  {
+    "qid": "f9e8c073",
+    "qtype": "knowledge-update",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2093.659600002866
+  },
+  {
+    "qid": "f9e8c073",
+    "qtype": "knowledge-update",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2754.2257999994035
+  },
+  {
+    "qid": "f9e8c073",
+    "qtype": "knowledge-update",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2082.5067999976454
+  },
+  {
+    "qid": "f9e8c073",
+    "qtype": "knowledge-update",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2083.5080000033486
+  },
+  {
+    "qid": "f9e8c073",
+    "qtype": "knowledge-update",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3447.3508000010042
+  },
+  {
+    "qid": "f9e8c073",
+    "qtype": "knowledge-update",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3457.607600001211
+  },
+  {
+    "qid": "f9e8c073",
+    "qtype": "knowledge-update",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4111.113700000715
+  },
+  {
+    "qid": "f9e8c073",
+    "qtype": "knowledge-update",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4106.414199999563
+  },
+  {
+    "qid": "f9e8c073",
+    "qtype": "knowledge-update",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3415.555299998232
+  },
+  {
+    "qid": "41698283",
+    "qtype": "knowledge-update",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2065.8059999987017
+  },
+  {
+    "qid": "41698283",
+    "qtype": "knowledge-update",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3558.025700000144
+  },
+  {
+    "qid": "41698283",
+    "qtype": "knowledge-update",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2116.095100001985
+  },
+  {
+    "qid": "41698283",
+    "qtype": "knowledge-update",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2067.0605999985128
+  },
+  {
+    "qid": "41698283",
+    "qtype": "knowledge-update",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2063.814099998126
+  },
+  {
+    "qid": "41698283",
+    "qtype": "knowledge-update",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2072.9500999987067
+  },
+  {
+    "qid": "41698283",
+    "qtype": "knowledge-update",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2066.996700003074
+  },
+  {
+    "qid": "41698283",
+    "qtype": "knowledge-update",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3153.9121000023442
+  },
+  {
+    "qid": "41698283",
+    "qtype": "knowledge-update",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3154.2726999978186
+  },
+  {
+    "qid": "41698283",
+    "qtype": "knowledge-update",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3143.806299998687
+  },
+  {
+    "qid": "41698283",
+    "qtype": "knowledge-update",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3166.1981000033848
+  },
+  {
+    "qid": "41698283",
+    "qtype": "knowledge-update",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3149.930999999924
+  },
+  {
+    "qid": "2698e78f",
+    "qtype": "knowledge-update",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2131.3144999985525
+  },
+  {
+    "qid": "2698e78f",
+    "qtype": "knowledge-update",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3409.302399999433
+  },
+  {
+    "qid": "2698e78f",
+    "qtype": "knowledge-update",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2089.6536000000197
+  },
+  {
+    "qid": "2698e78f",
+    "qtype": "knowledge-update",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2081.342000001314
+  },
+  {
+    "qid": "2698e78f",
+    "qtype": "knowledge-update",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2773.834199997509
+  },
+  {
+    "qid": "2698e78f",
+    "qtype": "knowledge-update",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2085.455299999012
+  },
+  {
+    "qid": "2698e78f",
+    "qtype": "knowledge-update",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2086.474799998541
+  },
+  {
+    "qid": "2698e78f",
+    "qtype": "knowledge-update",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3341.914099997666
+  },
+  {
+    "qid": "2698e78f",
+    "qtype": "knowledge-update",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3355.940699999337
+  },
+  {
+    "qid": "2698e78f",
+    "qtype": "knowledge-update",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4037.671300000511
+  },
+  {
+    "qid": "2698e78f",
+    "qtype": "knowledge-update",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4064.2228000033356
+  },
+  {
+    "qid": "2698e78f",
+    "qtype": "knowledge-update",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3344.9603999979445
+  },
+  {
+    "qid": "b6019101",
+    "qtype": "knowledge-update",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2043.6278999986826
+  },
+  {
+    "qid": "b6019101",
+    "qtype": "knowledge-update",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3518.389199998637
+  },
+  {
+    "qid": "b6019101",
+    "qtype": "knowledge-update",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2044.036999999662
+  },
+  {
+    "qid": "b6019101",
+    "qtype": "knowledge-update",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2036.1521000013454
+  },
+  {
+    "qid": "b6019101",
+    "qtype": "knowledge-update",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2717.639999998937
+  },
+  {
+    "qid": "b6019101",
+    "qtype": "knowledge-update",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2028.2621000005747
+  },
+  {
+    "qid": "b6019101",
+    "qtype": "knowledge-update",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2030.718900001375
+  },
+  {
+    "qid": "b6019101",
+    "qtype": "knowledge-update",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3406.8351999994775
+  },
+  {
+    "qid": "b6019101",
+    "qtype": "knowledge-update",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3405.402699998376
+  },
+  {
+    "qid": "b6019101",
+    "qtype": "knowledge-update",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4099.949300001754
+  },
+  {
+    "qid": "b6019101",
+    "qtype": "knowledge-update",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4113.097599998582
+  },
+  {
+    "qid": "b6019101",
+    "qtype": "knowledge-update",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3400.659999999334
+  },
+  {
+    "qid": "45dc21b6",
+    "qtype": "knowledge-update",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2114.631599997665
+  },
+  {
+    "qid": "45dc21b6",
+    "qtype": "knowledge-update",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3303.0906000021787
+  },
+  {
+    "qid": "45dc21b6",
+    "qtype": "knowledge-update",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2037.599900002533
+  },
+  {
+    "qid": "45dc21b6",
+    "qtype": "knowledge-update",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2048.6425000017334
+  },
+  {
+    "qid": "45dc21b6",
+    "qtype": "knowledge-update",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2587.462100000266
+  },
+  {
+    "qid": "45dc21b6",
+    "qtype": "knowledge-update",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2046.7210999995586
+  },
+  {
+    "qid": "45dc21b6",
+    "qtype": "knowledge-update",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2046.6300000007323
+  },
+  {
+    "qid": "45dc21b6",
+    "qtype": "knowledge-update",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3148.4426999995776
+  },
+  {
+    "qid": "45dc21b6",
+    "qtype": "knowledge-update",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3153.2286000001477
+  },
+  {
+    "qid": "45dc21b6",
+    "qtype": "knowledge-update",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3695.2990000027057
+  },
+  {
+    "qid": "45dc21b6",
+    "qtype": "knowledge-update",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3711.9138999987626
+  },
+  {
+    "qid": "45dc21b6",
+    "qtype": "knowledge-update",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3154.317300002731
+  },
+  {
+    "qid": "5a4f22c0",
+    "qtype": "knowledge-update",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2071.2196999993466
+  },
+  {
+    "qid": "5a4f22c0",
+    "qtype": "knowledge-update",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3570.7881999987876
+  },
+  {
+    "qid": "5a4f22c0",
+    "qtype": "knowledge-update",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2062.152300000889
+  },
+  {
+    "qid": "5a4f22c0",
+    "qtype": "knowledge-update",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2060.107400000561
+  },
+  {
+    "qid": "5a4f22c0",
+    "qtype": "knowledge-update",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2714.8589999997057
+  },
+  {
+    "qid": "5a4f22c0",
+    "qtype": "knowledge-update",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2053.9197999969474
+  },
+  {
+    "qid": "5a4f22c0",
+    "qtype": "knowledge-update",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2052.021399998921
+  },
+  {
+    "qid": "5a4f22c0",
+    "qtype": "knowledge-update",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3513.9688000017486
+  },
+  {
+    "qid": "5a4f22c0",
+    "qtype": "knowledge-update",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3524.9719000021287
+  },
+  {
+    "qid": "5a4f22c0",
+    "qtype": "knowledge-update",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4181.780599999911
+  },
+  {
+    "qid": "5a4f22c0",
+    "qtype": "knowledge-update",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4199.6429000028
+  },
+  {
+    "qid": "5a4f22c0",
+    "qtype": "knowledge-update",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3518.585500001791
+  },
+  {
+    "qid": "6071bd76",
+    "qtype": "knowledge-update",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2149.8160999981337
+  },
+  {
+    "qid": "6071bd76",
+    "qtype": "knowledge-update",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3194.6373999999196
+  },
+  {
+    "qid": "6071bd76",
+    "qtype": "knowledge-update",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2196.612899999309
+  },
+  {
+    "qid": "6071bd76",
+    "qtype": "knowledge-update",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2100.359700001718
+  },
+  {
+    "qid": "6071bd76",
+    "qtype": "knowledge-update",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2763.2626999984495
+  },
+  {
+    "qid": "6071bd76",
+    "qtype": "knowledge-update",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2096.5545999970345
+  },
+  {
+    "qid": "6071bd76",
+    "qtype": "knowledge-update",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2093.4909999996307
+  },
+  {
+    "qid": "6071bd76",
+    "qtype": "knowledge-update",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2862.8300999989733
+  },
+  {
+    "qid": "6071bd76",
+    "qtype": "knowledge-update",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2889.0409999985422
+  },
+  {
+    "qid": "6071bd76",
+    "qtype": "knowledge-update",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3523.407699998643
+  },
+  {
+    "qid": "6071bd76",
+    "qtype": "knowledge-update",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3572.617800000444
+  },
+  {
+    "qid": "6071bd76",
+    "qtype": "knowledge-update",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2860.464100001991
+  },
+  {
+    "qid": "e493bb7c",
+    "qtype": "knowledge-update",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2081.885499999771
+  },
+  {
+    "qid": "e493bb7c",
+    "qtype": "knowledge-update",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3526.073000000906
+  },
+  {
+    "qid": "e493bb7c",
+    "qtype": "knowledge-update",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2071.1888000005274
+  },
+  {
+    "qid": "e493bb7c",
+    "qtype": "knowledge-update",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2077.780800002074
+  },
+  {
+    "qid": "e493bb7c",
+    "qtype": "knowledge-update",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2745.329599998513
+  },
+  {
+    "qid": "e493bb7c",
+    "qtype": "knowledge-update",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2067.8980000011506
+  },
+  {
+    "qid": "e493bb7c",
+    "qtype": "knowledge-update",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2074.749499999598
+  },
+  {
+    "qid": "e493bb7c",
+    "qtype": "knowledge-update",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3455.20839999881
+  },
+  {
+    "qid": "e493bb7c",
+    "qtype": "knowledge-update",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3471.988799999963
+  },
+  {
+    "qid": "e493bb7c",
+    "qtype": "knowledge-update",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3949.4451000027766
+  },
+  {
+    "qid": "e493bb7c",
+    "qtype": "knowledge-update",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3959.8900000019057
+  },
+  {
+    "qid": "e493bb7c",
+    "qtype": "knowledge-update",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3454.55629999924
+  },
+  {
+    "qid": "618f13b2",
+    "qtype": "knowledge-update",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2112.403600000107
+  },
+  {
+    "qid": "618f13b2",
+    "qtype": "knowledge-update",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3275.77939999901
+  },
+  {
+    "qid": "618f13b2",
+    "qtype": "knowledge-update",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2057.7077999987523
+  },
+  {
+    "qid": "618f13b2",
+    "qtype": "knowledge-update",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2058.010699998704
+  },
+  {
+    "qid": "618f13b2",
+    "qtype": "knowledge-update",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2732.052899998962
+  },
+  {
+    "qid": "618f13b2",
+    "qtype": "knowledge-update",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2061.9353000001865
+  },
+  {
+    "qid": "618f13b2",
+    "qtype": "knowledge-update",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2056.9510999994236
+  },
+  {
+    "qid": "618f13b2",
+    "qtype": "knowledge-update",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3207.7410999991116
+  },
+  {
+    "qid": "618f13b2",
+    "qtype": "knowledge-update",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3198.0301000003237
+  },
+  {
+    "qid": "618f13b2",
+    "qtype": "knowledge-update",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3891.901599999983
+  },
+  {
+    "qid": "618f13b2",
+    "qtype": "knowledge-update",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3900.7321999997657
+  },
+  {
+    "qid": "618f13b2",
+    "qtype": "knowledge-update",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3205.5795999986003
+  },
+  {
+    "qid": "72e3ee87",
+    "qtype": "knowledge-update",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2077.4529999980587
+  },
+  {
+    "qid": "72e3ee87",
+    "qtype": "knowledge-update",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3230.3233000020555
+  },
+  {
+    "qid": "72e3ee87",
+    "qtype": "knowledge-update",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2050.155900000391
+  },
+  {
+    "qid": "72e3ee87",
+    "qtype": "knowledge-update",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2038.1049000025087
+  },
+  {
+    "qid": "72e3ee87",
+    "qtype": "knowledge-update",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2711.754200001451
+  },
+  {
+    "qid": "72e3ee87",
+    "qtype": "knowledge-update",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2051.0163999970246
+  },
+  {
+    "qid": "72e3ee87",
+    "qtype": "knowledge-update",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2046.5648000026704
+  },
+  {
+    "qid": "72e3ee87",
+    "qtype": "knowledge-update",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3156.9717999991553
+  },
+  {
+    "qid": "72e3ee87",
+    "qtype": "knowledge-update",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3160.191599999962
+  },
+  {
+    "qid": "72e3ee87",
+    "qtype": "knowledge-update",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3826.924799999688
+  },
+  {
+    "qid": "72e3ee87",
+    "qtype": "knowledge-update",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3843.853999998828
+  },
+  {
+    "qid": "72e3ee87",
+    "qtype": "knowledge-update",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3158.794399998442
+  },
+  {
+    "qid": "c4ea545c",
+    "qtype": "knowledge-update",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2118.081100001291
+  },
+  {
+    "qid": "c4ea545c",
+    "qtype": "knowledge-update",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3743.6806000005163
+  },
+  {
+    "qid": "c4ea545c",
+    "qtype": "knowledge-update",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2083.0414000010933
+  },
+  {
+    "qid": "c4ea545c",
+    "qtype": "knowledge-update",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2076.940299997659
+  },
+  {
+    "qid": "c4ea545c",
+    "qtype": "knowledge-update",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2714.4044999986363
+  },
+  {
+    "qid": "c4ea545c",
+    "qtype": "knowledge-update",
+    "config": "recency",
+    "recall": 0.5,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2072.1045000027516
+  },
+  {
+    "qid": "c4ea545c",
+    "qtype": "knowledge-update",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2060.8487999998033
+  },
+  {
+    "qid": "c4ea545c",
+    "qtype": "knowledge-update",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3676.9416999995883
+  },
+  {
+    "qid": "c4ea545c",
+    "qtype": "knowledge-update",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3696.736800000508
+  },
+  {
+    "qid": "c4ea545c",
+    "qtype": "knowledge-update",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4306.989600001543
+  },
+  {
+    "qid": "c4ea545c",
+    "qtype": "knowledge-update",
+    "config": "all_aggressive",
+    "recall": 0.0,
+    "binary_hit": 0.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4300.607199998922
+  },
+  {
+    "qid": "c4ea545c",
+    "qtype": "knowledge-update",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3671.647099999973
+  },
+  {
+    "qid": "01493427",
+    "qtype": "knowledge-update",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2102.627299998858
+  },
+  {
+    "qid": "01493427",
+    "qtype": "knowledge-update",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3516.2672999977076
+  },
+  {
+    "qid": "01493427",
+    "qtype": "knowledge-update",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2066.8838000019605
+  },
+  {
+    "qid": "01493427",
+    "qtype": "knowledge-update",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2091.2101000030816
+  },
+  {
+    "qid": "01493427",
+    "qtype": "knowledge-update",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2667.4530999989656
+  },
+  {
+    "qid": "01493427",
+    "qtype": "knowledge-update",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2067.7120000000286
+  },
+  {
+    "qid": "01493427",
+    "qtype": "knowledge-update",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2059.643100001267
+  },
+  {
+    "qid": "01493427",
+    "qtype": "knowledge-update",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3020.7883000002766
+  },
+  {
+    "qid": "01493427",
+    "qtype": "knowledge-update",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3019.2136999976356
+  },
+  {
+    "qid": "01493427",
+    "qtype": "knowledge-update",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3491.1690000008093
+  },
+  {
+    "qid": "01493427",
+    "qtype": "knowledge-update",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3504.4329000011203
+  },
+  {
+    "qid": "01493427",
+    "qtype": "knowledge-update",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3036.6477999996278
+  },
+  {
+    "qid": "6a27ffc2",
+    "qtype": "knowledge-update",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2049.4681000018318
+  },
+  {
+    "qid": "6a27ffc2",
+    "qtype": "knowledge-update",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3571.3181999999506
+  },
+  {
+    "qid": "6a27ffc2",
+    "qtype": "knowledge-update",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2053.3658000022115
+  },
+  {
+    "qid": "6a27ffc2",
+    "qtype": "knowledge-update",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2039.7766000023694
+  },
+  {
+    "qid": "6a27ffc2",
+    "qtype": "knowledge-update",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2718.270000001212
+  },
+  {
+    "qid": "6a27ffc2",
+    "qtype": "knowledge-update",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2035.000099996978
+  },
+  {
+    "qid": "6a27ffc2",
+    "qtype": "knowledge-update",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2027.8111000006902
+  },
+  {
+    "qid": "6a27ffc2",
+    "qtype": "knowledge-update",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3539.979500001209
+  },
+  {
+    "qid": "6a27ffc2",
+    "qtype": "knowledge-update",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3544.7588999995787
+  },
+  {
+    "qid": "6a27ffc2",
+    "qtype": "knowledge-update",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4244.5540000007895
+  },
+  {
+    "qid": "6a27ffc2",
+    "qtype": "knowledge-update",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4240.624199999729
+  },
+  {
+    "qid": "6a27ffc2",
+    "qtype": "knowledge-update",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3527.870300000359
+  }
+]

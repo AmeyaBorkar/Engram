@@ -1,0 +1,195 @@
+{
+  "aggregate_metrics": {
+    "accuracy": 0.0,
+    "accuracy_correct": 0.0,
+    "accuracy_correct_knowledge-update": 0.0,
+    "accuracy_correct_multi-session": 0.0,
+    "accuracy_correct_temporal-reasoning": 0.0,
+    "accuracy_knowledge-update": 0.0,
+    "accuracy_multi-session": 0.0,
+    "accuracy_temporal-reasoning": 0.0,
+    "error_rate": 0.0,
+    "k": 10.0,
+    "n_completed": 3.0,
+    "n_completed_knowledge-update": 1.0,
+    "n_completed_multi-session": 1.0,
+    "n_completed_temporal-reasoning": 1.0,
+    "n_errored": 0.0,
+    "n_errored_knowledge-update": 0.0,
+    "n_errored_multi-session": 0.0,
+    "n_errored_temporal-reasoning": 0.0,
+    "n_knowledge-update": 1.0,
+    "n_multi-session": 1.0,
+    "n_questions": 3.0,
+    "n_temporal-reasoning": 1.0
+  },
+  "confidence_intervals": {
+    "accuracy": [
+      0.0,
+      0.0
+    ],
+    "accuracy_correct": [
+      0.0,
+      0.0
+    ],
+    "accuracy_correct_knowledge-update": [
+      0.0,
+      0.0
+    ],
+    "accuracy_correct_multi-session": [
+      0.0,
+      0.0
+    ],
+    "accuracy_correct_temporal-reasoning": [
+      0.0,
+      0.0
+    ],
+    "accuracy_knowledge-update": [
+      0.0,
+      0.0
+    ],
+    "accuracy_multi-session": [
+      0.0,
+      0.0
+    ],
+    "accuracy_temporal-reasoning": [
+      0.0,
+      0.0
+    ],
+    "error_rate": [
+      0.0,
+      0.0
+    ],
+    "k": [
+      10.0,
+      10.0
+    ],
+    "n_completed": [
+      3.0,
+      3.0
+    ],
+    "n_completed_knowledge-update": [
+      1.0,
+      1.0
+    ],
+    "n_completed_multi-session": [
+      1.0,
+      1.0
+    ],
+    "n_completed_temporal-reasoning": [
+      1.0,
+      1.0
+    ],
+    "n_errored": [
+      0.0,
+      0.0
+    ],
+    "n_errored_knowledge-update": [
+      0.0,
+      0.0
+    ],
+    "n_errored_multi-session": [
+      0.0,
+      0.0
+    ],
+    "n_errored_temporal-reasoning": [
+      0.0,
+      0.0
+    ],
+    "n_knowledge-update": [
+      1.0,
+      1.0
+    ],
+    "n_multi-session": [
+      1.0,
+      1.0
+    ],
+    "n_questions": [
+      3.0,
+      3.0
+    ],
+    "n_temporal-reasoning": [
+      1.0,
+      1.0
+    ]
+  },
+  "cpu": "AMD64 Family 26 Model 36 Stepping 0, AuthenticAMD",
+  "dataset_checksum": "longmemeval/longmemeval_s_cleaned.json/d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442",
+  "dataset_version": "longmemeval-s-cleaned-v1",
+  "engram_config": {
+    "distill_chat": {
+      "manifest_hash": "fake-chat/6b2e47ba3830b42d",
+      "model": "fake-scripted",
+      "name": "fake-chat",
+      "type": "FakeChat"
+    },
+    "sample_n": 3,
+    "seed": 1337
+  },
+  "git_commit": "643f721620fd7aba6f86f49e04533336f01d5cf8",
+  "git_dirty": true,
+  "latency_ms": {
+    "answer": [
+      0.6215999892447144,
+      0.589100003708154,
+      0.7415000000037253
+    ],
+    "ingest": [
+      68.67889998829924,
+      73.18830001167953,
+      66.2327999889385
+    ],
+    "judge": [
+      0.22509999689646065,
+      0.221800000872463,
+      0.20789998234249651
+    ],
+    "retrieve": [
+      3.31140001071617,
+      3.9269999833777547,
+      3.027700004167855
+    ]
+  },
+  "os": "Windows 11",
+  "per_question": [
+    {
+      "consolidate_ms": 0.0,
+      "gold": "$6",
+      "k": 10,
+      "question": "For my daily commute, how much more expensive was the taxi ride compared to the train fare?",
+      "question_id": "cc06de0d",
+      "question_type": "multi-session",
+      "response": "[fake: input_hash=09209bd8fa2b]",
+      "score": 0.0,
+      "turns_ingested": 462
+    },
+    {
+      "consolidate_ms": 0.0,
+      "gold": "a smoker",
+      "k": 10,
+      "question": "What kitchen appliance did I buy 10 days ago?",
+      "question_id": "gpt4_8279ba03",
+      "question_type": "temporal-reasoning",
+      "response": "[fake: input_hash=40bd2745284d]",
+      "score": 0.0,
+      "turns_ingested": 500
+    },
+    {
+      "consolidate_ms": 0.0,
+      "gold": "6",
+      "k": 10,
+      "question": "How many women are on the team led by my former manager Rachel?",
+      "question_id": "ba61f0b9",
+      "question_type": "knowledge-update",
+      "response": "[fake: input_hash=68f698f07dfb]",
+      "score": 0.0,
+      "turns_ingested": 454
+    }
+  ],
+  "provider": "fake",
+  "provider_hash": "fake/3086c16442850732",
+  "python_version": "3.13.12",
+  "ram_gb": 32.0,
+  "suite": "longmemeval",
+  "timestamp": "2026-05-17T10:35:44.600362+00:00"
+}

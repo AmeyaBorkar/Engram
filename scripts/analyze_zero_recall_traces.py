@@ -45,9 +45,15 @@ _FINAL_RECALL_RE = re.compile(r"recall@\d+=([0-9.]+)\s+\((\d+)/(\d+)")
 
 def _parse_trace(text: str) -> dict:
     out: dict = {
-        "qid": None, "qtype": None, "question": None, "gold": None,
-        "answer_sessions": [], "dense_gold_ranks": [], "dense_top1_session": None,
-        "dense_top10_top_session_count": 0, "final_session_recall": None,
+        "qid": None,
+        "qtype": None,
+        "question": None,
+        "gold": None,
+        "answer_sessions": [],
+        "dense_gold_ranks": [],
+        "dense_top1_session": None,
+        "dense_top10_top_session_count": 0,
+        "final_session_recall": None,
         "final_n_gold_in_topk": 0,
     }
     # M-170: try the structured `<trace-meta>` tag first. If it's
@@ -109,7 +115,10 @@ def _parse_trace(text: str) -> dict:
                     out["dense_top1_session"] = session
                 if is_gold:
                     out["dense_gold_ranks"].append(rank)
-        if "recall@10=" in line and ("Config: baseline" in (lines[lines.index(line)-1] if lines.index(line)>0 else "") or out["final_session_recall"] is None):
+        if "recall@10=" in line and (
+            "Config: baseline" in (lines[lines.index(line) - 1] if lines.index(line) > 0 else "")
+            or out["final_session_recall"] is None
+        ):
             # Take first recall@10 line we find under FINAL TOP-K
             pass
     # Second pass for the FINAL recall + top-10 session distribution
@@ -130,8 +139,12 @@ def _parse_trace(text: str) -> dict:
             rerank_rows_seen += 1
             sess = rm.group(3)
             top10_session_count[sess] += 1
-    out["dense_top10_top_session_count"] = top10_session_count.most_common(1)[0][1] if top10_session_count else 0
-    out["dense_top10_top_session"] = top10_session_count.most_common(1)[0][0] if top10_session_count else None
+    out["dense_top10_top_session_count"] = (
+        top10_session_count.most_common(1)[0][1] if top10_session_count else 0
+    )
+    out["dense_top10_top_session"] = (
+        top10_session_count.most_common(1)[0][0] if top10_session_count else None
+    )
     return out
 
 
@@ -175,19 +188,23 @@ def main() -> int:
 
     # Markdown table
     print(f"# Zero-event-recall failure analysis ({len(rows)} questions)\n")
-    print(f"| qid | qtype | failure class | min gold rank (top-50) | n gold in top-50 | final sess R@10 | top-10 dominated by |")
+    print(
+        f"| qid | qtype | failure class | min gold rank (top-50) | n gold in top-50 | final sess R@10 | top-10 dominated by |"
+    )
     print(f"|---|---|---|---:|---:|---:|---|")
     for r in rows:
         mr = r["min_gold_rank"]
         mr_disp = str(mr) if mr is not None else "—"
         dom = (
             f"`{r['dense_top10_top_session']}` ({r['dense_top10_top_session_count']}/10)"
-            if r['dense_top10_top_session_count'] >= 3
+            if r["dense_top10_top_session_count"] >= 3
             else "—"
         )
         sr = r["final_session_recall"]
         sr_disp = f"{sr:.2f}" if sr is not None else "?"
-        print(f"| `{r['qid'][:12]}` | {r['qtype']} | **{r['failure_class']}** | {mr_disp} | {r['n_gold_in_top50']} | {sr_disp} | {dom} |")
+        print(
+            f"| `{r['qid'][:12]}` | {r['qtype']} | **{r['failure_class']}** | {mr_disp} | {r['n_gold_in_top50']} | {sr_disp} | {dom} |"
+        )
 
     print(f"\n## Failure class distribution\n")
     by_class: Counter[str] = Counter(r["failure_class"] for r in rows)

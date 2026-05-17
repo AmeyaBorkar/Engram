@@ -80,9 +80,7 @@ def _download(url: str, dest: Path) -> None:
     # than committing untrusted content to the dataset directory.
 
 
-def _verify_and_commit(
-    tmp: Path, dest: Path, expected: str | None, split: str
-) -> tuple[bool, str]:
+def _verify_and_commit(tmp: Path, dest: Path, expected: str | None, split: str) -> tuple[bool, str]:
     """Hash the temp file; commit to ``dest`` iff it matches.
 
     Returns ``(ok, digest)``. When ``expected`` is None, accepts the

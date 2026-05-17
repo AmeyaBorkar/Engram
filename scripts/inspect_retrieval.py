@@ -36,12 +36,10 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import math
 import os
 import sys
 import time
 from collections import defaultdict
-from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -118,18 +116,20 @@ def _dump_answer_sessions(q: _Question, width: int) -> list[str]:
     lines: list[str] = []
     answer_set = set(q.answer_session_ids)
     sessions_in_order: list[tuple[int, str]] = [
-        (idx, sid)
-        for idx, sid in enumerate(q.haystack_session_ids)
-        if sid in answer_set
+        (idx, sid) for idx, sid in enumerate(q.haystack_session_ids) if sid in answer_set
     ]
-    lines.append(f"\n## Answer sessions ({len(sessions_in_order)} of {len(q.haystack_session_ids)} haystack sessions)\n")
+    lines.append(
+        f"\n## Answer sessions ({len(sessions_in_order)} of {len(q.haystack_session_ids)} haystack sessions)\n"
+    )
     for idx, sid in sessions_in_order:
         sess = q.haystack_sessions[idx]
         date = q.haystack_dates[idx] if idx < len(q.haystack_dates) else "?"
         n_gold = sum(1 for t in sess if t.get("has_answer") is True)
         n_false = sum(1 for t in sess if t.get("has_answer") is False)
         lines.append(f"\n### session `{sid}` (haystack idx {idx}, date {date})")
-        lines.append(f"   {len(sess)} turns; {n_gold} has_answer=True; {n_false} has_answer=False\n")
+        lines.append(
+            f"   {len(sess)} turns; {n_gold} has_answer=True; {n_false} has_answer=False\n"
+        )
         for j, turn in enumerate(sess):
             ha = turn.get("has_answer")
             if ha is True:
@@ -252,16 +252,18 @@ def _inspect_question(
     annotated: list[dict[str, Any]] = []
     for r in results:
         meta = _result_to_event_meta(memory, r)
-        annotated.append({
-            "rank": len(annotated) + 1,
-            "score": float(r.score),
-            "session_id": meta["session_id"],
-            # M-171: keep the unioned list of all supporting session_ids
-            # so multi-session abstractions can be scored fairly.
-            "session_ids": meta.get("session_ids", []),
-            "has_answer": meta["has_answer"],
-            "content": meta["content"],
-        })
+        annotated.append(
+            {
+                "rank": len(annotated) + 1,
+                "score": float(r.score),
+                "session_id": meta["session_id"],
+                # M-171: keep the unioned list of all supporting session_ids
+                # so multi-session abstractions can be scored fairly.
+                "session_ids": meta.get("session_ids", []),
+                "has_answer": meta["has_answer"],
+                "content": meta["content"],
+            }
+        )
 
     # Metrics
     # M-171: build the retrieved-sessions set from the union of every
@@ -276,7 +278,8 @@ def _inspect_question(
     session_hit = bool(retrieved_sessions & answer_session_ids)
     session_recall = (
         len(retrieved_sessions & answer_session_ids) / len(answer_session_ids)
-        if answer_session_ids else 0.0
+        if answer_session_ids
+        else 0.0
     )
     n_gold_retrieved = sum(1 for a in annotated if a["has_answer"] is True)
     event_hit = n_gold_retrieved > 0
@@ -288,25 +291,33 @@ def _inspect_question(
         print(f"question: {q.question}")
         print(f"gold answer: {q.gold}")
         print(f"answer sessions ({len(answer_session_ids)}): {sorted(answer_session_ids)}")
-        print(f"haystack: {len(q.haystack_session_ids)} sessions, "
-              f"{sum(len(s) for s in q.haystack_sessions)} turns, "
-              f"{gold_event_count} has_answer=True turns")
+        print(
+            f"haystack: {len(q.haystack_session_ids)} sessions, "
+            f"{sum(len(s) for s in q.haystack_sessions)} turns, "
+            f"{gold_event_count} has_answer=True turns"
+        )
         print("=" * 88)
         for line in _dump_answer_sessions(q, width):
             print(line)
         print(f"\n## Retrieved top-{k} (config={config_name})")
         print(f"{'rank':>4} | {'marker':<11} | {'session':<10} | {'score':>7} | content")
-        print(f"{'-'*4}-+-{'-'*11}-+-{'-'*10}-+-{'-'*7}-+-" + "-" * width)
+        print(f"{'-' * 4}-+-{'-' * 11}-+-{'-' * 10}-+-{'-' * 7}-+-" + "-" * width)
         for a in annotated:
             marker = _annotate_event(a["session_id"], a["has_answer"], answer_session_ids)
             sid_disp = (a["session_id"] or "?")[-10:]
-            print(f"{a['rank']:>4} | {marker:<11} | {sid_disp:<10} | {a['score']:>7.3f} | "
-                  f"{_preview(a['content'], width)}")
+            print(
+                f"{a['rank']:>4} | {marker:<11} | {sid_disp:<10} | {a['score']:>7.3f} | "
+                f"{_preview(a['content'], width)}"
+            )
         print("\n## Recall comparison")
-        print(f"  session-level recall@{k}: {session_recall:.3f} "
-              f"(found {len(retrieved_sessions & answer_session_ids)}/{len(answer_session_ids)} answer sessions)")
-        print(f"  event-level recall@{k}:   {event_recall:.3f} "
-              f"(found {n_gold_retrieved}/{gold_event_count} has_answer=True events)")
+        print(
+            f"  session-level recall@{k}: {session_recall:.3f} "
+            f"(found {len(retrieved_sessions & answer_session_ids)}/{len(answer_session_ids)} answer sessions)"
+        )
+        print(
+            f"  event-level recall@{k}:   {event_recall:.3f} "
+            f"(found {n_gold_retrieved}/{gold_event_count} has_answer=True events)"
+        )
         if event_recall < session_recall - 0.05 and event_recall < 1.0:
             print(f"  ⚠ EVENT-LEVEL GAP: we hit the right session but missed the gold turn")
 
@@ -437,9 +448,11 @@ def main(argv: list[str] | None = None) -> int:
         per_qtype: dict[str, list[dict[str, Any]]] = defaultdict(list)
         for r in rows:
             per_qtype[r["qtype"]].append(r)
-        print(f"{'qtype':<28} | {'n':>3} | {'sess hit':>9} | {'sess R@k':>9} | "
-              f"{'evt hit':>8} | {'evt R@k':>8} | {'gap':>7}")
-        print(f"{'-'*28}-+-{'-'*3}-+-{'-'*9}-+-{'-'*9}-+-{'-'*8}-+-{'-'*8}-+-{'-'*7}")
+        print(
+            f"{'qtype':<28} | {'n':>3} | {'sess hit':>9} | {'sess R@k':>9} | "
+            f"{'evt hit':>8} | {'evt R@k':>8} | {'gap':>7}"
+        )
+        print(f"{'-' * 28}-+-{'-' * 3}-+-{'-' * 9}-+-{'-' * 9}-+-{'-' * 8}-+-{'-' * 8}-+-{'-' * 7}")
         for qt, rs in sorted(per_qtype.items()):
             n_qt = len(rs)
             sh = sum(r["session_hit"] for r in rs) / n_qt
@@ -447,16 +460,20 @@ def main(argv: list[str] | None = None) -> int:
             eh = sum(r["event_hit"] for r in rs) / n_qt
             er = sum(r["event_recall"] for r in rs) / n_qt
             gap = sr - er
-            print(f"{qt:<28} | {n_qt:>3} | {sh:>9.3f} | {sr:>9.3f} | "
-                  f"{eh:>8.3f} | {er:>8.3f} | {gap:>+7.3f}")
-        print(f"{'-'*28}-+-{'-'*3}-+-{'-'*9}-+-{'-'*9}-+-{'-'*8}-+-{'-'*8}-+-{'-'*7}")
+            print(
+                f"{qt:<28} | {n_qt:>3} | {sh:>9.3f} | {sr:>9.3f} | "
+                f"{eh:>8.3f} | {er:>8.3f} | {gap:>+7.3f}"
+            )
+        print(f"{'-' * 28}-+-{'-' * 3}-+-{'-' * 9}-+-{'-' * 9}-+-{'-' * 8}-+-{'-' * 8}-+-{'-' * 7}")
         sh = sum(r["session_hit"] for r in rows) / n
         sr = sum(r["session_recall"] for r in rows) / n
         eh = sum(r["event_hit"] for r in rows) / n
         er = sum(r["event_recall"] for r in rows) / n
         gap = sr - er
-        print(f"{'(overall)':<28} | {n:>3} | {sh:>9.3f} | {sr:>9.3f} | "
-              f"{eh:>8.3f} | {er:>8.3f} | {gap:>+7.3f}")
+        print(
+            f"{'(overall)':<28} | {n:>3} | {sh:>9.3f} | {sr:>9.3f} | "
+            f"{eh:>8.3f} | {er:>8.3f} | {gap:>+7.3f}"
+        )
         print("\nKey:")
         print("  sess hit  = at least one event from any answer session in top-k")
         print("  sess R@k  = fraction of answer sessions retrieved (overestimates correctness)")

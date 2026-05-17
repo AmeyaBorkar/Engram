@@ -1,0 +1,1532 @@
+[
+  {
+    "path": "C:\\Users\\ameya\\Documents\\Engram\\benchmarks\\runs\\local\\20260510T192840_694409+0000-0739a0fe-longmemeval.json",
+    "name": "20260510T192840_694409+0000-0739a0fe-longmemeval.json",
+    "timestamp": "2026-05-10T19:28:40.694409+00:00",
+    "git_commit": "0739a0fe",
+    "provider": "fake+opencode-go",
+    "provider_hash": "fake+opencode-go/3fb81996e83e21fb",
+    "engram_config": {},
+    "engram_config_str": "",
+    "n": 10,
+    "score": 0.1,
+    "p50": 13,
+    "p90": 13,
+    "p95": 117,
+    "p99": 117,
+    "max": 117,
+    "n_empty": 0,
+    "n_cliff": 0,
+    "n_cot": 0,
+    "n_refusal": 9,
+    "fail_buckets": {
+      "empty": 0,
+      "cot_preamble": 0,
+      "refusal": 9,
+      "wrong_concrete": 0,
+      "verbose_other": 0
+    },
+    "n_failures": 9,
+    "qtype_total": {
+      "single-session-user": 10
+    },
+    "qtype_cliff": {},
+    "qtype_empty": {},
+    "qtype_fail": {
+      "single-session-user": 9
+    },
+    "qtype_pass": {
+      "single-session-user": 1
+    }
+  },
+  {
+    "path": "C:\\Users\\ameya\\Documents\\Engram\\benchmarks\\runs\\local\\20260510T202143_555073+0000-0b6dfa53-longmemeval.json",
+    "name": "20260510T202143_555073+0000-0b6dfa53-longmemeval.json",
+    "timestamp": "2026-05-10T20:21:43.555073+00:00",
+    "git_commit": "0b6dfa53",
+    "provider": "local+opencode-go",
+    "provider_hash": "local+opencode-go/f6d60a400149d5dd",
+    "engram_config": {},
+    "engram_config_str": "",
+    "n": 10,
+    "score": 0.8,
+    "p50": 20,
+    "p90": 24,
+    "p95": 59,
+    "p99": 59,
+    "max": 59,
+    "n_empty": 0,
+    "n_cliff": 0,
+    "n_cot": 0,
+    "n_refusal": 2,
+    "fail_buckets": {
+      "empty": 0,
+      "cot_preamble": 0,
+      "refusal": 2,
+      "wrong_concrete": 0,
+      "verbose_other": 0
+    },
+    "n_failures": 2,
+    "qtype_total": {
+      "single-session-user": 10
+    },
+    "qtype_cliff": {},
+    "qtype_empty": {},
+    "qtype_fail": {
+      "single-session-user": 2
+    },
+    "qtype_pass": {
+      "single-session-user": 8
+    }
+  },
+  {
+    "path": "C:\\Users\\ameya\\Documents\\Engram\\benchmarks\\runs\\local\\20260511T052920_486768+0000-0b6dfa53-longmemeval.json",
+    "name": "20260511T052920_486768+0000-0b6dfa53-longmemeval.json",
+    "timestamp": "2026-05-11T05:29:20.486768+00:00",
+    "git_commit": "0b6dfa53",
+    "provider": "local+opencode-go",
+    "provider_hash": "local+opencode-go/f6d60a400149d5dd",
+    "engram_config": {},
+    "engram_config_str": "",
+    "n": 500,
+    "score": 0.714,
+    "p50": 13,
+    "p90": 120,
+    "p95": 188,
+    "p99": 515,
+    "max": 630,
+    "n_empty": 0,
+    "n_cliff": 0,
+    "n_cot": 0,
+    "n_refusal": 99,
+    "fail_buckets": {
+      "empty": 0,
+      "cot_preamble": 0,
+      "refusal": 92,
+      "wrong_concrete": 46,
+      "verbose_other": 5
+    },
+    "n_failures": 143,
+    "qtype_total": {
+      "single-session-user": 70,
+      "multi-session": 133,
+      "single-session-preference": 30,
+      "temporal-reasoning": 133,
+      "knowledge-update": 78,
+      "single-session-assistant": 56
+    },
+    "qtype_cliff": {},
+    "qtype_empty": {},
+    "qtype_fail": {
+      "single-session-user": 11,
+      "multi-session": 53,
+      "single-session-preference": 15,
+      "temporal-reasoning": 37,
+      "knowledge-update": 24,
+      "single-session-assistant": 3
+    },
+    "qtype_pass": {
+      "single-session-user": 59,
+      "multi-session": 80,
+      "single-session-preference": 15,
+      "temporal-reasoning": 96,
+      "knowledge-update": 54,
+      "single-session-assistant": 53
+    }
+  },
+  {
+    "path": "C:\\Users\\ameya\\Documents\\Engram\\benchmarks\\runs\\release\\20260511T052920_486768+0000-0b6dfa53-longmemeval.json",
+    "name": "20260511T052920_486768+0000-0b6dfa53-longmemeval.json",
+    "timestamp": "2026-05-11T05:29:20.486768+00:00",
+    "git_commit": "0b6dfa53",
+    "provider": "local+opencode-go",
+    "provider_hash": "local+opencode-go/f6d60a400149d5dd",
+    "engram_config": {},
+    "engram_config_str": "",
+    "n": 500,
+    "score": 0.714,
+    "p50": 13,
+    "p90": 120,
+    "p95": 188,
+    "p99": 515,
+    "max": 630,
+    "n_empty": 0,
+    "n_cliff": 0,
+    "n_cot": 0,
+    "n_refusal": 99,
+    "fail_buckets": {
+      "empty": 0,
+      "cot_preamble": 0,
+      "refusal": 92,
+      "wrong_concrete": 46,
+      "verbose_other": 5
+    },
+    "n_failures": 143,
+    "qtype_total": {
+      "single-session-user": 70,
+      "multi-session": 133,
+      "single-session-preference": 30,
+      "temporal-reasoning": 133,
+      "knowledge-update": 78,
+      "single-session-assistant": 56
+    },
+    "qtype_cliff": {},
+    "qtype_empty": {},
+    "qtype_fail": {
+      "single-session-user": 11,
+      "multi-session": 53,
+      "single-session-preference": 15,
+      "temporal-reasoning": 37,
+      "knowledge-update": 24,
+      "single-session-assistant": 3
+    },
+    "qtype_pass": {
+      "single-session-user": 59,
+      "multi-session": 80,
+      "single-session-preference": 15,
+      "temporal-reasoning": 96,
+      "knowledge-update": 54,
+      "single-session-assistant": 53
+    }
+  },
+  {
+    "path": "C:\\Users\\ameya\\Documents\\Engram\\benchmarks\\runs\\20260516T172546_763487+0000-cebf6dc1-dirty-longmemeval.json",
+    "name": "20260516T172546_763487+0000-cebf6dc1-dirty-longmemeval.json",
+    "timestamp": "2026-05-16T17:25:46.763487+00:00",
+    "git_commit": "cebf6dc1",
+    "provider": "fake",
+    "provider_hash": "fake/3086c16442850732",
+    "engram_config": {
+      "parallel": 2,
+      "sample_n": 5,
+      "seed": 1337
+    },
+    "engram_config_str": "parallel=2, sample_n=5, seed=1337",
+    "n": 5,
+    "score": 0.0,
+    "p50": 31,
+    "p90": 31,
+    "p95": 31,
+    "p99": 31,
+    "max": 31,
+    "n_empty": 0,
+    "n_cliff": 0,
+    "n_cot": 0,
+    "n_refusal": 0,
+    "fail_buckets": {
+      "empty": 0,
+      "cot_preamble": 0,
+      "refusal": 0,
+      "wrong_concrete": 5,
+      "verbose_other": 0
+    },
+    "n_failures": 5,
+    "qtype_total": {
+      "single-session-user": 1,
+      "multi-session": 1,
+      "temporal-reasoning": 1,
+      "knowledge-update": 1,
+      "single-session-assistant": 1
+    },
+    "qtype_cliff": {},
+    "qtype_empty": {},
+    "qtype_fail": {
+      "single-session-user": 1,
+      "multi-session": 1,
+      "temporal-reasoning": 1,
+      "knowledge-update": 1,
+      "single-session-assistant": 1
+    },
+    "qtype_pass": {}
+  },
+  {
+    "path": "C:\\Users\\ameya\\Documents\\Engram\\benchmarks\\runs\\20260516T173018_318989+0000-cebf6dc1-dirty-longmemeval.json",
+    "name": "20260516T173018_318989+0000-cebf6dc1-dirty-longmemeval.json",
+    "timestamp": "2026-05-16T17:30:18.318989+00:00",
+    "git_commit": "cebf6dc1",
+    "provider": "fake",
+    "provider_hash": "fake/3086c16442850732",
+    "engram_config": {
+      "parallel": 4,
+      "sample_n": 12,
+      "seed": 42
+    },
+    "engram_config_str": "parallel=4, sample_n=12, seed=42",
+    "n": 12,
+    "score": 0.0,
+    "p50": 31,
+    "p90": 31,
+    "p95": 31,
+    "p99": 31,
+    "max": 31,
+    "n_empty": 0,
+    "n_cliff": 0,
+    "n_cot": 0,
+    "n_refusal": 0,
+    "fail_buckets": {
+      "empty": 0,
+      "cot_preamble": 0,
+      "refusal": 0,
+      "wrong_concrete": 12,
+      "verbose_other": 0
+    },
+    "n_failures": 12,
+    "qtype_total": {
+      "single-session-user": 2,
+      "multi-session": 3,
+      "single-session-preference": 1,
+      "temporal-reasoning": 3,
+      "knowledge-update": 2,
+      "single-session-assistant": 1
+    },
+    "qtype_cliff": {},
+    "qtype_empty": {},
+    "qtype_fail": {
+      "single-session-user": 2,
+      "multi-session": 3,
+      "single-session-preference": 1,
+      "temporal-reasoning": 3,
+      "knowledge-update": 2,
+      "single-session-assistant": 1
+    },
+    "qtype_pass": {}
+  },
+  {
+    "path": "C:\\Users\\ameya\\Documents\\Engram\\benchmarks\\runs\\20260516T174058_711840+0000-9130085d-dirty-longmemeval.json",
+    "name": "20260516T174058_711840+0000-9130085d-dirty-longmemeval.json",
+    "timestamp": "2026-05-16T17:40:58.711840+00:00",
+    "git_commit": "9130085d",
+    "provider": "local+opencode-go",
+    "provider_hash": "local+opencode-go/2c8ddb819702f0f2",
+    "engram_config": {
+      "aconsolidate_concurrency": 50,
+      "auto_temporal": true,
+      "consolidate": true,
+      "consolidate_chat": {
+        "manifest_hash": "openai-chat/anthropic/claude-haiku-4-5/base=https://openrouter.ai/api/v1/69f7ef4769f5f483",
+        "model": "anthropic/claude-haiku-4-5",
+        "name": "openai-chat",
+        "type": "OpenAIChat"
+      },
+      "judge_chat": {
+        "manifest_hash": "openai-chat/gpt-4o/69f7ef4769f5f483",
+        "model": "gpt-4o",
+        "name": "openai-chat",
+        "type": "OpenAIChat"
+      },
+      "k": 20,
+      "parallel": 30,
+      "reranker": {
+        "name": "bge-reranker:BAAI/bge-reranker-v2-m3",
+        "type": "BGEReranker"
+      },
+      "sample_n": 100,
+      "seed": 1337,
+      "surface_conflicts": true
+    },
+    "engram_config_str": "aconsolidate_concurrency=50, auto_temporal=True, consolidate=True, consolidate_chat={'manifest_hash': 'openai-chat/anthropic/claude-haiku-4-5/base=https://openrouter.ai/api/v1/69f7ef4769f5f483', 'model': 'anthropic/claude-haiku-4-5', 'name': 'openai-chat', 'type': 'OpenAIChat'}, judge_chat={'manifest_hash': 'openai-chat/gpt-4o/69f7ef4769f5f483', 'model': 'gpt-4o', 'name': 'openai-chat', 'type': 'OpenAIChat'}, k=20, parallel=30, reranker={'name': 'bge-reranker:BAAI/bge-reranker-v2-m3', 'type': 'BGEReranker'}, sample_n=100, seed=1337, surface_conflicts=True",
+    "n": 100,
+    "score": 0.0,
+    "p50": 0,
+    "p90": 0,
+    "p95": 0,
+    "p99": 0,
+    "max": 0,
+    "n_empty": 100,
+    "n_cliff": 0,
+    "n_cot": 0,
+    "n_refusal": 0,
+    "fail_buckets": {
+      "empty": 100,
+      "cot_preamble": 0,
+      "refusal": 0,
+      "wrong_concrete": 0,
+      "verbose_other": 0
+    },
+    "n_failures": 100,
+    "qtype_total": {
+      "single-session-user": 14,
+      "multi-session": 27,
+      "single-session-preference": 6,
+      "temporal-reasoning": 27,
+      "knowledge-update": 15,
+      "single-session-assistant": 11
+    },
+    "qtype_cliff": {},
+    "qtype_empty": {
+      "single-session-user": 14,
+      "multi-session": 27,
+      "single-session-preference": 6,
+      "temporal-reasoning": 27,
+      "knowledge-update": 15,
+      "single-session-assistant": 11
+    },
+    "qtype_fail": {
+      "single-session-user": 14,
+      "multi-session": 27,
+      "single-session-preference": 6,
+      "temporal-reasoning": 27,
+      "knowledge-update": 15,
+      "single-session-assistant": 11
+    },
+    "qtype_pass": {}
+  },
+  {
+    "path": "C:\\Users\\ameya\\Documents\\Engram\\benchmarks\\runs\\20260516T174534_971660+0000-9130085d-dirty-longmemeval.json",
+    "name": "20260516T174534_971660+0000-9130085d-dirty-longmemeval.json",
+    "timestamp": "2026-05-16T17:45:34.971660+00:00",
+    "git_commit": "9130085d",
+    "provider": "fake",
+    "provider_hash": "fake/3086c16442850732",
+    "engram_config": {
+      "parallel": 8,
+      "sample_n": 8,
+      "seed": 1337
+    },
+    "engram_config_str": "parallel=8, sample_n=8, seed=1337",
+    "n": 8,
+    "score": 0.0,
+    "p50": 31,
+    "p90": 31,
+    "p95": 31,
+    "p99": 31,
+    "max": 31,
+    "n_empty": 0,
+    "n_cliff": 0,
+    "n_cot": 0,
+    "n_refusal": 0,
+    "fail_buckets": {
+      "empty": 0,
+      "cot_preamble": 0,
+      "refusal": 0,
+      "wrong_concrete": 8,
+      "verbose_other": 0
+    },
+    "n_failures": 8,
+    "qtype_total": {
+      "single-session-user": 1,
+      "multi-session": 2,
+      "single-session-preference": 1,
+      "temporal-reasoning": 2,
+      "knowledge-update": 1,
+      "single-session-assistant": 1
+    },
+    "qtype_cliff": {},
+    "qtype_empty": {},
+    "qtype_fail": {
+      "single-session-user": 1,
+      "multi-session": 2,
+      "single-session-preference": 1,
+      "temporal-reasoning": 2,
+      "knowledge-update": 1,
+      "single-session-assistant": 1
+    },
+    "qtype_pass": {}
+  },
+  {
+    "path": "C:\\Users\\ameya\\Documents\\Engram\\benchmarks\\runs\\20260516T174650_333682+0000-9130085d-dirty-longmemeval.json",
+    "name": "20260516T174650_333682+0000-9130085d-dirty-longmemeval.json",
+    "timestamp": "2026-05-16T17:46:50.333682+00:00",
+    "git_commit": "9130085d",
+    "provider": "fake",
+    "provider_hash": "fake/3086c16442850732",
+    "engram_config": {
+      "gpu_concurrency": 2,
+      "parallel": 8,
+      "sample_n": 8,
+      "seed": 1337
+    },
+    "engram_config_str": "gpu_concurrency=2, parallel=8, sample_n=8, seed=1337",
+    "n": 8,
+    "score": 0.0,
+    "p50": 31,
+    "p90": 31,
+    "p95": 31,
+    "p99": 31,
+    "max": 31,
+    "n_empty": 0,
+    "n_cliff": 0,
+    "n_cot": 0,
+    "n_refusal": 0,
+    "fail_buckets": {
+      "empty": 0,
+      "cot_preamble": 0,
+      "refusal": 0,
+      "wrong_concrete": 8,
+      "verbose_other": 0
+    },
+    "n_failures": 8,
+    "qtype_total": {
+      "single-session-user": 1,
+      "multi-session": 2,
+      "single-session-preference": 1,
+      "temporal-reasoning": 2,
+      "knowledge-update": 1,
+      "single-session-assistant": 1
+    },
+    "qtype_cliff": {},
+    "qtype_empty": {},
+    "qtype_fail": {
+      "single-session-user": 1,
+      "multi-session": 2,
+      "single-session-preference": 1,
+      "temporal-reasoning": 2,
+      "knowledge-update": 1,
+      "single-session-assistant": 1
+    },
+    "qtype_pass": {}
+  },
+  {
+    "path": "C:\\Users\\ameya\\Documents\\Engram\\benchmarks\\runs\\20260516T190353_627654+0000-815b953f-dirty-longmemeval.json",
+    "name": "20260516T190353_627654+0000-815b953f-dirty-longmemeval.json",
+    "timestamp": "2026-05-16T19:03:53.627654+00:00",
+    "git_commit": "815b953f",
+    "provider": "local+opencode-go",
+    "provider_hash": "local+opencode-go/2c8ddb819702f0f2",
+    "engram_config": {
+      "auto_temporal": true,
+      "judge_chat": {
+        "manifest_hash": "openai-chat/anthropic/claude-sonnet-4-5/base=https://openrouter.ai/api/v1/69f7ef4769f5f483",
+        "model": "anthropic/claude-sonnet-4-5",
+        "name": "openai-chat",
+        "type": "OpenAIChat"
+      },
+      "k": 20,
+      "parallel": 30,
+      "reranker": {
+        "name": "bge-reranker:BAAI/bge-reranker-v2-m3",
+        "type": "BGEReranker"
+      },
+      "sample_n": 100,
+      "seed": 1337,
+      "surface_conflicts": true
+    },
+    "engram_config_str": "auto_temporal=True, judge_chat={'manifest_hash': 'openai-chat/anthropic/claude-sonnet-4-5/base=https://openrouter.ai/api/v1/69f7ef4769f5f483', 'model': 'anthropic/claude-sonnet-4-5', 'name': 'openai-chat', 'type': 'OpenAIChat'}, k=20, parallel=30, reranker={'name': 'bge-reranker:BAAI/bge-reranker-v2-m3', 'type': 'BGEReranker'}, sample_n=100, seed=1337, surface_conflicts=True",
+    "n": 100,
+    "score": 0.68,
+    "p50": 15,
+    "p90": 3966,
+    "p95": 4100,
+    "p99": 4471,
+    "max": 4490,
+    "n_empty": 6,
+    "n_cliff": 15,
+    "n_cot": 16,
+    "n_refusal": 12,
+    "fail_buckets": {
+      "empty": 6,
+      "cot_preamble": 13,
+      "refusal": 11,
+      "wrong_concrete": 1,
+      "verbose_other": 1
+    },
+    "n_failures": 32,
+    "qtype_total": {
+      "single-session-user": 14,
+      "multi-session": 27,
+      "single-session-preference": 6,
+      "temporal-reasoning": 27,
+      "knowledge-update": 15,
+      "single-session-assistant": 11
+    },
+    "qtype_cliff": {
+      "multi-session": 9,
+      "temporal-reasoning": 4,
+      "knowledge-update": 2
+    },
+    "qtype_empty": {
+      "multi-session": 1,
+      "temporal-reasoning": 4,
+      "knowledge-update": 1
+    },
+    "qtype_fail": {
+      "single-session-user": 3,
+      "multi-session": 10,
+      "single-session-preference": 4,
+      "temporal-reasoning": 10,
+      "knowledge-update": 5
+    },
+    "qtype_pass": {
+      "single-session-user": 11,
+      "multi-session": 17,
+      "single-session-preference": 2,
+      "temporal-reasoning": 17,
+      "knowledge-update": 10,
+      "single-session-assistant": 11
+    }
+  },
+  {
+    "path": "C:\\Users\\ameya\\Documents\\Engram\\benchmarks\\runs\\20260516T194247_734439+0000-815b953f-dirty-longmemeval.json",
+    "name": "20260516T194247_734439+0000-815b953f-dirty-longmemeval.json",
+    "timestamp": "2026-05-16T19:42:47.734439+00:00",
+    "git_commit": "815b953f",
+    "provider": "local+opencode-go",
+    "provider_hash": "local+opencode-go/2c8ddb819702f0f2",
+    "engram_config": {
+      "auto_temporal": true,
+      "k": 20,
+      "parallel": 30,
+      "reranker": {
+        "name": "bge-reranker:BAAI/bge-reranker-v2-m3",
+        "type": "BGEReranker"
+      },
+      "sample_n": 100,
+      "seed": 1337,
+      "surface_conflicts": true
+    },
+    "engram_config_str": "auto_temporal=True, k=20, parallel=30, reranker={'name': 'bge-reranker:BAAI/bge-reranker-v2-m3', 'type': 'BGEReranker'}, sample_n=100, seed=1337, surface_conflicts=True",
+    "n": 100,
+    "score": 0.66,
+    "p50": 15,
+    "p90": 3966,
+    "p95": 4100,
+    "p99": 4471,
+    "max": 4490,
+    "n_empty": 6,
+    "n_cliff": 15,
+    "n_cot": 16,
+    "n_refusal": 12,
+    "fail_buckets": {
+      "empty": 6,
+      "cot_preamble": 13,
+      "refusal": 10,
+      "wrong_concrete": 2,
+      "verbose_other": 3
+    },
+    "n_failures": 34,
+    "qtype_total": {
+      "single-session-user": 14,
+      "multi-session": 27,
+      "single-session-preference": 6,
+      "temporal-reasoning": 27,
+      "knowledge-update": 15,
+      "single-session-assistant": 11
+    },
+    "qtype_cliff": {
+      "multi-session": 9,
+      "temporal-reasoning": 4,
+      "knowledge-update": 2
+    },
+    "qtype_empty": {
+      "multi-session": 1,
+      "temporal-reasoning": 4,
+      "knowledge-update": 1
+    },
+    "qtype_fail": {
+      "single-session-user": 2,
+      "multi-session": 12,
+      "single-session-preference": 6,
+      "temporal-reasoning": 9,
+      "knowledge-update": 5
+    },
+    "qtype_pass": {
+      "single-session-user": 12,
+      "multi-session": 15,
+      "temporal-reasoning": 18,
+      "knowledge-update": 10,
+      "single-session-assistant": 11
+    }
+  },
+  {
+    "path": "C:\\Users\\ameya\\Documents\\Engram\\benchmarks\\runs\\20260516T211254_463977+0000-e503e185-dirty-longmemeval.json",
+    "name": "20260516T211254_463977+0000-e503e185-dirty-longmemeval.json",
+    "timestamp": "2026-05-16T21:12:54.463977+00:00",
+    "git_commit": "e503e185",
+    "provider": "fake",
+    "provider_hash": "fake/3086c16442850732",
+    "engram_config": {
+      "parallel": 2,
+      "prompt_version": "v2",
+      "sample_n": 4,
+      "seed": 1337
+    },
+    "engram_config_str": "parallel=2, prompt_version=v2, sample_n=4, seed=1337",
+    "n": 4,
+    "score": 0.0,
+    "p50": 31,
+    "p90": 31,
+    "p95": 31,
+    "p99": 31,
+    "max": 31,
+    "n_empty": 0,
+    "n_cliff": 0,
+    "n_cot": 0,
+    "n_refusal": 0,
+    "fail_buckets": {
+      "empty": 0,
+      "cot_preamble": 0,
+      "refusal": 0,
+      "wrong_concrete": 4,
+      "verbose_other": 0
+    },
+    "n_failures": 4,
+    "qtype_total": {
+      "single-session-user": 1,
+      "multi-session": 1,
+      "temporal-reasoning": 1,
+      "knowledge-update": 1
+    },
+    "qtype_cliff": {},
+    "qtype_empty": {},
+    "qtype_fail": {
+      "single-session-user": 1,
+      "multi-session": 1,
+      "temporal-reasoning": 1,
+      "knowledge-update": 1
+    },
+    "qtype_pass": {}
+  },
+  {
+    "path": "C:\\Users\\ameya\\Documents\\Engram\\benchmarks\\runs\\20260516T211316_678981+0000-e503e185-dirty-longmemeval.json",
+    "name": "20260516T211316_678981+0000-e503e185-dirty-longmemeval.json",
+    "timestamp": "2026-05-16T21:13:16.678981+00:00",
+    "git_commit": "e503e185",
+    "provider": "fake",
+    "provider_hash": "fake/3086c16442850732",
+    "engram_config": {
+      "parallel": 2,
+      "sample_n": 4,
+      "seed": 1337
+    },
+    "engram_config_str": "parallel=2, sample_n=4, seed=1337",
+    "n": 4,
+    "score": 0.0,
+    "p50": 31,
+    "p90": 31,
+    "p95": 31,
+    "p99": 31,
+    "max": 31,
+    "n_empty": 0,
+    "n_cliff": 0,
+    "n_cot": 0,
+    "n_refusal": 0,
+    "fail_buckets": {
+      "empty": 0,
+      "cot_preamble": 0,
+      "refusal": 0,
+      "wrong_concrete": 4,
+      "verbose_other": 0
+    },
+    "n_failures": 4,
+    "qtype_total": {
+      "single-session-user": 1,
+      "multi-session": 1,
+      "temporal-reasoning": 1,
+      "knowledge-update": 1
+    },
+    "qtype_cliff": {},
+    "qtype_empty": {},
+    "qtype_fail": {
+      "single-session-user": 1,
+      "multi-session": 1,
+      "temporal-reasoning": 1,
+      "knowledge-update": 1
+    },
+    "qtype_pass": {}
+  },
+  {
+    "path": "C:\\Users\\ameya\\Documents\\Engram\\benchmarks\\runs\\20260516T224729_100252+0000-e503e185-dirty-longmemeval.json",
+    "name": "20260516T224729_100252+0000-e503e185-dirty-longmemeval.json",
+    "timestamp": "2026-05-16T22:47:29.100252+00:00",
+    "git_commit": "e503e185",
+    "provider": "local+opencode-go",
+    "provider_hash": "local+opencode-go/2c8ddb819702f0f2",
+    "engram_config": {
+      "auto_temporal": true,
+      "judge_chat": {
+        "manifest_hash": "openai-chat/anthropic/claude-sonnet-4-5/base=https://openrouter.ai/api/v1/69f7ef4769f5f483",
+        "model": "anthropic/claude-sonnet-4-5",
+        "name": "openai-chat",
+        "type": "OpenAIChat"
+      },
+      "k": 20,
+      "parallel": 30,
+      "reranker": {
+        "name": "bge-reranker:BAAI/bge-reranker-v2-m3",
+        "type": "BGEReranker"
+      },
+      "seed": 1337,
+      "surface_conflicts": true
+    },
+    "engram_config_str": "auto_temporal=True, judge_chat={'manifest_hash': 'openai-chat/anthropic/claude-sonnet-4-5/base=https://openrouter.ai/api/v1/69f7ef4769f5f483', 'model': 'anthropic/claude-sonnet-4-5', 'name': 'openai-chat', 'type': 'OpenAIChat'}, k=20, parallel=30, reranker={'name': 'bge-reranker:BAAI/bge-reranker-v2-m3', 'type': 'BGEReranker'}, seed=1337, surface_conflicts=True",
+    "n": 500,
+    "score": 0.682,
+    "p50": 13,
+    "p90": 4020,
+    "p95": 4236,
+    "p99": 4591,
+    "max": 4997,
+    "n_empty": 50,
+    "n_cliff": 82,
+    "n_cot": 82,
+    "n_refusal": 48,
+    "fail_buckets": {
+      "empty": 50,
+      "cot_preamble": 52,
+      "refusal": 45,
+      "wrong_concrete": 7,
+      "verbose_other": 5
+    },
+    "n_failures": 159,
+    "qtype_total": {
+      "single-session-user": 70,
+      "multi-session": 133,
+      "single-session-preference": 30,
+      "temporal-reasoning": 133,
+      "knowledge-update": 78,
+      "single-session-assistant": 56
+    },
+    "qtype_cliff": {
+      "single-session-user": 1,
+      "multi-session": 31,
+      "single-session-preference": 5,
+      "temporal-reasoning": 27,
+      "knowledge-update": 18
+    },
+    "qtype_empty": {
+      "single-session-user": 5,
+      "multi-session": 15,
+      "single-session-preference": 3,
+      "temporal-reasoning": 18,
+      "knowledge-update": 7,
+      "single-session-assistant": 2
+    },
+    "qtype_fail": {
+      "single-session-user": 14,
+      "multi-session": 52,
+      "single-session-preference": 18,
+      "temporal-reasoning": 51,
+      "knowledge-update": 22,
+      "single-session-assistant": 2
+    },
+    "qtype_pass": {
+      "single-session-user": 56,
+      "multi-session": 81,
+      "single-session-preference": 12,
+      "temporal-reasoning": 82,
+      "knowledge-update": 56,
+      "single-session-assistant": 54
+    }
+  },
+  {
+    "path": "C:\\Users\\ameya\\Documents\\Engram\\benchmarks\\runs\\20260517T094628_217875+0000-0166c0b5-dirty-longmemeval.json",
+    "name": "20260517T094628_217875+0000-0166c0b5-dirty-longmemeval.json",
+    "timestamp": "2026-05-17T09:46:28.217875+00:00",
+    "git_commit": "0166c0b5",
+    "provider": "local+opencode-go",
+    "provider_hash": "local+opencode-go/2c8ddb819702f0f2",
+    "engram_config": {
+      "auto_temporal": true,
+      "judge_chat": {
+        "manifest_hash": "openai-chat/anthropic/claude-sonnet-4-5/base=https://openrouter.ai/api/v1/69f7ef4769f5f483",
+        "model": "anthropic/claude-sonnet-4-5",
+        "name": "openai-chat",
+        "type": "OpenAIChat"
+      },
+      "k": 20,
+      "parallel": 30,
+      "prompt_version": "v2",
+      "reranker": {
+        "name": "bge-reranker:BAAI/bge-reranker-v2-m3",
+        "type": "BGEReranker"
+      },
+      "seed": 1337,
+      "surface_conflicts": true
+    },
+    "engram_config_str": "auto_temporal=True, judge_chat={'manifest_hash': 'openai-chat/anthropic/claude-sonnet-4-5/base=https://openrouter.ai/api/v1/69f7ef4769f5f483', 'model': 'anthropic/claude-sonnet-4-5', 'name': 'openai-chat', 'type': 'OpenAIChat'}, k=20, parallel=30, prompt_version=v2, reranker={'name': 'bge-reranker:BAAI/bge-reranker-v2-m3', 'type': 'BGEReranker'}, seed=1337, surface_conflicts=True",
+    "n": 500,
+    "score": 0.646,
+    "p50": 115,
+    "p90": 4282,
+    "p95": 4469,
+    "p99": 5036,
+    "max": 5346,
+    "n_empty": 76,
+    "n_cliff": 124,
+    "n_cot": 141,
+    "n_refusal": 0,
+    "fail_buckets": {
+      "empty": 76,
+      "cot_preamble": 76,
+      "refusal": 0,
+      "wrong_concrete": 21,
+      "verbose_other": 4
+    },
+    "n_failures": 177,
+    "qtype_total": {
+      "single-session-user": 70,
+      "multi-session": 133,
+      "single-session-preference": 30,
+      "temporal-reasoning": 133,
+      "knowledge-update": 78,
+      "single-session-assistant": 56
+    },
+    "qtype_cliff": {
+      "single-session-user": 3,
+      "multi-session": 40,
+      "single-session-preference": 6,
+      "temporal-reasoning": 49,
+      "knowledge-update": 24,
+      "single-session-assistant": 2
+    },
+    "qtype_empty": {
+      "single-session-user": 4,
+      "multi-session": 40,
+      "single-session-preference": 6,
+      "temporal-reasoning": 19,
+      "knowledge-update": 5,
+      "single-session-assistant": 2
+    },
+    "qtype_fail": {
+      "single-session-user": 11,
+      "multi-session": 67,
+      "single-session-preference": 23,
+      "temporal-reasoning": 54,
+      "knowledge-update": 18,
+      "single-session-assistant": 4
+    },
+    "qtype_pass": {
+      "single-session-user": 59,
+      "multi-session": 66,
+      "single-session-preference": 7,
+      "temporal-reasoning": 79,
+      "knowledge-update": 60,
+      "single-session-assistant": 52
+    }
+  },
+  {
+    "path": "C:\\Users\\ameya\\Documents\\Engram\\benchmarks\\runs\\20260517T101840_510449+0000-0166c0b5-dirty-longmemeval.json",
+    "name": "20260517T101840_510449+0000-0166c0b5-dirty-longmemeval.json",
+    "timestamp": "2026-05-17T10:18:40.510449+00:00",
+    "git_commit": "0166c0b5",
+    "provider": "fake",
+    "provider_hash": "fake/3086c16442850732",
+    "engram_config": {
+      "sample_n": 3,
+      "seed": 1337
+    },
+    "engram_config_str": "sample_n=3, seed=1337",
+    "n": 3,
+    "score": 0.0,
+    "p50": 31,
+    "p90": 31,
+    "p95": 31,
+    "p99": 31,
+    "max": 31,
+    "n_empty": 0,
+    "n_cliff": 0,
+    "n_cot": 0,
+    "n_refusal": 0,
+    "fail_buckets": {
+      "empty": 0,
+      "cot_preamble": 0,
+      "refusal": 0,
+      "wrong_concrete": 3,
+      "verbose_other": 0
+    },
+    "n_failures": 3,
+    "qtype_total": {
+      "multi-session": 1,
+      "temporal-reasoning": 1,
+      "knowledge-update": 1
+    },
+    "qtype_cliff": {},
+    "qtype_empty": {},
+    "qtype_fail": {
+      "multi-session": 1,
+      "temporal-reasoning": 1,
+      "knowledge-update": 1
+    },
+    "qtype_pass": {}
+  },
+  {
+    "path": "C:\\Users\\ameya\\Documents\\Engram\\benchmarks\\runs\\20260517T101900_613843+0000-0166c0b5-dirty-longmemeval.json",
+    "name": "20260517T101900_613843+0000-0166c0b5-dirty-longmemeval.json",
+    "timestamp": "2026-05-17T10:19:00.613843+00:00",
+    "git_commit": "0166c0b5",
+    "provider": "fake",
+    "provider_hash": "fake/3086c16442850732",
+    "engram_config": {
+      "prompt_version": "v2",
+      "sample_n": 3,
+      "seed": 1337
+    },
+    "engram_config_str": "prompt_version=v2, sample_n=3, seed=1337",
+    "n": 3,
+    "score": 0.0,
+    "p50": 31,
+    "p90": 31,
+    "p95": 31,
+    "p99": 31,
+    "max": 31,
+    "n_empty": 0,
+    "n_cliff": 0,
+    "n_cot": 0,
+    "n_refusal": 0,
+    "fail_buckets": {
+      "empty": 0,
+      "cot_preamble": 0,
+      "refusal": 0,
+      "wrong_concrete": 3,
+      "verbose_other": 0
+    },
+    "n_failures": 3,
+    "qtype_total": {
+      "multi-session": 1,
+      "temporal-reasoning": 1,
+      "knowledge-update": 1
+    },
+    "qtype_cliff": {},
+    "qtype_empty": {},
+    "qtype_fail": {
+      "multi-session": 1,
+      "temporal-reasoning": 1,
+      "knowledge-update": 1
+    },
+    "qtype_pass": {}
+  },
+  {
+    "path": "C:\\Users\\ameya\\Documents\\Engram\\benchmarks\\runs\\20260517T101920_427928+0000-0166c0b5-dirty-longmemeval.json",
+    "name": "20260517T101920_427928+0000-0166c0b5-dirty-longmemeval.json",
+    "timestamp": "2026-05-17T10:19:20.427928+00:00",
+    "git_commit": "0166c0b5",
+    "provider": "fake",
+    "provider_hash": "fake/3086c16442850732",
+    "engram_config": {
+      "prompt_version": "v2a",
+      "sample_n": 3,
+      "seed": 1337
+    },
+    "engram_config_str": "prompt_version=v2a, sample_n=3, seed=1337",
+    "n": 3,
+    "score": 0.0,
+    "p50": 31,
+    "p90": 31,
+    "p95": 31,
+    "p99": 31,
+    "max": 31,
+    "n_empty": 0,
+    "n_cliff": 0,
+    "n_cot": 0,
+    "n_refusal": 0,
+    "fail_buckets": {
+      "empty": 0,
+      "cot_preamble": 0,
+      "refusal": 0,
+      "wrong_concrete": 3,
+      "verbose_other": 0
+    },
+    "n_failures": 3,
+    "qtype_total": {
+      "multi-session": 1,
+      "temporal-reasoning": 1,
+      "knowledge-update": 1
+    },
+    "qtype_cliff": {},
+    "qtype_empty": {},
+    "qtype_fail": {
+      "multi-session": 1,
+      "temporal-reasoning": 1,
+      "knowledge-update": 1
+    },
+    "qtype_pass": {}
+  },
+  {
+    "path": "C:\\Users\\ameya\\Documents\\Engram\\benchmarks\\runs\\20260517T101938_800264+0000-0166c0b5-dirty-longmemeval.json",
+    "name": "20260517T101938_800264+0000-0166c0b5-dirty-longmemeval.json",
+    "timestamp": "2026-05-17T10:19:38.800264+00:00",
+    "git_commit": "0166c0b5",
+    "provider": "fake",
+    "provider_hash": "fake/3086c16442850732",
+    "engram_config": {
+      "prompt_version": "v2b",
+      "sample_n": 3,
+      "seed": 1337
+    },
+    "engram_config_str": "prompt_version=v2b, sample_n=3, seed=1337",
+    "n": 3,
+    "score": 0.0,
+    "p50": 31,
+    "p90": 31,
+    "p95": 31,
+    "p99": 31,
+    "max": 31,
+    "n_empty": 0,
+    "n_cliff": 0,
+    "n_cot": 0,
+    "n_refusal": 0,
+    "fail_buckets": {
+      "empty": 0,
+      "cot_preamble": 0,
+      "refusal": 0,
+      "wrong_concrete": 3,
+      "verbose_other": 0
+    },
+    "n_failures": 3,
+    "qtype_total": {
+      "multi-session": 1,
+      "temporal-reasoning": 1,
+      "knowledge-update": 1
+    },
+    "qtype_cliff": {},
+    "qtype_empty": {},
+    "qtype_fail": {
+      "multi-session": 1,
+      "temporal-reasoning": 1,
+      "knowledge-update": 1
+    },
+    "qtype_pass": {}
+  },
+  {
+    "path": "C:\\Users\\ameya\\Documents\\Engram\\benchmarks\\runs\\20260517T101958_778548+0000-0166c0b5-dirty-longmemeval.json",
+    "name": "20260517T101958_778548+0000-0166c0b5-dirty-longmemeval.json",
+    "timestamp": "2026-05-17T10:19:58.778548+00:00",
+    "git_commit": "0166c0b5",
+    "provider": "fake",
+    "provider_hash": "fake/3086c16442850732",
+    "engram_config": {
+      "prompt_version": "v2c",
+      "sample_n": 3,
+      "seed": 1337
+    },
+    "engram_config_str": "prompt_version=v2c, sample_n=3, seed=1337",
+    "n": 3,
+    "score": 0.0,
+    "p50": 31,
+    "p90": 31,
+    "p95": 31,
+    "p99": 31,
+    "max": 31,
+    "n_empty": 0,
+    "n_cliff": 0,
+    "n_cot": 0,
+    "n_refusal": 0,
+    "fail_buckets": {
+      "empty": 0,
+      "cot_preamble": 0,
+      "refusal": 0,
+      "wrong_concrete": 3,
+      "verbose_other": 0
+    },
+    "n_failures": 3,
+    "qtype_total": {
+      "multi-session": 1,
+      "temporal-reasoning": 1,
+      "knowledge-update": 1
+    },
+    "qtype_cliff": {},
+    "qtype_empty": {},
+    "qtype_fail": {
+      "multi-session": 1,
+      "temporal-reasoning": 1,
+      "knowledge-update": 1
+    },
+    "qtype_pass": {}
+  },
+  {
+    "path": "C:\\Users\\ameya\\Documents\\Engram\\benchmarks\\runs\\20260517T102451_656666+0000-6c302ce2-dirty-longmemeval.json",
+    "name": "20260517T102451_656666+0000-6c302ce2-dirty-longmemeval.json",
+    "timestamp": "2026-05-17T10:24:51.656666+00:00",
+    "git_commit": "6c302ce2",
+    "provider": "fake",
+    "provider_hash": "fake/3086c16442850732",
+    "engram_config": {
+      "min_sessions_in_topk": 3,
+      "parallel": 2,
+      "sample_n": 4,
+      "seed": 1337
+    },
+    "engram_config_str": "min_sessions_in_topk=3, parallel=2, sample_n=4, seed=1337",
+    "n": 4,
+    "score": 0.0,
+    "p50": 31,
+    "p90": 31,
+    "p95": 31,
+    "p99": 31,
+    "max": 31,
+    "n_empty": 0,
+    "n_cliff": 0,
+    "n_cot": 0,
+    "n_refusal": 0,
+    "fail_buckets": {
+      "empty": 0,
+      "cot_preamble": 0,
+      "refusal": 0,
+      "wrong_concrete": 4,
+      "verbose_other": 0
+    },
+    "n_failures": 4,
+    "qtype_total": {
+      "single-session-user": 1,
+      "multi-session": 1,
+      "temporal-reasoning": 1,
+      "knowledge-update": 1
+    },
+    "qtype_cliff": {},
+    "qtype_empty": {},
+    "qtype_fail": {
+      "single-session-user": 1,
+      "multi-session": 1,
+      "temporal-reasoning": 1,
+      "knowledge-update": 1
+    },
+    "qtype_pass": {}
+  },
+  {
+    "path": "C:\\Users\\ameya\\Documents\\Engram\\benchmarks\\runs\\20260517T102806_836803+0000-bfcc6222-dirty-longmemeval.json",
+    "name": "20260517T102806_836803+0000-bfcc6222-dirty-longmemeval.json",
+    "timestamp": "2026-05-17T10:28:06.836803+00:00",
+    "git_commit": "bfcc6222",
+    "provider": "fake",
+    "provider_hash": "fake/3086c16442850732",
+    "engram_config": {
+      "min_sessions_in_topk": 3,
+      "parallel": 2,
+      "sample_n": 4,
+      "seed": 1337,
+      "within_session_oversample": true
+    },
+    "engram_config_str": "min_sessions_in_topk=3, parallel=2, sample_n=4, seed=1337, within_session_oversample=True",
+    "n": 4,
+    "score": 0.0,
+    "p50": 31,
+    "p90": 31,
+    "p95": 31,
+    "p99": 31,
+    "max": 31,
+    "n_empty": 0,
+    "n_cliff": 0,
+    "n_cot": 0,
+    "n_refusal": 0,
+    "fail_buckets": {
+      "empty": 0,
+      "cot_preamble": 0,
+      "refusal": 0,
+      "wrong_concrete": 4,
+      "verbose_other": 0
+    },
+    "n_failures": 4,
+    "qtype_total": {
+      "single-session-user": 1,
+      "multi-session": 1,
+      "temporal-reasoning": 1,
+      "knowledge-update": 1
+    },
+    "qtype_cliff": {},
+    "qtype_empty": {},
+    "qtype_fail": {
+      "single-session-user": 1,
+      "multi-session": 1,
+      "temporal-reasoning": 1,
+      "knowledge-update": 1
+    },
+    "qtype_pass": {}
+  },
+  {
+    "path": "C:\\Users\\ameya\\Documents\\Engram\\benchmarks\\runs\\20260517T103102_924794+0000-8a46ce3d-dirty-longmemeval.json",
+    "name": "20260517T103102_924794+0000-8a46ce3d-dirty-longmemeval.json",
+    "timestamp": "2026-05-17T10:31:02.924794+00:00",
+    "git_commit": "8a46ce3d",
+    "provider": "fake",
+    "provider_hash": "fake/3086c16442850732",
+    "engram_config": {
+      "context_format": "grouped",
+      "sample_n": 4,
+      "seed": 1337
+    },
+    "engram_config_str": "context_format=grouped, sample_n=4, seed=1337",
+    "n": 4,
+    "score": 0.0,
+    "p50": 31,
+    "p90": 31,
+    "p95": 31,
+    "p99": 31,
+    "max": 31,
+    "n_empty": 0,
+    "n_cliff": 0,
+    "n_cot": 0,
+    "n_refusal": 0,
+    "fail_buckets": {
+      "empty": 0,
+      "cot_preamble": 0,
+      "refusal": 0,
+      "wrong_concrete": 4,
+      "verbose_other": 0
+    },
+    "n_failures": 4,
+    "qtype_total": {
+      "single-session-user": 1,
+      "multi-session": 1,
+      "temporal-reasoning": 1,
+      "knowledge-update": 1
+    },
+    "qtype_cliff": {},
+    "qtype_empty": {},
+    "qtype_fail": {
+      "single-session-user": 1,
+      "multi-session": 1,
+      "temporal-reasoning": 1,
+      "knowledge-update": 1
+    },
+    "qtype_pass": {}
+  },
+  {
+    "path": "C:\\Users\\ameya\\Documents\\Engram\\benchmarks\\runs\\20260517T103338_427944+0000-7279d6df-dirty-longmemeval.json",
+    "name": "20260517T103338_427944+0000-7279d6df-dirty-longmemeval.json",
+    "timestamp": "2026-05-17T10:33:38.427944+00:00",
+    "git_commit": "7279d6df",
+    "provider": "fake",
+    "provider_hash": "fake/3086c16442850732",
+    "engram_config": {
+      "answer_form": "structured",
+      "sample_n": 3,
+      "seed": 1337
+    },
+    "engram_config_str": "answer_form=structured, sample_n=3, seed=1337",
+    "n": 3,
+    "score": 0.0,
+    "p50": 31,
+    "p90": 31,
+    "p95": 31,
+    "p99": 31,
+    "max": 31,
+    "n_empty": 0,
+    "n_cliff": 0,
+    "n_cot": 0,
+    "n_refusal": 0,
+    "fail_buckets": {
+      "empty": 0,
+      "cot_preamble": 0,
+      "refusal": 0,
+      "wrong_concrete": 3,
+      "verbose_other": 0
+    },
+    "n_failures": 3,
+    "qtype_total": {
+      "multi-session": 1,
+      "temporal-reasoning": 1,
+      "knowledge-update": 1
+    },
+    "qtype_cliff": {},
+    "qtype_empty": {},
+    "qtype_fail": {
+      "multi-session": 1,
+      "temporal-reasoning": 1,
+      "knowledge-update": 1
+    },
+    "qtype_pass": {}
+  },
+  {
+    "path": "C:\\Users\\ameya\\Documents\\Engram\\benchmarks\\runs\\20260517T103544_600362+0000-643f7216-dirty-longmemeval.json",
+    "name": "20260517T103544_600362+0000-643f7216-dirty-longmemeval.json",
+    "timestamp": "2026-05-17T10:35:44.600362+00:00",
+    "git_commit": "643f7216",
+    "provider": "fake",
+    "provider_hash": "fake/3086c16442850732",
+    "engram_config": {
+      "distill_chat": {
+        "manifest_hash": "fake-chat/6b2e47ba3830b42d",
+        "model": "fake-scripted",
+        "name": "fake-chat",
+        "type": "FakeChat"
+      },
+      "sample_n": 3,
+      "seed": 1337
+    },
+    "engram_config_str": "distill_chat={'manifest_hash': 'fake-chat/6b2e47ba3830b42d', 'model': 'fake-scripted', 'name': 'fake-chat', 'type': 'FakeChat'}, sample_n=3, seed=1337",
+    "n": 3,
+    "score": 0.0,
+    "p50": 31,
+    "p90": 31,
+    "p95": 31,
+    "p99": 31,
+    "max": 31,
+    "n_empty": 0,
+    "n_cliff": 0,
+    "n_cot": 0,
+    "n_refusal": 0,
+    "fail_buckets": {
+      "empty": 0,
+      "cot_preamble": 0,
+      "refusal": 0,
+      "wrong_concrete": 3,
+      "verbose_other": 0
+    },
+    "n_failures": 3,
+    "qtype_total": {
+      "multi-session": 1,
+      "temporal-reasoning": 1,
+      "knowledge-update": 1
+    },
+    "qtype_cliff": {},
+    "qtype_empty": {},
+    "qtype_fail": {
+      "multi-session": 1,
+      "temporal-reasoning": 1,
+      "knowledge-update": 1
+    },
+    "qtype_pass": {}
+  },
+  {
+    "path": "C:\\Users\\ameya\\Documents\\Engram\\benchmarks\\runs\\20260517T103748_563674+0000-9dcadfc5-dirty-longmemeval.json",
+    "name": "20260517T103748_563674+0000-9dcadfc5-dirty-longmemeval.json",
+    "timestamp": "2026-05-17T10:37:48.563674+00:00",
+    "git_commit": "9dcadfc5",
+    "provider": "fake",
+    "provider_hash": "fake/3086c16442850732",
+    "engram_config": {
+      "answer_form": "structured",
+      "context_format": "grouped",
+      "distill_chat": {
+        "manifest_hash": "fake-chat/6b2e47ba3830b42d",
+        "model": "fake-scripted",
+        "name": "fake-chat",
+        "type": "FakeChat"
+      },
+      "min_sessions_in_topk": 3,
+      "parallel": 3,
+      "prompt_version": "v2c",
+      "sample_n": 6,
+      "seed": 1337,
+      "within_session_oversample": true
+    },
+    "engram_config_str": "answer_form=structured, context_format=grouped, distill_chat={'manifest_hash': 'fake-chat/6b2e47ba3830b42d', 'model': 'fake-scripted', 'name': 'fake-chat', 'type': 'FakeChat'}, min_sessions_in_topk=3, parallel=3, prompt_version=v2c, sample_n=6, seed=1337, within_session_oversample=True",
+    "n": 6,
+    "score": 0.0,
+    "p50": 31,
+    "p90": 31,
+    "p95": 31,
+    "p99": 31,
+    "max": 31,
+    "n_empty": 0,
+    "n_cliff": 0,
+    "n_cot": 0,
+    "n_refusal": 0,
+    "fail_buckets": {
+      "empty": 0,
+      "cot_preamble": 0,
+      "refusal": 0,
+      "wrong_concrete": 6,
+      "verbose_other": 0
+    },
+    "n_failures": 6,
+    "qtype_total": {
+      "single-session-user": 1,
+      "multi-session": 1,
+      "temporal-reasoning": 2,
+      "knowledge-update": 1,
+      "single-session-assistant": 1
+    },
+    "qtype_cliff": {},
+    "qtype_empty": {},
+    "qtype_fail": {
+      "single-session-user": 1,
+      "multi-session": 1,
+      "temporal-reasoning": 2,
+      "knowledge-update": 1,
+      "single-session-assistant": 1
+    },
+    "qtype_pass": {}
+  },
+  {
+    "path": "C:\\Users\\ameya\\Documents\\Engram\\benchmarks\\runs\\20260517T110344_577039+0000-7f3cdb31-dirty-longmemeval.json",
+    "name": "20260517T110344_577039+0000-7f3cdb31-dirty-longmemeval.json",
+    "timestamp": "2026-05-17T11:03:44.577039+00:00",
+    "git_commit": "7f3cdb31",
+    "provider": "fake",
+    "provider_hash": "fake/3086c16442850732",
+    "engram_config": {
+      "answer_form": "structured",
+      "enable_tools": true,
+      "parallel": 2,
+      "prompt_version": "v2c",
+      "sample_n": 4,
+      "seed": 1337
+    },
+    "engram_config_str": "answer_form=structured, enable_tools=True, parallel=2, prompt_version=v2c, sample_n=4, seed=1337",
+    "n": 4,
+    "score": 0.0,
+    "p50": 31,
+    "p90": 31,
+    "p95": 31,
+    "p99": 31,
+    "max": 31,
+    "n_empty": 0,
+    "n_cliff": 0,
+    "n_cot": 0,
+    "n_refusal": 0,
+    "fail_buckets": {
+      "empty": 0,
+      "cot_preamble": 0,
+      "refusal": 0,
+      "wrong_concrete": 4,
+      "verbose_other": 0
+    },
+    "n_failures": 4,
+    "qtype_total": {
+      "single-session-user": 1,
+      "multi-session": 1,
+      "temporal-reasoning": 1,
+      "knowledge-update": 1
+    },
+    "qtype_cliff": {},
+    "qtype_empty": {},
+    "qtype_fail": {
+      "single-session-user": 1,
+      "multi-session": 1,
+      "temporal-reasoning": 1,
+      "knowledge-update": 1
+    },
+    "qtype_pass": {}
+  },
+  {
+    "path": "C:\\Users\\ameya\\Documents\\Engram\\benchmarks\\runs\\20260517T153241_576115+0000-52a25bf9-dirty-longmemeval.json",
+    "name": "20260517T153241_576115+0000-52a25bf9-dirty-longmemeval.json",
+    "timestamp": "2026-05-17T15:32:41.576115+00:00",
+    "git_commit": "52a25bf9",
+    "provider": "fake",
+    "provider_hash": "fake/3086c16442850732",
+    "engram_config": {},
+    "engram_config_str": "",
+    "n": 500,
+    "score": 0.0,
+    "p50": 31,
+    "p90": 31,
+    "p95": 31,
+    "p99": 31,
+    "max": 31,
+    "n_empty": 1,
+    "n_cliff": 0,
+    "n_cot": 0,
+    "n_refusal": 0,
+    "fail_buckets": {
+      "empty": 1,
+      "cot_preamble": 0,
+      "refusal": 0,
+      "wrong_concrete": 499,
+      "verbose_other": 0
+    },
+    "n_failures": 500,
+    "qtype_total": {
+      "single-session-user": 70,
+      "multi-session": 133,
+      "single-session-preference": 30,
+      "temporal-reasoning": 133,
+      "knowledge-update": 78,
+      "single-session-assistant": 56
+    },
+    "qtype_cliff": {},
+    "qtype_empty": {
+      "knowledge-update": 1
+    },
+    "qtype_fail": {
+      "single-session-user": 70,
+      "multi-session": 133,
+      "single-session-preference": 30,
+      "temporal-reasoning": 133,
+      "knowledge-update": 78,
+      "single-session-assistant": 56
+    },
+    "qtype_pass": {}
+  }
+]

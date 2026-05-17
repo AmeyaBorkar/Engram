@@ -1,0 +1,7411 @@
+{
+  "config_args": {
+    "qtype": "single-session-preference",
+    "qid": null,
+    "limit": 30,
+    "configs": "baseline,bm25,mmr07,mmr03,recent,recency,autotemp,bm25+aut,bm25+mmr,bm25+rec,all_aggressive,conservative",
+    "embed_model": "BAAI/bge-large-en-v1.5",
+    "embed_device": "cuda",
+    "dtype": "fp32",
+    "reranker": "BAAI/bge-reranker-v2-m3",
+    "k": 10,
+    "retrieval_only": true,
+    "chat": "opencode-go",
+    "chat_model": "kimi-k2.6",
+    "output": "benchmarks\\runs\\ablation_pref.json",
+    "log_level": "INFO"
+  },
+  "results": [
+    {
+      "qid": "8a2466db",
+      "qtype": "single-session-preference",
+      "config": "baseline",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "3392c0c7",
+        "6dcf5fa0_1",
+        "answer_edb03329"
+      ],
+      "answer_session_ids": [
+        "answer_edb03329"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2405.259200008004
+    },
+    {
+      "qid": "8a2466db",
+      "qtype": "single-session-preference",
+      "config": "bm25",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "3392c0c7",
+        "6a5b5a78",
+        "6dcf5fa0_1",
+        "answer_edb03329",
+        "d8b3e1c8_2"
+      ],
+      "answer_session_ids": [
+        "answer_edb03329"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3760.957199992845
+    },
+    {
+      "qid": "8a2466db",
+      "qtype": "single-session-preference",
+      "config": "mmr07",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "3392c0c7",
+        "6be54739_3",
+        "6dcf5fa0_1",
+        "84f2d563_1",
+        "answer_edb03329",
+        "sharegpt_osTHjYi_0"
+      ],
+      "answer_session_ids": [
+        "answer_edb03329"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2355.014900007518
+    },
+    {
+      "qid": "8a2466db",
+      "qtype": "single-session-preference",
+      "config": "mmr03",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "3392c0c7",
+        "6be54739_3",
+        "6dcf5fa0_1",
+        "76967d22",
+        "84f2d563_1",
+        "answer_edb03329",
+        "sharegpt_osTHjYi_0"
+      ],
+      "answer_session_ids": [
+        "answer_edb03329"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2355.1508000091417
+    },
+    {
+      "qid": "8a2466db",
+      "qtype": "single-session-preference",
+      "config": "recent",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "3392c0c7",
+        "6dcf5fa0_1",
+        "answer_edb03329"
+      ],
+      "answer_session_ids": [
+        "answer_edb03329"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3100.472999998601
+    },
+    {
+      "qid": "8a2466db",
+      "qtype": "single-session-preference",
+      "config": "recency",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "3392c0c7",
+        "6be54739_3",
+        "6dcf5fa0_1",
+        "76967d22",
+        "answer_edb03329"
+      ],
+      "answer_session_ids": [
+        "answer_edb03329"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2351.478699987638
+    },
+    {
+      "qid": "8a2466db",
+      "qtype": "single-session-preference",
+      "config": "autotemp",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "3392c0c7",
+        "6dcf5fa0_1",
+        "answer_edb03329"
+      ],
+      "answer_session_ids": [
+        "answer_edb03329"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2367.5136000092607
+    },
+    {
+      "qid": "8a2466db",
+      "qtype": "single-session-preference",
+      "config": "bm25+aut",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "3392c0c7",
+        "6a5b5a78",
+        "6dcf5fa0_1",
+        "answer_edb03329",
+        "d8b3e1c8_2"
+      ],
+      "answer_session_ids": [
+        "answer_edb03329"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3774.4200000015553
+    },
+    {
+      "qid": "8a2466db",
+      "qtype": "single-session-preference",
+      "config": "bm25+mmr",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "3392c0c7",
+        "6a5b5a78",
+        "6be54739_3",
+        "76967d22",
+        "9f091256_1",
+        "answer_edb03329",
+        "d8b3e1c8_2",
+        "da704e79_2",
+        "sharegpt_osTHjYi_0"
+      ],
+      "answer_session_ids": [
+        "answer_edb03329"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3773.718299999018
+    },
+    {
+      "qid": "8a2466db",
+      "qtype": "single-session-preference",
+      "config": "bm25+rec",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "3392c0c7",
+        "6a5b5a78",
+        "6dcf5fa0_1",
+        "answer_edb03329",
+        "d8b3e1c8_2"
+      ],
+      "answer_session_ids": [
+        "answer_edb03329"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 4251.4764000079595
+    },
+    {
+      "qid": "8a2466db",
+      "qtype": "single-session-preference",
+      "config": "all_aggressive",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "3392c0c7",
+        "6a5b5a78",
+        "76967d22",
+        "answer_edb03329",
+        "d8b3e1c8_2",
+        "da704e79_2",
+        "sharegpt_osTHjYi_0",
+        "ultrachat_386461",
+        "ultrachat_541512"
+      ],
+      "answer_session_ids": [
+        "answer_edb03329"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 4223.849899994093
+    },
+    {
+      "qid": "8a2466db",
+      "qtype": "single-session-preference",
+      "config": "conservative",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "3392c0c7",
+        "6a5b5a78",
+        "6dcf5fa0_1",
+        "answer_edb03329",
+        "d8b3e1c8_2"
+      ],
+      "answer_session_ids": [
+        "answer_edb03329"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3500.637999997707
+    },
+    {
+      "qid": "06878be2",
+      "qtype": "single-session-preference",
+      "config": "baseline",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "8fcfbe43_2",
+        "answer_555dfb94"
+      ],
+      "answer_session_ids": [
+        "answer_555dfb94"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2072.6110999967204
+    },
+    {
+      "qid": "06878be2",
+      "qtype": "single-session-preference",
+      "config": "bm25",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "8fcfbe43_2",
+        "answer_555dfb94"
+      ],
+      "answer_session_ids": [
+        "answer_555dfb94"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3742.5898000074085
+    },
+    {
+      "qid": "06878be2",
+      "qtype": "single-session-preference",
+      "config": "mmr07",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "3e9fce53_1",
+        "465e7ef9",
+        "8fcfbe43_2",
+        "answer_555dfb94",
+        "dc18f65b"
+      ],
+      "answer_session_ids": [
+        "answer_555dfb94"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2052.4638000060804
+    },
+    {
+      "qid": "06878be2",
+      "qtype": "single-session-preference",
+      "config": "mmr03",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "3e9fce53_1",
+        "42165950_2",
+        "465e7ef9",
+        "8fcfbe43_2",
+        "answer_555dfb94",
+        "dc18f65b"
+      ],
+      "answer_session_ids": [
+        "answer_555dfb94"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2048.489499997231
+    },
+    {
+      "qid": "06878be2",
+      "qtype": "single-session-preference",
+      "config": "recent",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "8fcfbe43_2",
+        "answer_555dfb94"
+      ],
+      "answer_session_ids": [
+        "answer_555dfb94"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2624.797700002091
+    },
+    {
+      "qid": "06878be2",
+      "qtype": "single-session-preference",
+      "config": "recency",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "3e9fce53_1",
+        "465e7ef9",
+        "8fcfbe43_2",
+        "answer_555dfb94"
+      ],
+      "answer_session_ids": [
+        "answer_555dfb94"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2054.0429999964545
+    },
+    {
+      "qid": "06878be2",
+      "qtype": "single-session-preference",
+      "config": "autotemp",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "8fcfbe43_2",
+        "answer_555dfb94"
+      ],
+      "answer_session_ids": [
+        "answer_555dfb94"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2049.276899997494
+    },
+    {
+      "qid": "06878be2",
+      "qtype": "single-session-preference",
+      "config": "bm25+aut",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "8fcfbe43_2",
+        "answer_555dfb94"
+      ],
+      "answer_session_ids": [
+        "answer_555dfb94"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3634.1046999878017
+    },
+    {
+      "qid": "06878be2",
+      "qtype": "single-session-preference",
+      "config": "bm25+mmr",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "465e7ef9",
+        "8fcfbe43_2",
+        "a6074da9_1",
+        "answer_555dfb94",
+        "sharegpt_GSC090N_6",
+        "ultrachat_319509",
+        "ultrachat_556731"
+      ],
+      "answer_session_ids": [
+        "answer_555dfb94"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3646.2930999987293
+    },
+    {
+      "qid": "06878be2",
+      "qtype": "single-session-preference",
+      "config": "bm25+rec",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "8fcfbe43_2",
+        "answer_555dfb94"
+      ],
+      "answer_session_ids": [
+        "answer_555dfb94"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 4252.986899999087
+    },
+    {
+      "qid": "06878be2",
+      "qtype": "single-session-preference",
+      "config": "all_aggressive",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "3e9fce53_1",
+        "465e7ef9",
+        "8fcfbe43_2",
+        "answer_555dfb94",
+        "sharegpt_GSC090N_6",
+        "ultrachat_556731"
+      ],
+      "answer_session_ids": [
+        "answer_555dfb94"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 4258.950000003097
+    },
+    {
+      "qid": "06878be2",
+      "qtype": "single-session-preference",
+      "config": "conservative",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "8fcfbe43_2",
+        "answer_555dfb94"
+      ],
+      "answer_session_ids": [
+        "answer_555dfb94"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3630.4953999933787
+    },
+    {
+      "qid": "75832dbd",
+      "qtype": "single-session-preference",
+      "config": "baseline",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "6172cc72_1",
+        "answer_d87a6ef8",
+        "be753d18",
+        "c51583cd_1",
+        "ultrachat_533748"
+      ],
+      "answer_session_ids": [
+        "answer_d87a6ef8"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2047.3129999882076
+    },
+    {
+      "qid": "75832dbd",
+      "qtype": "single-session-preference",
+      "config": "bm25",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "47ec1674_2",
+        "6172cc72_1",
+        "answer_d87a6ef8",
+        "ultrachat_35520",
+        "ultrachat_533748"
+      ],
+      "answer_session_ids": [
+        "answer_d87a6ef8"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3645.070200000191
+    },
+    {
+      "qid": "75832dbd",
+      "qtype": "single-session-preference",
+      "config": "mmr07",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "6172cc72_1",
+        "answer_d87a6ef8",
+        "be753d18",
+        "c51583cd_1",
+        "ultrachat_165893",
+        "ultrachat_533748"
+      ],
+      "answer_session_ids": [
+        "answer_d87a6ef8"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2028.1925999879604
+    },
+    {
+      "qid": "75832dbd",
+      "qtype": "single-session-preference",
+      "config": "mmr03",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "6172cc72_1",
+        "answer_d87a6ef8",
+        "be753d18",
+        "c51583cd_1",
+        "sharegpt_E0YL5SX_157",
+        "sharegpt_y7MbHgZ_21",
+        "ultrachat_165893",
+        "ultrachat_533748"
+      ],
+      "answer_session_ids": [
+        "answer_d87a6ef8"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2024.9608999874908
+    },
+    {
+      "qid": "75832dbd",
+      "qtype": "single-session-preference",
+      "config": "recent",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "6172cc72_1",
+        "answer_d87a6ef8",
+        "be753d18",
+        "c51583cd_1",
+        "ultrachat_533748"
+      ],
+      "answer_session_ids": [
+        "answer_d87a6ef8"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2689.754399994854
+    },
+    {
+      "qid": "75832dbd",
+      "qtype": "single-session-preference",
+      "config": "recency",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "6172cc72_1",
+        "answer_d87a6ef8",
+        "c51583cd_1",
+        "ultrachat_533748"
+      ],
+      "answer_session_ids": [
+        "answer_d87a6ef8"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2019.5673999987775
+    },
+    {
+      "qid": "75832dbd",
+      "qtype": "single-session-preference",
+      "config": "autotemp",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "6172cc72_1",
+        "answer_d87a6ef8",
+        "be753d18",
+        "c51583cd_1",
+        "ultrachat_533748"
+      ],
+      "answer_session_ids": [
+        "answer_d87a6ef8"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2014.2312999960268
+    },
+    {
+      "qid": "75832dbd",
+      "qtype": "single-session-preference",
+      "config": "bm25+aut",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "47ec1674_2",
+        "6172cc72_1",
+        "answer_d87a6ef8",
+        "ultrachat_35520",
+        "ultrachat_533748"
+      ],
+      "answer_session_ids": [
+        "answer_d87a6ef8"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3580.842700001085
+    },
+    {
+      "qid": "75832dbd",
+      "qtype": "single-session-preference",
+      "config": "bm25+mmr",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "47ec1674_2",
+        "6172cc72_1",
+        "answer_d87a6ef8",
+        "e6921729",
+        "ultrachat_165893",
+        "ultrachat_35520",
+        "ultrachat_533748"
+      ],
+      "answer_session_ids": [
+        "answer_d87a6ef8"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3582.1006999904057
+    },
+    {
+      "qid": "75832dbd",
+      "qtype": "single-session-preference",
+      "config": "bm25+rec",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "47ec1674_2",
+        "6172cc72_1",
+        "answer_d87a6ef8",
+        "ultrachat_35520",
+        "ultrachat_533748"
+      ],
+      "answer_session_ids": [
+        "answer_d87a6ef8"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 4271.788900005049
+    },
+    {
+      "qid": "75832dbd",
+      "qtype": "single-session-preference",
+      "config": "all_aggressive",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "47ec1674_2",
+        "6172cc72_1",
+        "answer_d87a6ef8",
+        "e765a945_2",
+        "ultrachat_299979",
+        "ultrachat_533748"
+      ],
+      "answer_session_ids": [
+        "answer_d87a6ef8"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 4281.1262000032
+    },
+    {
+      "qid": "75832dbd",
+      "qtype": "single-session-preference",
+      "config": "conservative",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "47ec1674_2",
+        "6172cc72_1",
+        "answer_d87a6ef8",
+        "ultrachat_35520",
+        "ultrachat_533748"
+      ],
+      "answer_session_ids": [
+        "answer_d87a6ef8"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3582.167100001243
+    },
+    {
+      "qid": "0edc2aef",
+      "qtype": "single-session-preference",
+      "config": "baseline",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_d586e9cd",
+        "f20e72e4_1"
+      ],
+      "answer_session_ids": [
+        "answer_d586e9cd"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2069.4107999879634
+    },
+    {
+      "qid": "0edc2aef",
+      "qtype": "single-session-preference",
+      "config": "bm25",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "6a747f2e",
+        "answer_d586e9cd",
+        "f20e72e4_1"
+      ],
+      "answer_session_ids": [
+        "answer_d586e9cd"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3583.292400013306
+    },
+    {
+      "qid": "0edc2aef",
+      "qtype": "single-session-preference",
+      "config": "mmr07",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_d586e9cd",
+        "f20e72e4_1"
+      ],
+      "answer_session_ids": [
+        "answer_d586e9cd"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2047.5269999878947
+    },
+    {
+      "qid": "0edc2aef",
+      "qtype": "single-session-preference",
+      "config": "mmr03",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "6a747f2e",
+        "answer_d586e9cd",
+        "f20e72e4_1"
+      ],
+      "answer_session_ids": [
+        "answer_d586e9cd"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2050.6584999966435
+    },
+    {
+      "qid": "0edc2aef",
+      "qtype": "single-session-preference",
+      "config": "recent",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_d586e9cd",
+        "f20e72e4_1"
+      ],
+      "answer_session_ids": [
+        "answer_d586e9cd"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2702.551599999424
+    },
+    {
+      "qid": "0edc2aef",
+      "qtype": "single-session-preference",
+      "config": "recency",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_d586e9cd",
+        "f20e72e4_1"
+      ],
+      "answer_session_ids": [
+        "answer_d586e9cd"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2046.1887000128627
+    },
+    {
+      "qid": "0edc2aef",
+      "qtype": "single-session-preference",
+      "config": "autotemp",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_d586e9cd",
+        "f20e72e4_1"
+      ],
+      "answer_session_ids": [
+        "answer_d586e9cd"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2046.5308999991976
+    },
+    {
+      "qid": "0edc2aef",
+      "qtype": "single-session-preference",
+      "config": "bm25+aut",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "6a747f2e",
+        "answer_d586e9cd",
+        "f20e72e4_1"
+      ],
+      "answer_session_ids": [
+        "answer_d586e9cd"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3121.760299996822
+    },
+    {
+      "qid": "0edc2aef",
+      "qtype": "single-session-preference",
+      "config": "bm25+mmr",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "3692218d_1",
+        "53dc1394",
+        "6a747f2e",
+        "answer_d586e9cd"
+      ],
+      "answer_session_ids": [
+        "answer_d586e9cd"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3134.667900012573
+    },
+    {
+      "qid": "0edc2aef",
+      "qtype": "single-session-preference",
+      "config": "bm25+rec",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "6a747f2e",
+        "answer_d586e9cd",
+        "f20e72e4_1"
+      ],
+      "answer_session_ids": [
+        "answer_d586e9cd"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3788.9911999955075
+    },
+    {
+      "qid": "0edc2aef",
+      "qtype": "single-session-preference",
+      "config": "all_aggressive",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "08ca1f31_2",
+        "answer_d586e9cd",
+        "f20e72e4_1",
+        "sharegpt_DWorlZE_0"
+      ],
+      "answer_session_ids": [
+        "answer_d586e9cd"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3790.7188999961363
+    },
+    {
+      "qid": "0edc2aef",
+      "qtype": "single-session-preference",
+      "config": "conservative",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "6a747f2e",
+        "answer_d586e9cd",
+        "f20e72e4_1"
+      ],
+      "answer_session_ids": [
+        "answer_d586e9cd"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3132.1997000050033
+    },
+    {
+      "qid": "35a27287",
+      "qtype": "single-session-preference",
+      "config": "baseline",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "58ae7c4f_3",
+        "answer_9b182436",
+        "ultrachat_267380"
+      ],
+      "answer_session_ids": [
+        "answer_9b182436"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2048.300800001016
+    },
+    {
+      "qid": "35a27287",
+      "qtype": "single-session-preference",
+      "config": "bm25",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "58ae7c4f_3",
+        "a98ff421_1",
+        "answer_9b182436",
+        "ultrachat_267380"
+      ],
+      "answer_session_ids": [
+        "answer_9b182436"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3388.735300002736
+    },
+    {
+      "qid": "35a27287",
+      "qtype": "single-session-preference",
+      "config": "mmr07",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "02f2ab8e_2",
+        "58ae7c4f_3",
+        "880ee13e",
+        "answer_9b182436",
+        "e4a1b565_2",
+        "sharegpt_d6Xeauh_0",
+        "ultrachat_267380"
+      ],
+      "answer_session_ids": [
+        "answer_9b182436"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2043.2002999878023
+    },
+    {
+      "qid": "35a27287",
+      "qtype": "single-session-preference",
+      "config": "mmr03",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "02f2ab8e_2",
+        "58ae7c4f_3",
+        "880ee13e",
+        "answer_9b182436",
+        "e4a1b565_2",
+        "sharegpt_d6Xeauh_0",
+        "ultrachat_267380"
+      ],
+      "answer_session_ids": [
+        "answer_9b182436"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2038.8715000008233
+    },
+    {
+      "qid": "35a27287",
+      "qtype": "single-session-preference",
+      "config": "recent",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "58ae7c4f_3",
+        "answer_9b182436",
+        "ultrachat_267380"
+      ],
+      "answer_session_ids": [
+        "answer_9b182436"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2696.942200011108
+    },
+    {
+      "qid": "35a27287",
+      "qtype": "single-session-preference",
+      "config": "recency",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "880ee13e",
+        "answer_9b182436",
+        "e4a1b565_2",
+        "ultrachat_267380"
+      ],
+      "answer_session_ids": [
+        "answer_9b182436"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2033.8969000004
+    },
+    {
+      "qid": "35a27287",
+      "qtype": "single-session-preference",
+      "config": "autotemp",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "58ae7c4f_3",
+        "answer_9b182436",
+        "ultrachat_267380"
+      ],
+      "answer_session_ids": [
+        "answer_9b182436"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2034.2099999979837
+    },
+    {
+      "qid": "35a27287",
+      "qtype": "single-session-preference",
+      "config": "bm25+aut",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "58ae7c4f_3",
+        "a98ff421_1",
+        "answer_9b182436",
+        "ultrachat_267380"
+      ],
+      "answer_session_ids": [
+        "answer_9b182436"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3319.552200002363
+    },
+    {
+      "qid": "35a27287",
+      "qtype": "single-session-preference",
+      "config": "bm25+mmr",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "465f0d1b_1",
+        "7128c070_2",
+        "99887392_1",
+        "answer_9b182436",
+        "b78242f5_1",
+        "ultrachat_267380",
+        "ultrachat_39307",
+        "ultrachat_422353"
+      ],
+      "answer_session_ids": [
+        "answer_9b182436"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3328.427999993437
+    },
+    {
+      "qid": "35a27287",
+      "qtype": "single-session-preference",
+      "config": "bm25+rec",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "58ae7c4f_3",
+        "a98ff421_1",
+        "answer_9b182436",
+        "ultrachat_267380"
+      ],
+      "answer_session_ids": [
+        "answer_9b182436"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 4024.967599994852
+    },
+    {
+      "qid": "35a27287",
+      "qtype": "single-session-preference",
+      "config": "all_aggressive",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "465f0d1b_1",
+        "7128c070_2",
+        "answer_9b182436",
+        "ultrachat_11598",
+        "ultrachat_267380",
+        "ultrachat_39307",
+        "ultrachat_422353",
+        "ultrachat_510702"
+      ],
+      "answer_session_ids": [
+        "answer_9b182436"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3979.861100000562
+    },
+    {
+      "qid": "35a27287",
+      "qtype": "single-session-preference",
+      "config": "conservative",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "58ae7c4f_3",
+        "a98ff421_1",
+        "answer_9b182436",
+        "ultrachat_267380"
+      ],
+      "answer_session_ids": [
+        "answer_9b182436"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3313.9646999916295
+    },
+    {
+      "qid": "32260d93",
+      "qtype": "single-session-preference",
+      "config": "baseline",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "573dc24b_1",
+        "5ace29d7_1",
+        "6d3f5c68_4",
+        "answer_0250ae1c",
+        "sharegpt_JRQtEcd_0"
+      ],
+      "answer_session_ids": [
+        "answer_0250ae1c"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2002.473899992765
+    },
+    {
+      "qid": "32260d93",
+      "qtype": "single-session-preference",
+      "config": "bm25",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "573dc24b_1",
+        "5ace29d7_1",
+        "6d3f5c68_4",
+        "answer_0250ae1c"
+      ],
+      "answer_session_ids": [
+        "answer_0250ae1c"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3623.1976999988547
+    },
+    {
+      "qid": "32260d93",
+      "qtype": "single-session-preference",
+      "config": "mmr07",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "573dc24b_1",
+        "5ace29d7_1",
+        "6d3f5c68_4",
+        "answer_0250ae1c",
+        "d6bbe94d_3",
+        "sharegpt_JRQtEcd_0",
+        "ultrachat_486807",
+        "ultrachat_507667"
+      ],
+      "answer_session_ids": [
+        "answer_0250ae1c"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2015.6163000065135
+    },
+    {
+      "qid": "32260d93",
+      "qtype": "single-session-preference",
+      "config": "mmr03",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "573dc24b_1",
+        "5ace29d7_1",
+        "6d3f5c68_4",
+        "answer_0250ae1c",
+        "d6bbe94d_3",
+        "sharegpt_JRQtEcd_0",
+        "sharegpt_PLN69pg_19",
+        "ultrachat_486807",
+        "ultrachat_507667"
+      ],
+      "answer_session_ids": [
+        "answer_0250ae1c"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2006.707299995469
+    },
+    {
+      "qid": "32260d93",
+      "qtype": "single-session-preference",
+      "config": "recent",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "573dc24b_1",
+        "5ace29d7_1",
+        "6d3f5c68_4",
+        "answer_0250ae1c",
+        "sharegpt_JRQtEcd_0"
+      ],
+      "answer_session_ids": [
+        "answer_0250ae1c"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2655.792899997323
+    },
+    {
+      "qid": "32260d93",
+      "qtype": "single-session-preference",
+      "config": "recency",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "573dc24b_1",
+        "answer_0250ae1c",
+        "sharegpt_q2uAW7H_0"
+      ],
+      "answer_session_ids": [
+        "answer_0250ae1c"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 1997.3843000043416
+    },
+    {
+      "qid": "32260d93",
+      "qtype": "single-session-preference",
+      "config": "autotemp",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "573dc24b_1",
+        "5ace29d7_1",
+        "6d3f5c68_4",
+        "answer_0250ae1c",
+        "sharegpt_JRQtEcd_0"
+      ],
+      "answer_session_ids": [
+        "answer_0250ae1c"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 1990.8641999936663
+    },
+    {
+      "qid": "32260d93",
+      "qtype": "single-session-preference",
+      "config": "bm25+aut",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "573dc24b_1",
+        "5ace29d7_1",
+        "6d3f5c68_4",
+        "answer_0250ae1c"
+      ],
+      "answer_session_ids": [
+        "answer_0250ae1c"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3583.125099990866
+    },
+    {
+      "qid": "32260d93",
+      "qtype": "single-session-preference",
+      "config": "bm25+mmr",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "573dc24b_1",
+        "6d3f5c68_4",
+        "answer_0250ae1c",
+        "b70358bc_2",
+        "sharegpt_FbRVgO3_39",
+        "sharegpt_H4jw5s7_39",
+        "ultrachat_486807"
+      ],
+      "answer_session_ids": [
+        "answer_0250ae1c"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3614.0056000003824
+    },
+    {
+      "qid": "32260d93",
+      "qtype": "single-session-preference",
+      "config": "bm25+rec",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "573dc24b_1",
+        "5ace29d7_1",
+        "6d3f5c68_4",
+        "answer_0250ae1c"
+      ],
+      "answer_session_ids": [
+        "answer_0250ae1c"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 4250.41369999235
+    },
+    {
+      "qid": "32260d93",
+      "qtype": "single-session-preference",
+      "config": "all_aggressive",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "573dc24b_1",
+        "answer_0250ae1c",
+        "sharegpt_H4jw5s7_39",
+        "sharegpt_WYQSZ3n_0"
+      ],
+      "answer_session_ids": [
+        "answer_0250ae1c"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 4254.001100009191
+    },
+    {
+      "qid": "32260d93",
+      "qtype": "single-session-preference",
+      "config": "conservative",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "573dc24b_1",
+        "5ace29d7_1",
+        "6d3f5c68_4",
+        "answer_0250ae1c"
+      ],
+      "answer_session_ids": [
+        "answer_0250ae1c"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3596.1130000068806
+    },
+    {
+      "qid": "195a1a1b",
+      "qtype": "single-session-preference",
+      "config": "baseline",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "1b71c896_2",
+        "87fff4b4_1",
+        "9f12daa1_1",
+        "answer_6dc4305e",
+        "ed9dad6c_2"
+      ],
+      "answer_session_ids": [
+        "answer_6dc4305e"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2102.6414000079967
+    },
+    {
+      "qid": "195a1a1b",
+      "qtype": "single-session-preference",
+      "config": "bm25",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "1b71c896_2",
+        "9f12daa1_1",
+        "answer_6dc4305e",
+        "b76006cb_2",
+        "ed9dad6c_2"
+      ],
+      "answer_session_ids": [
+        "answer_6dc4305e"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3690.5966000049375
+    },
+    {
+      "qid": "195a1a1b",
+      "qtype": "single-session-preference",
+      "config": "mmr07",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "1b71c896_2",
+        "29695e1c_1",
+        "87fff4b4_1",
+        "9f12daa1_1",
+        "af0ab6ab",
+        "answer_6dc4305e",
+        "d03b6a05_2",
+        "ed9dad6c_2"
+      ],
+      "answer_session_ids": [
+        "answer_6dc4305e"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2110.4542999964906
+    },
+    {
+      "qid": "195a1a1b",
+      "qtype": "single-session-preference",
+      "config": "mmr03",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "1b71c896_2",
+        "29695e1c_1",
+        "9b90460f_3",
+        "9f12daa1_1",
+        "af0ab6ab",
+        "answer_6dc4305e",
+        "d03b6a05_2",
+        "ed9dad6c_2"
+      ],
+      "answer_session_ids": [
+        "answer_6dc4305e"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2095.972500013886
+    },
+    {
+      "qid": "195a1a1b",
+      "qtype": "single-session-preference",
+      "config": "recent",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "1b71c896_2",
+        "87fff4b4_1",
+        "9f12daa1_1",
+        "answer_6dc4305e",
+        "ed9dad6c_2"
+      ],
+      "answer_session_ids": [
+        "answer_6dc4305e"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2291.998600005172
+    },
+    {
+      "qid": "195a1a1b",
+      "qtype": "single-session-preference",
+      "config": "recency",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "1b71c896_2",
+        "9f12daa1_1",
+        "answer_6dc4305e",
+        "ed9dad6c_2"
+      ],
+      "answer_session_ids": [
+        "answer_6dc4305e"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2107.031499996083
+    },
+    {
+      "qid": "195a1a1b",
+      "qtype": "single-session-preference",
+      "config": "autotemp",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "1b71c896_2",
+        "87fff4b4_1",
+        "9f12daa1_1",
+        "answer_6dc4305e",
+        "ed9dad6c_2"
+      ],
+      "answer_session_ids": [
+        "answer_6dc4305e"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2086.0474000073737
+    },
+    {
+      "qid": "195a1a1b",
+      "qtype": "single-session-preference",
+      "config": "bm25+aut",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "1b71c896_2",
+        "9f12daa1_1",
+        "answer_6dc4305e",
+        "b76006cb_2",
+        "ed9dad6c_2"
+      ],
+      "answer_session_ids": [
+        "answer_6dc4305e"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3671.2281000072835
+    },
+    {
+      "qid": "195a1a1b",
+      "qtype": "single-session-preference",
+      "config": "bm25+mmr",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "1b71c896_2",
+        "9f12daa1_1",
+        "answer_6dc4305e",
+        "ed9dad6c_2",
+        "sharegpt_DwfIyV9_0",
+        "ultrachat_197034",
+        "ultrachat_336470",
+        "ultrachat_461016"
+      ],
+      "answer_session_ids": [
+        "answer_6dc4305e"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3660.7846999977482
+    },
+    {
+      "qid": "195a1a1b",
+      "qtype": "single-session-preference",
+      "config": "bm25+rec",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "1b71c896_2",
+        "9f12daa1_1",
+        "answer_6dc4305e",
+        "b76006cb_2",
+        "ed9dad6c_2"
+      ],
+      "answer_session_ids": [
+        "answer_6dc4305e"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3859.1997000039555
+    },
+    {
+      "qid": "195a1a1b",
+      "qtype": "single-session-preference",
+      "config": "all_aggressive",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "9f12daa1_1",
+        "answer_6dc4305e",
+        "ed9dad6c_2",
+        "sharegpt_DwfIyV9_0",
+        "ultrachat_197034",
+        "ultrachat_396124",
+        "ultrachat_461016"
+      ],
+      "answer_session_ids": [
+        "answer_6dc4305e"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3865.042399993399
+    },
+    {
+      "qid": "195a1a1b",
+      "qtype": "single-session-preference",
+      "config": "conservative",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "1b71c896_2",
+        "9f12daa1_1",
+        "answer_6dc4305e",
+        "b76006cb_2",
+        "ed9dad6c_2"
+      ],
+      "answer_session_ids": [
+        "answer_6dc4305e"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3647.948900004849
+    },
+    {
+      "qid": "afdc33df",
+      "qtype": "single-session-preference",
+      "config": "baseline",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "22f9f163_3",
+        "answer_8549e5e0",
+        "d03b6a05_3"
+      ],
+      "answer_session_ids": [
+        "answer_8549e5e0"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2062.851099995896
+    },
+    {
+      "qid": "afdc33df",
+      "qtype": "single-session-preference",
+      "config": "bm25",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "22f9f163_3",
+        "answer_8549e5e0",
+        "d03b6a05_3"
+      ],
+      "answer_session_ids": [
+        "answer_8549e5e0"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3374.78800000099
+    },
+    {
+      "qid": "afdc33df",
+      "qtype": "single-session-preference",
+      "config": "mmr07",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "0b0bc8ae_2",
+        "22f9f163_3",
+        "answer_8549e5e0",
+        "d03b6a05_3",
+        "d70b7418",
+        "ultrachat_249050"
+      ],
+      "answer_session_ids": [
+        "answer_8549e5e0"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2058.338899994851
+    },
+    {
+      "qid": "afdc33df",
+      "qtype": "single-session-preference",
+      "config": "mmr03",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "0b0bc8ae_2",
+        "22f9f163_3",
+        "answer_8549e5e0",
+        "d03b6a05_3",
+        "d70b7418",
+        "e58109ed_1",
+        "ultrachat_249050"
+      ],
+      "answer_session_ids": [
+        "answer_8549e5e0"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2058.923099990352
+    },
+    {
+      "qid": "afdc33df",
+      "qtype": "single-session-preference",
+      "config": "recent",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "22f9f163_3",
+        "answer_8549e5e0",
+        "d03b6a05_3"
+      ],
+      "answer_session_ids": [
+        "answer_8549e5e0"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2738.0897999973968
+    },
+    {
+      "qid": "afdc33df",
+      "qtype": "single-session-preference",
+      "config": "recency",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "0b0bc8ae_2",
+        "answer_8549e5e0",
+        "d03b6a05_3"
+      ],
+      "answer_session_ids": [
+        "answer_8549e5e0"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2048.7498000002233
+    },
+    {
+      "qid": "afdc33df",
+      "qtype": "single-session-preference",
+      "config": "autotemp",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "22f9f163_3",
+        "answer_8549e5e0",
+        "d03b6a05_3"
+      ],
+      "answer_session_ids": [
+        "answer_8549e5e0"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2051.205800002208
+    },
+    {
+      "qid": "afdc33df",
+      "qtype": "single-session-preference",
+      "config": "bm25+aut",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "22f9f163_3",
+        "answer_8549e5e0",
+        "d03b6a05_3"
+      ],
+      "answer_session_ids": [
+        "answer_8549e5e0"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3299.061099998653
+    },
+    {
+      "qid": "afdc33df",
+      "qtype": "single-session-preference",
+      "config": "bm25+mmr",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "22f9f163_3",
+        "84a0af4f",
+        "ad8d9f0f",
+        "afa0c2e7_2",
+        "answer_8549e5e0",
+        "d03b6a05_3",
+        "d70b7418",
+        "e58109ed_1",
+        "ultrachat_512490"
+      ],
+      "answer_session_ids": [
+        "answer_8549e5e0"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3307.197800007998
+    },
+    {
+      "qid": "afdc33df",
+      "qtype": "single-session-preference",
+      "config": "bm25+rec",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "22f9f163_3",
+        "answer_8549e5e0",
+        "d03b6a05_3"
+      ],
+      "answer_session_ids": [
+        "answer_8549e5e0"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3944.023500007461
+    },
+    {
+      "qid": "afdc33df",
+      "qtype": "single-session-preference",
+      "config": "all_aggressive",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "0b0bc8ae_2",
+        "84a0af4f",
+        "96b6e5e8_2",
+        "afa0c2e7_2",
+        "answer_8549e5e0",
+        "d70b7418",
+        "ultrachat_512490",
+        "ultrachat_555856"
+      ],
+      "answer_session_ids": [
+        "answer_8549e5e0"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3949.0520999970613
+    },
+    {
+      "qid": "afdc33df",
+      "qtype": "single-session-preference",
+      "config": "conservative",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "22f9f163_3",
+        "answer_8549e5e0",
+        "d03b6a05_3"
+      ],
+      "answer_session_ids": [
+        "answer_8549e5e0"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3309.772199994768
+    },
+    {
+      "qid": "caf03d32",
+      "qtype": "single-session-preference",
+      "config": "baseline",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_2fc6aabb",
+        "sharegpt_3D7Qpuq_14"
+      ],
+      "answer_session_ids": [
+        "answer_2fc6aabb"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2086.7147000099067
+    },
+    {
+      "qid": "caf03d32",
+      "qtype": "single-session-preference",
+      "config": "bm25",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_2fc6aabb",
+        "sharegpt_3D7Qpuq_14"
+      ],
+      "answer_session_ids": [
+        "answer_2fc6aabb"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3781.467299995711
+    },
+    {
+      "qid": "caf03d32",
+      "qtype": "single-session-preference",
+      "config": "mmr07",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "147e93c4",
+        "4374f9a6_2",
+        "8567068d_4",
+        "answer_2fc6aabb",
+        "sharegpt_3D7Qpuq_14"
+      ],
+      "answer_session_ids": [
+        "answer_2fc6aabb"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2110.8833999896888
+    },
+    {
+      "qid": "caf03d32",
+      "qtype": "single-session-preference",
+      "config": "mmr03",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "147e93c4",
+        "4374f9a6_2",
+        "8567068d_4",
+        "answer_2fc6aabb",
+        "sharegpt_3D7Qpuq_14"
+      ],
+      "answer_session_ids": [
+        "answer_2fc6aabb"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2071.4201999944635
+    },
+    {
+      "qid": "caf03d32",
+      "qtype": "single-session-preference",
+      "config": "recent",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_2fc6aabb",
+        "sharegpt_3D7Qpuq_14"
+      ],
+      "answer_session_ids": [
+        "answer_2fc6aabb"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2206.400600000052
+    },
+    {
+      "qid": "caf03d32",
+      "qtype": "single-session-preference",
+      "config": "recency",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_2fc6aabb",
+        "sharegpt_3D7Qpuq_14"
+      ],
+      "answer_session_ids": [
+        "answer_2fc6aabb"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2066.7616999999154
+    },
+    {
+      "qid": "caf03d32",
+      "qtype": "single-session-preference",
+      "config": "autotemp",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_2fc6aabb",
+        "sharegpt_3D7Qpuq_14"
+      ],
+      "answer_session_ids": [
+        "answer_2fc6aabb"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2069.9220999958925
+    },
+    {
+      "qid": "caf03d32",
+      "qtype": "single-session-preference",
+      "config": "bm25+aut",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_2fc6aabb",
+        "sharegpt_3D7Qpuq_14"
+      ],
+      "answer_session_ids": [
+        "answer_2fc6aabb"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3317.170199996326
+    },
+    {
+      "qid": "caf03d32",
+      "qtype": "single-session-preference",
+      "config": "bm25+mmr",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "4b1af06f_1",
+        "78369dbb",
+        "a52e072b",
+        "answer_2fc6aabb",
+        "eb0d8dc1_6",
+        "ec806228"
+      ],
+      "answer_session_ids": [
+        "answer_2fc6aabb"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3338.5272000014083
+    },
+    {
+      "qid": "caf03d32",
+      "qtype": "single-session-preference",
+      "config": "bm25+rec",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_2fc6aabb",
+        "sharegpt_3D7Qpuq_14"
+      ],
+      "answer_session_ids": [
+        "answer_2fc6aabb"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3467.577200004598
+    },
+    {
+      "qid": "caf03d32",
+      "qtype": "single-session-preference",
+      "config": "all_aggressive",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "4b1af06f_1",
+        "78369dbb",
+        "a52e072b",
+        "answer_2fc6aabb",
+        "eb0d8dc1_6",
+        "ec806228"
+      ],
+      "answer_session_ids": [
+        "answer_2fc6aabb"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3462.6270000007935
+    },
+    {
+      "qid": "caf03d32",
+      "qtype": "single-session-preference",
+      "config": "conservative",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_2fc6aabb",
+        "sharegpt_3D7Qpuq_14"
+      ],
+      "answer_session_ids": [
+        "answer_2fc6aabb"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3321.2978999945335
+    },
+    {
+      "qid": "54026fce",
+      "qtype": "single-session-preference",
+      "config": "baseline",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_f7b22c66",
+        "fab585c2_1",
+        "ultrachat_166270"
+      ],
+      "answer_session_ids": [
+        "answer_f7b22c66"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2075.9181000030367
+    },
+    {
+      "qid": "54026fce",
+      "qtype": "single-session-preference",
+      "config": "bm25",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_f7b22c66",
+        "fab585c2_1",
+        "ultrachat_166270"
+      ],
+      "answer_session_ids": [
+        "answer_f7b22c66"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3723.1830999953672
+    },
+    {
+      "qid": "54026fce",
+      "qtype": "single-session-preference",
+      "config": "mmr07",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "518d26d3_6",
+        "answer_f7b22c66",
+        "e6195229",
+        "ef5d4aa7_1",
+        "fab585c2_1",
+        "ultrachat_166270"
+      ],
+      "answer_session_ids": [
+        "answer_f7b22c66"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2063.2075000030454
+    },
+    {
+      "qid": "54026fce",
+      "qtype": "single-session-preference",
+      "config": "mmr03",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "518d26d3_6",
+        "answer_f7b22c66",
+        "e6195229",
+        "ef5d4aa7_1",
+        "fab585c2_1",
+        "ultrachat_166270"
+      ],
+      "answer_session_ids": [
+        "answer_f7b22c66"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2066.6441999928793
+    },
+    {
+      "qid": "54026fce",
+      "qtype": "single-session-preference",
+      "config": "recent",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_f7b22c66",
+        "fab585c2_1",
+        "ultrachat_166270"
+      ],
+      "answer_session_ids": [
+        "answer_f7b22c66"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2722.0040999964112
+    },
+    {
+      "qid": "54026fce",
+      "qtype": "single-session-preference",
+      "config": "recency",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_f7b22c66",
+        "ef2e4f61_1",
+        "sharegpt_8YTuqXO_0",
+        "ultrachat_166270"
+      ],
+      "answer_session_ids": [
+        "answer_f7b22c66"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2045.5828999984078
+    },
+    {
+      "qid": "54026fce",
+      "qtype": "single-session-preference",
+      "config": "autotemp",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_f7b22c66",
+        "fab585c2_1",
+        "ultrachat_166270"
+      ],
+      "answer_session_ids": [
+        "answer_f7b22c66"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2040.5318999983137
+    },
+    {
+      "qid": "54026fce",
+      "qtype": "single-session-preference",
+      "config": "bm25+aut",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_f7b22c66",
+        "fab585c2_1",
+        "ultrachat_166270"
+      ],
+      "answer_session_ids": [
+        "answer_f7b22c66"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3686.429900000803
+    },
+    {
+      "qid": "54026fce",
+      "qtype": "single-session-preference",
+      "config": "bm25+mmr",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "52c34859_2",
+        "5600db68_1",
+        "7e0fa6a6",
+        "answer_f7b22c66",
+        "ba4db050_1",
+        "eb91c46b",
+        "sharegpt_jyHBcl1_0",
+        "ultrachat_166270"
+      ],
+      "answer_session_ids": [
+        "answer_f7b22c66"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3708.4867999947164
+    },
+    {
+      "qid": "54026fce",
+      "qtype": "single-session-preference",
+      "config": "bm25+rec",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_f7b22c66",
+        "fab585c2_1",
+        "ultrachat_166270"
+      ],
+      "answer_session_ids": [
+        "answer_f7b22c66"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 4378.0555999983335
+    },
+    {
+      "qid": "54026fce",
+      "qtype": "single-session-preference",
+      "config": "all_aggressive",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "52c34859_2",
+        "5600db68_1",
+        "7e0fa6a6",
+        "answer_f7b22c66",
+        "ba4db050_1",
+        "ba944cdc",
+        "sharegpt_jyHBcl1_0",
+        "ultrachat_166270"
+      ],
+      "answer_session_ids": [
+        "answer_f7b22c66"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 4387.580700000399
+    },
+    {
+      "qid": "54026fce",
+      "qtype": "single-session-preference",
+      "config": "conservative",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_f7b22c66",
+        "fab585c2_1",
+        "ultrachat_166270"
+      ],
+      "answer_session_ids": [
+        "answer_f7b22c66"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3687.309999993886
+    },
+    {
+      "qid": "06f04340",
+      "qtype": "single-session-preference",
+      "config": "baseline",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "6e6fbb6b",
+        "728deb4d_4",
+        "8b156015_2",
+        "91223fd5_1",
+        "answer_92d5f7cd"
+      ],
+      "answer_session_ids": [
+        "answer_92d5f7cd"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2157.1079999994254
+    },
+    {
+      "qid": "06f04340",
+      "qtype": "single-session-preference",
+      "config": "bm25",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "6e6fbb6b",
+        "728deb4d_4",
+        "8b156015_2",
+        "91223fd5_1",
+        "answer_92d5f7cd"
+      ],
+      "answer_session_ids": [
+        "answer_92d5f7cd"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3435.0711000006413
+    },
+    {
+      "qid": "06f04340",
+      "qtype": "single-session-preference",
+      "config": "mmr07",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "6e6fbb6b",
+        "728deb4d_4",
+        "8b156015_2",
+        "91223fd5_1",
+        "answer_92d5f7cd"
+      ],
+      "answer_session_ids": [
+        "answer_92d5f7cd"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2074.0943999990122
+    },
+    {
+      "qid": "06f04340",
+      "qtype": "single-session-preference",
+      "config": "mmr03",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "6e6fbb6b",
+        "728deb4d_4",
+        "8b156015_2",
+        "91223fd5_1",
+        "answer_92d5f7cd",
+        "de1f4aec_2"
+      ],
+      "answer_session_ids": [
+        "answer_92d5f7cd"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2075.6281000067247
+    },
+    {
+      "qid": "06f04340",
+      "qtype": "single-session-preference",
+      "config": "recent",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "6e6fbb6b",
+        "728deb4d_4",
+        "8b156015_2",
+        "91223fd5_1",
+        "answer_92d5f7cd"
+      ],
+      "answer_session_ids": [
+        "answer_92d5f7cd"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2749.1934999998193
+    },
+    {
+      "qid": "06f04340",
+      "qtype": "single-session-preference",
+      "config": "recency",
+      "recall": 0.0,
+      "binary_hit": 0.0,
+      "top_k_session_ids": [
+        "6e6fbb6b",
+        "728deb4d_4",
+        "91223fd5_1",
+        "de1f4aec_2"
+      ],
+      "answer_session_ids": [
+        "answer_92d5f7cd"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2073.3508999983314
+    },
+    {
+      "qid": "06f04340",
+      "qtype": "single-session-preference",
+      "config": "autotemp",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "6e6fbb6b",
+        "728deb4d_4",
+        "8b156015_2",
+        "91223fd5_1",
+        "answer_92d5f7cd"
+      ],
+      "answer_session_ids": [
+        "answer_92d5f7cd"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2067.4190999998245
+    },
+    {
+      "qid": "06f04340",
+      "qtype": "single-session-preference",
+      "config": "bm25+aut",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "6e6fbb6b",
+        "728deb4d_4",
+        "8b156015_2",
+        "91223fd5_1",
+        "answer_92d5f7cd"
+      ],
+      "answer_session_ids": [
+        "answer_92d5f7cd"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3352.7186999999685
+    },
+    {
+      "qid": "06f04340",
+      "qtype": "single-session-preference",
+      "config": "bm25+mmr",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "6e6fbb6b",
+        "728deb4d_4",
+        "8b156015_2",
+        "91223fd5_1",
+        "answer_92d5f7cd",
+        "sharegpt_h4ZC1fl_203"
+      ],
+      "answer_session_ids": [
+        "answer_92d5f7cd"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3366.3946999877226
+    },
+    {
+      "qid": "06f04340",
+      "qtype": "single-session-preference",
+      "config": "bm25+rec",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "6e6fbb6b",
+        "728deb4d_4",
+        "8b156015_2",
+        "91223fd5_1",
+        "answer_92d5f7cd"
+      ],
+      "answer_session_ids": [
+        "answer_92d5f7cd"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 4044.8747999907937
+    },
+    {
+      "qid": "06f04340",
+      "qtype": "single-session-preference",
+      "config": "all_aggressive",
+      "recall": 0.0,
+      "binary_hit": 0.0,
+      "top_k_session_ids": [
+        "6e6fbb6b",
+        "ultrachat_350502",
+        "ultrachat_575569"
+      ],
+      "answer_session_ids": [
+        "answer_92d5f7cd"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 4050.987399998121
+    },
+    {
+      "qid": "06f04340",
+      "qtype": "single-session-preference",
+      "config": "conservative",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "6e6fbb6b",
+        "728deb4d_4",
+        "8b156015_2",
+        "91223fd5_1",
+        "answer_92d5f7cd"
+      ],
+      "answer_session_ids": [
+        "answer_92d5f7cd"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3352.1445999940624
+    },
+    {
+      "qid": "6b7dfb22",
+      "qtype": "single-session-preference",
+      "config": "baseline",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "574df152_1",
+        "answer_f6502d0f",
+        "fd418106_3"
+      ],
+      "answer_session_ids": [
+        "answer_f6502d0f"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2065.3463000053307
+    },
+    {
+      "qid": "6b7dfb22",
+      "qtype": "single-session-preference",
+      "config": "bm25",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "574df152_1",
+        "answer_f6502d0f",
+        "fd418106_3"
+      ],
+      "answer_session_ids": [
+        "answer_f6502d0f"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3639.7494999982882
+    },
+    {
+      "qid": "6b7dfb22",
+      "qtype": "single-session-preference",
+      "config": "mmr07",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "009c1517_1",
+        "20348a4d",
+        "574df152_1",
+        "answer_f6502d0f",
+        "fd418106_3"
+      ],
+      "answer_session_ids": [
+        "answer_f6502d0f"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2147.4426000058884
+    },
+    {
+      "qid": "6b7dfb22",
+      "qtype": "single-session-preference",
+      "config": "mmr03",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "009c1517_1",
+        "20348a4d",
+        "377f8fd9_1",
+        "56859d37",
+        "574df152_1",
+        "answer_f6502d0f"
+      ],
+      "answer_session_ids": [
+        "answer_f6502d0f"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2058.9106999977957
+    },
+    {
+      "qid": "6b7dfb22",
+      "qtype": "single-session-preference",
+      "config": "recent",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "574df152_1",
+        "answer_f6502d0f",
+        "fd418106_3"
+      ],
+      "answer_session_ids": [
+        "answer_f6502d0f"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2721.2882000021636
+    },
+    {
+      "qid": "6b7dfb22",
+      "qtype": "single-session-preference",
+      "config": "recency",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "377f8fd9_1",
+        "56859d37",
+        "574df152_1",
+        "answer_f6502d0f",
+        "fd418106_3"
+      ],
+      "answer_session_ids": [
+        "answer_f6502d0f"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2055.059900012566
+    },
+    {
+      "qid": "6b7dfb22",
+      "qtype": "single-session-preference",
+      "config": "autotemp",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "574df152_1",
+        "answer_f6502d0f",
+        "fd418106_3"
+      ],
+      "answer_session_ids": [
+        "answer_f6502d0f"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2057.1370999969076
+    },
+    {
+      "qid": "6b7dfb22",
+      "qtype": "single-session-preference",
+      "config": "bm25+aut",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "574df152_1",
+        "answer_f6502d0f",
+        "fd418106_3"
+      ],
+      "answer_session_ids": [
+        "answer_f6502d0f"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3424.4617999938782
+    },
+    {
+      "qid": "6b7dfb22",
+      "qtype": "single-session-preference",
+      "config": "bm25+mmr",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "009c1517_1",
+        "22c3a5de",
+        "574df152_1",
+        "9ee69ca6_3",
+        "answer_f6502d0f",
+        "be581797",
+        "e2e29a09",
+        "fd418106_3"
+      ],
+      "answer_session_ids": [
+        "answer_f6502d0f"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3439.0014999953564
+    },
+    {
+      "qid": "6b7dfb22",
+      "qtype": "single-session-preference",
+      "config": "bm25+rec",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "574df152_1",
+        "answer_f6502d0f",
+        "fd418106_3"
+      ],
+      "answer_session_ids": [
+        "answer_f6502d0f"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 4064.522999993642
+    },
+    {
+      "qid": "6b7dfb22",
+      "qtype": "single-session-preference",
+      "config": "all_aggressive",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "009c1517_1",
+        "3a980e89_4",
+        "53e028b3_1",
+        "574df152_1",
+        "answer_f6502d0f",
+        "be581797",
+        "e2e29a09"
+      ],
+      "answer_session_ids": [
+        "answer_f6502d0f"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 4076.425699997344
+    },
+    {
+      "qid": "6b7dfb22",
+      "qtype": "single-session-preference",
+      "config": "conservative",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "574df152_1",
+        "answer_f6502d0f",
+        "fd418106_3"
+      ],
+      "answer_session_ids": [
+        "answer_f6502d0f"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3428.067300003022
+    },
+    {
+      "qid": "1a1907b4",
+      "qtype": "single-session-preference",
+      "config": "baseline",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "4f3b36d4_5",
+        "answer_719502eb"
+      ],
+      "answer_session_ids": [
+        "answer_719502eb"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2073.5541000030935
+    },
+    {
+      "qid": "1a1907b4",
+      "qtype": "single-session-preference",
+      "config": "bm25",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "4f3b36d4_5",
+        "answer_719502eb"
+      ],
+      "answer_session_ids": [
+        "answer_719502eb"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3685.788100003265
+    },
+    {
+      "qid": "1a1907b4",
+      "qtype": "single-session-preference",
+      "config": "mmr07",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "4f3b36d4_5",
+        "743f03a1_abs_1",
+        "8e78fa70_1",
+        "9585e0c6_1",
+        "answer_719502eb"
+      ],
+      "answer_session_ids": [
+        "answer_719502eb"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2080.4512000031536
+    },
+    {
+      "qid": "1a1907b4",
+      "qtype": "single-session-preference",
+      "config": "mmr03",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "4f3b36d4_5",
+        "743f03a1_abs_1",
+        "8e78fa70_1",
+        "9585e0c6_1",
+        "answer_719502eb",
+        "e42e7876_5",
+        "ultrachat_257863"
+      ],
+      "answer_session_ids": [
+        "answer_719502eb"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2063.8214999926277
+    },
+    {
+      "qid": "1a1907b4",
+      "qtype": "single-session-preference",
+      "config": "recent",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "4f3b36d4_5",
+        "answer_719502eb"
+      ],
+      "answer_session_ids": [
+        "answer_719502eb"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2706.3172000052873
+    },
+    {
+      "qid": "1a1907b4",
+      "qtype": "single-session-preference",
+      "config": "recency",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "4f3b36d4_5",
+        "8e78fa70_1",
+        "answer_719502eb",
+        "e42e7876_5",
+        "sharegpt_KmwfEyz_0"
+      ],
+      "answer_session_ids": [
+        "answer_719502eb"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2062.9331000091042
+    },
+    {
+      "qid": "1a1907b4",
+      "qtype": "single-session-preference",
+      "config": "autotemp",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "4f3b36d4_5",
+        "answer_719502eb"
+      ],
+      "answer_session_ids": [
+        "answer_719502eb"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2056.9103000016185
+    },
+    {
+      "qid": "1a1907b4",
+      "qtype": "single-session-preference",
+      "config": "bm25+aut",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "4f3b36d4_5",
+        "answer_719502eb"
+      ],
+      "answer_session_ids": [
+        "answer_719502eb"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3653.0375000002095
+    },
+    {
+      "qid": "1a1907b4",
+      "qtype": "single-session-preference",
+      "config": "bm25+mmr",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "4f3b36d4_5",
+        "83a4f14d_1",
+        "answer_719502eb",
+        "e622a1bd",
+        "ultrachat_476776"
+      ],
+      "answer_session_ids": [
+        "answer_719502eb"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3659.825599999749
+    },
+    {
+      "qid": "1a1907b4",
+      "qtype": "single-session-preference",
+      "config": "bm25+rec",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "4f3b36d4_5",
+        "answer_719502eb"
+      ],
+      "answer_session_ids": [
+        "answer_719502eb"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 4353.008700010832
+    },
+    {
+      "qid": "1a1907b4",
+      "qtype": "single-session-preference",
+      "config": "all_aggressive",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "30c293bc",
+        "4e3da326_1",
+        "answer_719502eb",
+        "ultrachat_476776"
+      ],
+      "answer_session_ids": [
+        "answer_719502eb"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 4330.955099998391
+    },
+    {
+      "qid": "1a1907b4",
+      "qtype": "single-session-preference",
+      "config": "conservative",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "4f3b36d4_5",
+        "answer_719502eb"
+      ],
+      "answer_session_ids": [
+        "answer_719502eb"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3641.4472999895224
+    },
+    {
+      "qid": "09d032c9",
+      "qtype": "single-session-preference",
+      "config": "baseline",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "612e23f1",
+        "af631aa3_2",
+        "answer_b10dce5e",
+        "d3971322_1",
+        "e8bfacec_2",
+        "ultrachat_510971"
+      ],
+      "answer_session_ids": [
+        "answer_b10dce5e"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2063.6896999931196
+    },
+    {
+      "qid": "09d032c9",
+      "qtype": "single-session-preference",
+      "config": "bm25",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "3fc2244f",
+        "46bab85b",
+        "612e23f1",
+        "af631aa3_2",
+        "answer_b10dce5e",
+        "d3971322_1",
+        "e8bfacec_2",
+        "ultrachat_510971"
+      ],
+      "answer_session_ids": [
+        "answer_b10dce5e"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3983.7501000001794
+    },
+    {
+      "qid": "09d032c9",
+      "qtype": "single-session-preference",
+      "config": "mmr07",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "21ef2d05_1",
+        "af631aa3_2",
+        "answer_b10dce5e",
+        "d3971322_1",
+        "e8bfacec_2",
+        "ef9ec0bc_1",
+        "sharegpt_C1YDEsY_0",
+        "ultrachat_510971"
+      ],
+      "answer_session_ids": [
+        "answer_b10dce5e"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2058.866500010481
+    },
+    {
+      "qid": "09d032c9",
+      "qtype": "single-session-preference",
+      "config": "mmr03",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "46bab85b",
+        "af631aa3_2",
+        "answer_b10dce5e",
+        "d3971322_1",
+        "e8bfacec_2",
+        "ef9ec0bc_1",
+        "sharegpt_C1YDEsY_0",
+        "ultrachat_510971"
+      ],
+      "answer_session_ids": [
+        "answer_b10dce5e"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2054.614300010144
+    },
+    {
+      "qid": "09d032c9",
+      "qtype": "single-session-preference",
+      "config": "recent",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "612e23f1",
+        "87e8ec02",
+        "af631aa3_2",
+        "answer_b10dce5e",
+        "d3971322_1",
+        "e8bfacec_2",
+        "ultrachat_510971"
+      ],
+      "answer_session_ids": [
+        "answer_b10dce5e"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2726.487099993392
+    },
+    {
+      "qid": "09d032c9",
+      "qtype": "single-session-preference",
+      "config": "recency",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "21ef2d05_1",
+        "612e23f1",
+        "answer_b10dce5e",
+        "e8bfacec_2",
+        "sharegpt_C1YDEsY_0"
+      ],
+      "answer_session_ids": [
+        "answer_b10dce5e"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2051.451300008921
+    },
+    {
+      "qid": "09d032c9",
+      "qtype": "single-session-preference",
+      "config": "autotemp",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "612e23f1",
+        "af631aa3_2",
+        "answer_b10dce5e",
+        "d3971322_1",
+        "e8bfacec_2",
+        "ultrachat_510971"
+      ],
+      "answer_session_ids": [
+        "answer_b10dce5e"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2039.5225999964168
+    },
+    {
+      "qid": "09d032c9",
+      "qtype": "single-session-preference",
+      "config": "bm25+aut",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "3fc2244f",
+        "46bab85b",
+        "612e23f1",
+        "af631aa3_2",
+        "answer_b10dce5e",
+        "d3971322_1",
+        "e8bfacec_2",
+        "ultrachat_510971"
+      ],
+      "answer_session_ids": [
+        "answer_b10dce5e"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3548.7050999945495
+    },
+    {
+      "qid": "09d032c9",
+      "qtype": "single-session-preference",
+      "config": "bm25+mmr",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "26d9aaaf",
+        "3fc2244f",
+        "9d1999d7_1",
+        "answer_b10dce5e",
+        "d3971322_1",
+        "e8bfacec_2",
+        "sharegpt_e9sAtcZ_63",
+        "ultrachat_510971"
+      ],
+      "answer_session_ids": [
+        "answer_b10dce5e"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3576.4893000014126
+    },
+    {
+      "qid": "09d032c9",
+      "qtype": "single-session-preference",
+      "config": "bm25+rec",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "3fc2244f",
+        "46bab85b",
+        "612e23f1",
+        "87e8ec02",
+        "answer_b10dce5e",
+        "d3971322_1",
+        "e8bfacec_2",
+        "ultrachat_510971"
+      ],
+      "answer_session_ids": [
+        "answer_b10dce5e"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 4188.789799998631
+    },
+    {
+      "qid": "09d032c9",
+      "qtype": "single-session-preference",
+      "config": "all_aggressive",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "612e23f1",
+        "87e8ec02",
+        "answer_b10dce5e"
+      ],
+      "answer_session_ids": [
+        "answer_b10dce5e"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 4193.248700001277
+    },
+    {
+      "qid": "09d032c9",
+      "qtype": "single-session-preference",
+      "config": "conservative",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "3fc2244f",
+        "46bab85b",
+        "612e23f1",
+        "af631aa3_2",
+        "answer_b10dce5e",
+        "d3971322_1",
+        "e8bfacec_2",
+        "ultrachat_510971"
+      ],
+      "answer_session_ids": [
+        "answer_b10dce5e"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3559.632100004819
+    },
+    {
+      "qid": "38146c39",
+      "qtype": "single-session-preference",
+      "config": "baseline",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "15ed03f0_1",
+        "5263736d_1",
+        "5806662d_1",
+        "87aaee77",
+        "answer_772472c8",
+        "c324a5bc_1"
+      ],
+      "answer_session_ids": [
+        "answer_772472c8"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2058.216999997967
+    },
+    {
+      "qid": "38146c39",
+      "qtype": "single-session-preference",
+      "config": "bm25",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "15ed03f0_1",
+        "5263736d_1",
+        "5806662d_1",
+        "87472dfd_3",
+        "87aaee77",
+        "909d57ca_2",
+        "answer_772472c8"
+      ],
+      "answer_session_ids": [
+        "answer_772472c8"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 4135.0750000128755
+    },
+    {
+      "qid": "38146c39",
+      "qtype": "single-session-preference",
+      "config": "mmr07",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "15ed03f0_1",
+        "5263736d_1",
+        "5806662d_1",
+        "87472dfd_3",
+        "87aaee77",
+        "answer_772472c8",
+        "c324a5bc_1"
+      ],
+      "answer_session_ids": [
+        "answer_772472c8"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2099.749899993185
+    },
+    {
+      "qid": "38146c39",
+      "qtype": "single-session-preference",
+      "config": "mmr03",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "15ed03f0_1",
+        "5806662d_1",
+        "87472dfd_3",
+        "87aaee77",
+        "answer_772472c8",
+        "c324a5bc_1",
+        "ultrachat_233519"
+      ],
+      "answer_session_ids": [
+        "answer_772472c8"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2046.9037000002572
+    },
+    {
+      "qid": "38146c39",
+      "qtype": "single-session-preference",
+      "config": "recent",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "15ed03f0_1",
+        "5263736d_1",
+        "5806662d_1",
+        "87aaee77",
+        "answer_772472c8",
+        "c324a5bc_1"
+      ],
+      "answer_session_ids": [
+        "answer_772472c8"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2703.2342000020435
+    },
+    {
+      "qid": "38146c39",
+      "qtype": "single-session-preference",
+      "config": "recency",
+      "recall": 0.0,
+      "binary_hit": 0.0,
+      "top_k_session_ids": [
+        "87472dfd_3",
+        "87aaee77"
+      ],
+      "answer_session_ids": [
+        "answer_772472c8"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2054.0621999971336
+    },
+    {
+      "qid": "38146c39",
+      "qtype": "single-session-preference",
+      "config": "autotemp",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "15ed03f0_1",
+        "5263736d_1",
+        "5806662d_1",
+        "87aaee77",
+        "answer_772472c8",
+        "c324a5bc_1"
+      ],
+      "answer_session_ids": [
+        "answer_772472c8"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2051.9856000028085
+    },
+    {
+      "qid": "38146c39",
+      "qtype": "single-session-preference",
+      "config": "bm25+aut",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "15ed03f0_1",
+        "5263736d_1",
+        "5806662d_1",
+        "87472dfd_3",
+        "87aaee77",
+        "909d57ca_2",
+        "answer_772472c8"
+      ],
+      "answer_session_ids": [
+        "answer_772472c8"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3896.6912000032607
+    },
+    {
+      "qid": "38146c39",
+      "qtype": "single-session-preference",
+      "config": "bm25+mmr",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "15ed03f0_1",
+        "42234f98",
+        "5806662d_1",
+        "87472dfd_3",
+        "87aaee77",
+        "909d57ca_2",
+        "answer_772472c8",
+        "c324a5bc_1"
+      ],
+      "answer_session_ids": [
+        "answer_772472c8"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3886.2671999959275
+    },
+    {
+      "qid": "38146c39",
+      "qtype": "single-session-preference",
+      "config": "bm25+rec",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "15ed03f0_1",
+        "5263736d_1",
+        "5806662d_1",
+        "87472dfd_3",
+        "87aaee77",
+        "909d57ca_2",
+        "answer_772472c8"
+      ],
+      "answer_session_ids": [
+        "answer_772472c8"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 4572.090100002242
+    },
+    {
+      "qid": "38146c39",
+      "qtype": "single-session-preference",
+      "config": "all_aggressive",
+      "recall": 0.0,
+      "binary_hit": 0.0,
+      "top_k_session_ids": [
+        "87472dfd_3",
+        "87aaee77",
+        "sharegpt_9d6fP4m_81",
+        "sharegpt_yBVQLaX_15"
+      ],
+      "answer_session_ids": [
+        "answer_772472c8"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 4558.2385000016075
+    },
+    {
+      "qid": "38146c39",
+      "qtype": "single-session-preference",
+      "config": "conservative",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "15ed03f0_1",
+        "5263736d_1",
+        "5806662d_1",
+        "87472dfd_3",
+        "87aaee77",
+        "909d57ca_2",
+        "answer_772472c8"
+      ],
+      "answer_session_ids": [
+        "answer_772472c8"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3887.5490999926114
+    },
+    {
+      "qid": "d24813b1",
+      "qtype": "single-session-preference",
+      "config": "baseline",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "128f4e4d_3",
+        "446173bb_1",
+        "61a46ff7_3",
+        "answer_7c0ade93",
+        "e08bf81f_4"
+      ],
+      "answer_session_ids": [
+        "answer_7c0ade93"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2074.0150999918114
+    },
+    {
+      "qid": "d24813b1",
+      "qtype": "single-session-preference",
+      "config": "bm25",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "128f4e4d_3",
+        "3124bb28_1",
+        "446173bb_1",
+        "61a46ff7_3",
+        "answer_7c0ade93",
+        "e08bf81f_4"
+      ],
+      "answer_session_ids": [
+        "answer_7c0ade93"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3992.377000002307
+    },
+    {
+      "qid": "d24813b1",
+      "qtype": "single-session-preference",
+      "config": "mmr07",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "128f4e4d_3",
+        "3124bb28_1",
+        "446173bb_1",
+        "61a46ff7_3",
+        "answer_7c0ade93",
+        "e08bf81f_4"
+      ],
+      "answer_session_ids": [
+        "answer_7c0ade93"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2077.504899993073
+    },
+    {
+      "qid": "d24813b1",
+      "qtype": "single-session-preference",
+      "config": "mmr03",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "128f4e4d_3",
+        "3124bb28_1",
+        "446173bb_1",
+        "61a46ff7_3",
+        "answer_7c0ade93",
+        "e08bf81f_4"
+      ],
+      "answer_session_ids": [
+        "answer_7c0ade93"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2072.215199994389
+    },
+    {
+      "qid": "d24813b1",
+      "qtype": "single-session-preference",
+      "config": "recent",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "128f4e4d_3",
+        "446173bb_1",
+        "61a46ff7_3",
+        "answer_7c0ade93",
+        "e08bf81f_4"
+      ],
+      "answer_session_ids": [
+        "answer_7c0ade93"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2717.6646000007167
+    },
+    {
+      "qid": "d24813b1",
+      "qtype": "single-session-preference",
+      "config": "recency",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "128f4e4d_3",
+        "446173bb_1",
+        "61a46ff7_3",
+        "answer_7c0ade93",
+        "e08bf81f_4"
+      ],
+      "answer_session_ids": [
+        "answer_7c0ade93"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2077.6092000014614
+    },
+    {
+      "qid": "d24813b1",
+      "qtype": "single-session-preference",
+      "config": "autotemp",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "128f4e4d_3",
+        "446173bb_1",
+        "61a46ff7_3",
+        "answer_7c0ade93",
+        "e08bf81f_4"
+      ],
+      "answer_session_ids": [
+        "answer_7c0ade93"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2072.318599995924
+    },
+    {
+      "qid": "d24813b1",
+      "qtype": "single-session-preference",
+      "config": "bm25+aut",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "128f4e4d_3",
+        "3124bb28_1",
+        "446173bb_1",
+        "61a46ff7_3",
+        "answer_7c0ade93",
+        "e08bf81f_4"
+      ],
+      "answer_session_ids": [
+        "answer_7c0ade93"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3789.0955000038957
+    },
+    {
+      "qid": "d24813b1",
+      "qtype": "single-session-preference",
+      "config": "bm25+mmr",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "128f4e4d_3",
+        "29e25716_1",
+        "3124bb28_1",
+        "33994682_1",
+        "61a46ff7_3",
+        "answer_7c0ade93",
+        "e08bf81f_4"
+      ],
+      "answer_session_ids": [
+        "answer_7c0ade93"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3811.2553999962984
+    },
+    {
+      "qid": "d24813b1",
+      "qtype": "single-session-preference",
+      "config": "bm25+rec",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "128f4e4d_3",
+        "3124bb28_1",
+        "446173bb_1",
+        "61a46ff7_3",
+        "answer_7c0ade93",
+        "e08bf81f_4"
+      ],
+      "answer_session_ids": [
+        "answer_7c0ade93"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 4385.779899996123
+    },
+    {
+      "qid": "d24813b1",
+      "qtype": "single-session-preference",
+      "config": "all_aggressive",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "128f4e4d_3",
+        "3124bb28_1",
+        "33994682_1",
+        "61a46ff7_3",
+        "answer_7c0ade93",
+        "e08bf81f_4",
+        "sharegpt_tntUB4J_0"
+      ],
+      "answer_session_ids": [
+        "answer_7c0ade93"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 4399.688000004971
+    },
+    {
+      "qid": "d24813b1",
+      "qtype": "single-session-preference",
+      "config": "conservative",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "128f4e4d_3",
+        "3124bb28_1",
+        "446173bb_1",
+        "61a46ff7_3",
+        "answer_7c0ade93",
+        "e08bf81f_4"
+      ],
+      "answer_session_ids": [
+        "answer_7c0ade93"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3806.217100005597
+    },
+    {
+      "qid": "57f827a0",
+      "qtype": "single-session-preference",
+      "config": "baseline",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "1bff1675",
+        "answer_1bde8d3b",
+        "e85e0eaf_1"
+      ],
+      "answer_session_ids": [
+        "answer_1bde8d3b"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2095.6115999870235
+    },
+    {
+      "qid": "57f827a0",
+      "qtype": "single-session-preference",
+      "config": "bm25",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "1bff1675",
+        "answer_1bde8d3b",
+        "e85e0eaf_1"
+      ],
+      "answer_session_ids": [
+        "answer_1bde8d3b"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3688.344499998493
+    },
+    {
+      "qid": "57f827a0",
+      "qtype": "single-session-preference",
+      "config": "mmr07",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "1bff1675",
+        "answer_1bde8d3b",
+        "d0f42e3f",
+        "e85e0eaf_1"
+      ],
+      "answer_session_ids": [
+        "answer_1bde8d3b"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2094.2570000042906
+    },
+    {
+      "qid": "57f827a0",
+      "qtype": "single-session-preference",
+      "config": "mmr03",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "1bff1675",
+        "6e110a53_1",
+        "answer_1bde8d3b",
+        "d0f42e3f",
+        "e85e0eaf_1"
+      ],
+      "answer_session_ids": [
+        "answer_1bde8d3b"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2077.040100004524
+    },
+    {
+      "qid": "57f827a0",
+      "qtype": "single-session-preference",
+      "config": "recent",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "1bff1675",
+        "answer_1bde8d3b",
+        "e85e0eaf_1"
+      ],
+      "answer_session_ids": [
+        "answer_1bde8d3b"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2709.001299997908
+    },
+    {
+      "qid": "57f827a0",
+      "qtype": "single-session-preference",
+      "config": "recency",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "1bff1675",
+        "answer_1bde8d3b",
+        "d0f42e3f"
+      ],
+      "answer_session_ids": [
+        "answer_1bde8d3b"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2078.379099999438
+    },
+    {
+      "qid": "57f827a0",
+      "qtype": "single-session-preference",
+      "config": "autotemp",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "1bff1675",
+        "answer_1bde8d3b",
+        "e85e0eaf_1"
+      ],
+      "answer_session_ids": [
+        "answer_1bde8d3b"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2068.099500000244
+    },
+    {
+      "qid": "57f827a0",
+      "qtype": "single-session-preference",
+      "config": "bm25+aut",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "1bff1675",
+        "answer_1bde8d3b",
+        "e85e0eaf_1"
+      ],
+      "answer_session_ids": [
+        "answer_1bde8d3b"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3645.9180999954697
+    },
+    {
+      "qid": "57f827a0",
+      "qtype": "single-session-preference",
+      "config": "bm25+mmr",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "1bff1675",
+        "answer_1bde8d3b",
+        "d0f42e3f",
+        "e85e0eaf_1"
+      ],
+      "answer_session_ids": [
+        "answer_1bde8d3b"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3663.370700000087
+    },
+    {
+      "qid": "57f827a0",
+      "qtype": "single-session-preference",
+      "config": "bm25+rec",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "1bff1675",
+        "answer_1bde8d3b",
+        "e85e0eaf_1"
+      ],
+      "answer_session_ids": [
+        "answer_1bde8d3b"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 4335.6108000007225
+    },
+    {
+      "qid": "57f827a0",
+      "qtype": "single-session-preference",
+      "config": "all_aggressive",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "1fc5074c_2",
+        "60e8941a_abs_1",
+        "670ca40e",
+        "answer_1bde8d3b",
+        "ultrachat_550529"
+      ],
+      "answer_session_ids": [
+        "answer_1bde8d3b"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 4327.82109999971
+    },
+    {
+      "qid": "57f827a0",
+      "qtype": "single-session-preference",
+      "config": "conservative",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "1bff1675",
+        "answer_1bde8d3b",
+        "e85e0eaf_1"
+      ],
+      "answer_session_ids": [
+        "answer_1bde8d3b"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3654.7437999979593
+    },
+    {
+      "qid": "95228167",
+      "qtype": "single-session-preference",
+      "config": "baseline",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_5e613445",
+        "b916da64_2"
+      ],
+      "answer_session_ids": [
+        "answer_5e613445"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2066.6475999896647
+    },
+    {
+      "qid": "95228167",
+      "qtype": "single-session-preference",
+      "config": "bm25",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "8199fb3a_4",
+        "9f80607d",
+        "answer_5e613445",
+        "b916da64_2"
+      ],
+      "answer_session_ids": [
+        "answer_5e613445"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3691.5628999995533
+    },
+    {
+      "qid": "95228167",
+      "qtype": "single-session-preference",
+      "config": "mmr07",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "084802f9_2",
+        "57d6e39b_2",
+        "answer_5e613445",
+        "b916da64_2",
+        "c34b6a1c_1",
+        "e2691068"
+      ],
+      "answer_session_ids": [
+        "answer_5e613445"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2077.082399991923
+    },
+    {
+      "qid": "95228167",
+      "qtype": "single-session-preference",
+      "config": "mmr03",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "084802f9_2",
+        "57d6e39b_2",
+        "aec83540_1",
+        "answer_5e613445",
+        "b916da64_2",
+        "c34b6a1c_1",
+        "e2691068"
+      ],
+      "answer_session_ids": [
+        "answer_5e613445"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2062.609300002805
+    },
+    {
+      "qid": "95228167",
+      "qtype": "single-session-preference",
+      "config": "recent",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_5e613445",
+        "b916da64_2",
+        "sharegpt_1hqnE9g_0"
+      ],
+      "answer_session_ids": [
+        "answer_5e613445"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2732.1125000016764
+    },
+    {
+      "qid": "95228167",
+      "qtype": "single-session-preference",
+      "config": "recency",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_5e613445",
+        "b916da64_2",
+        "e2691068"
+      ],
+      "answer_session_ids": [
+        "answer_5e613445"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2055.2966999966884
+    },
+    {
+      "qid": "95228167",
+      "qtype": "single-session-preference",
+      "config": "autotemp",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_5e613445",
+        "b916da64_2"
+      ],
+      "answer_session_ids": [
+        "answer_5e613445"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2049.4359000003897
+    },
+    {
+      "qid": "95228167",
+      "qtype": "single-session-preference",
+      "config": "bm25+aut",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "8199fb3a_4",
+        "9f80607d",
+        "answer_5e613445",
+        "b916da64_2"
+      ],
+      "answer_session_ids": [
+        "answer_5e613445"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3623.249099997338
+    },
+    {
+      "qid": "95228167",
+      "qtype": "single-session-preference",
+      "config": "bm25+mmr",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "57d6e39b_2",
+        "8199fb3a_4",
+        "answer_5e613445",
+        "b916da64_2",
+        "c34b6a1c_1",
+        "cb88f886_1",
+        "e2691068"
+      ],
+      "answer_session_ids": [
+        "answer_5e613445"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3635.3449000016553
+    },
+    {
+      "qid": "95228167",
+      "qtype": "single-session-preference",
+      "config": "bm25+rec",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "8199fb3a_4",
+        "9f80607d",
+        "answer_5e613445",
+        "b916da64_2"
+      ],
+      "answer_session_ids": [
+        "answer_5e613445"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 4250.4131000023335
+    },
+    {
+      "qid": "95228167",
+      "qtype": "single-session-preference",
+      "config": "all_aggressive",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_5e613445",
+        "e2691068",
+        "sharegpt_1hqnE9g_0"
+      ],
+      "answer_session_ids": [
+        "answer_5e613445"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 4245.457099998021
+    },
+    {
+      "qid": "95228167",
+      "qtype": "single-session-preference",
+      "config": "conservative",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "8199fb3a_4",
+        "9f80607d",
+        "answer_5e613445",
+        "b916da64_2"
+      ],
+      "answer_session_ids": [
+        "answer_5e613445"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3625.9883000020636
+    },
+    {
+      "qid": "505af2f5",
+      "qtype": "single-session-preference",
+      "config": "baseline",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "4f2d6be4_2",
+        "answer_f3164f2c",
+        "baf33acc",
+        "sharegpt_kjeGJvK_11"
+      ],
+      "answer_session_ids": [
+        "answer_f3164f2c"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2084.8096999980044
+    },
+    {
+      "qid": "505af2f5",
+      "qtype": "single-session-preference",
+      "config": "bm25",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "4f2d6be4_2",
+        "7d52ca48_2",
+        "answer_f3164f2c",
+        "baf33acc",
+        "sharegpt_kjeGJvK_11"
+      ],
+      "answer_session_ids": [
+        "answer_f3164f2c"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3774.229999995441
+    },
+    {
+      "qid": "505af2f5",
+      "qtype": "single-session-preference",
+      "config": "mmr07",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "0e193841_8",
+        "4f2d6be4_2",
+        "66bf4b03_1",
+        "9f8fa5e4_1",
+        "af631aa3_1",
+        "answer_f3164f2c",
+        "baf33acc",
+        "sharegpt_kjeGJvK_11",
+        "ultrachat_342931"
+      ],
+      "answer_session_ids": [
+        "answer_f3164f2c"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2100.770000004559
+    },
+    {
+      "qid": "505af2f5",
+      "qtype": "single-session-preference",
+      "config": "mmr03",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "0e193841_8",
+        "4f2d6be4_2",
+        "66bf4b03_1",
+        "9f8fa5e4_1",
+        "af631aa3_1",
+        "answer_f3164f2c",
+        "baf33acc",
+        "sharegpt_kjeGJvK_11",
+        "ultrachat_342931"
+      ],
+      "answer_session_ids": [
+        "answer_f3164f2c"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2067.6487000018824
+    },
+    {
+      "qid": "505af2f5",
+      "qtype": "single-session-preference",
+      "config": "recent",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "4f2d6be4_2",
+        "answer_f3164f2c",
+        "baf33acc",
+        "sharegpt_kjeGJvK_11"
+      ],
+      "answer_session_ids": [
+        "answer_f3164f2c"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2474.1339000029257
+    },
+    {
+      "qid": "505af2f5",
+      "qtype": "single-session-preference",
+      "config": "recency",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "4f2d6be4_2",
+        "af631aa3_1",
+        "answer_f3164f2c",
+        "sharegpt_kjeGJvK_11"
+      ],
+      "answer_session_ids": [
+        "answer_f3164f2c"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2075.5598999967333
+    },
+    {
+      "qid": "505af2f5",
+      "qtype": "single-session-preference",
+      "config": "autotemp",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "4f2d6be4_2",
+        "answer_f3164f2c",
+        "baf33acc",
+        "sharegpt_kjeGJvK_11"
+      ],
+      "answer_session_ids": [
+        "answer_f3164f2c"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2071.173899996211
+    },
+    {
+      "qid": "505af2f5",
+      "qtype": "single-session-preference",
+      "config": "bm25+aut",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "4f2d6be4_2",
+        "7d52ca48_2",
+        "answer_f3164f2c",
+        "baf33acc",
+        "sharegpt_kjeGJvK_11"
+      ],
+      "answer_session_ids": [
+        "answer_f3164f2c"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3393.0698999902233
+    },
+    {
+      "qid": "505af2f5",
+      "qtype": "single-session-preference",
+      "config": "bm25+mmr",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "4f2d6be4_2",
+        "56cdb8b8_2",
+        "69a42467_1",
+        "7d52ca48_2",
+        "answer_f3164f2c",
+        "e627b1aa_4",
+        "f92b37c2_2",
+        "sharegpt_cjulkGS_15",
+        "sharegpt_kjeGJvK_11",
+        "ultrachat_342931"
+      ],
+      "answer_session_ids": [
+        "answer_f3164f2c"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3402.452900001663
+    },
+    {
+      "qid": "505af2f5",
+      "qtype": "single-session-preference",
+      "config": "bm25+rec",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "4f2d6be4_2",
+        "7d52ca48_2",
+        "answer_f3164f2c",
+        "baf33acc",
+        "sharegpt_kjeGJvK_11"
+      ],
+      "answer_session_ids": [
+        "answer_f3164f2c"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3794.7111999965273
+    },
+    {
+      "qid": "505af2f5",
+      "qtype": "single-session-preference",
+      "config": "all_aggressive",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "0e193841_8",
+        "4f2d6be4_2",
+        "56cdb8b8_2",
+        "69a42467_1",
+        "af631aa3_1",
+        "answer_f3164f2c",
+        "e627b1aa_4",
+        "f92b37c2_2",
+        "sharegpt_cjulkGS_15",
+        "ultrachat_342931"
+      ],
+      "answer_session_ids": [
+        "answer_f3164f2c"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3801.9169999897713
+    },
+    {
+      "qid": "505af2f5",
+      "qtype": "single-session-preference",
+      "config": "conservative",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "4f2d6be4_2",
+        "7d52ca48_2",
+        "answer_f3164f2c",
+        "baf33acc",
+        "sharegpt_kjeGJvK_11"
+      ],
+      "answer_session_ids": [
+        "answer_f3164f2c"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3399.6215000079246
+    },
+    {
+      "qid": "75f70248",
+      "qtype": "single-session-preference",
+      "config": "baseline",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "2d74df23_4",
+        "42165950_4",
+        "answer_8ee04a2e"
+      ],
+      "answer_session_ids": [
+        "answer_8ee04a2e"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2010.6034999917028
+    },
+    {
+      "qid": "75f70248",
+      "qtype": "single-session-preference",
+      "config": "bm25",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "2d74df23_4",
+        "32387419_1",
+        "53dc1394",
+        "answer_8ee04a2e"
+      ],
+      "answer_session_ids": [
+        "answer_8ee04a2e"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3550.5286999978125
+    },
+    {
+      "qid": "75f70248",
+      "qtype": "single-session-preference",
+      "config": "mmr07",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "2d74df23_4",
+        "32387419_1",
+        "42165950_4",
+        "428c1a29_5",
+        "95c9666f_5",
+        "answer_8ee04a2e",
+        "b197b7fb"
+      ],
+      "answer_session_ids": [
+        "answer_8ee04a2e"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2069.61720000254
+    },
+    {
+      "qid": "75f70248",
+      "qtype": "single-session-preference",
+      "config": "mmr03",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "2d74df23_4",
+        "32387419_1",
+        "42165950_4",
+        "428c1a29_5",
+        "8ba845f4",
+        "95c9666f_5",
+        "answer_8ee04a2e",
+        "b197b7fb"
+      ],
+      "answer_session_ids": [
+        "answer_8ee04a2e"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2019.2662999907043
+    },
+    {
+      "qid": "75f70248",
+      "qtype": "single-session-preference",
+      "config": "recent",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "2d74df23_4",
+        "42165950_4",
+        "answer_8ee04a2e"
+      ],
+      "answer_session_ids": [
+        "answer_8ee04a2e"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2682.0313000062015
+    },
+    {
+      "qid": "75f70248",
+      "qtype": "single-session-preference",
+      "config": "recency",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "2d74df23_4",
+        "32387419_1",
+        "95c9666f_5",
+        "answer_8ee04a2e",
+        "e052d39c_2",
+        "ultrachat_32122"
+      ],
+      "answer_session_ids": [
+        "answer_8ee04a2e"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2020.5082999891602
+    },
+    {
+      "qid": "75f70248",
+      "qtype": "single-session-preference",
+      "config": "autotemp",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "2d74df23_4",
+        "42165950_4",
+        "answer_8ee04a2e"
+      ],
+      "answer_session_ids": [
+        "answer_8ee04a2e"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2010.189900000114
+    },
+    {
+      "qid": "75f70248",
+      "qtype": "single-session-preference",
+      "config": "bm25+aut",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "2d74df23_4",
+        "32387419_1",
+        "53dc1394",
+        "answer_8ee04a2e"
+      ],
+      "answer_session_ids": [
+        "answer_8ee04a2e"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3396.412199988845
+    },
+    {
+      "qid": "75f70248",
+      "qtype": "single-session-preference",
+      "config": "bm25+mmr",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "15e366a1_1",
+        "204862e4_2",
+        "32387419_1",
+        "53dc1394",
+        "75671e3f_1",
+        "a394f6b5_1",
+        "answer_8ee04a2e",
+        "b68a96c0_2"
+      ],
+      "answer_session_ids": [
+        "answer_8ee04a2e"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3418.2075999997323
+    },
+    {
+      "qid": "75f70248",
+      "qtype": "single-session-preference",
+      "config": "bm25+rec",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "2d74df23_4",
+        "32387419_1",
+        "53dc1394",
+        "answer_8ee04a2e"
+      ],
+      "answer_session_ids": [
+        "answer_8ee04a2e"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 4098.8518000085605
+    },
+    {
+      "qid": "75f70248",
+      "qtype": "single-session-preference",
+      "config": "all_aggressive",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_8ee04a2e",
+        "ultrachat_278874",
+        "ultrachat_309088"
+      ],
+      "answer_session_ids": [
+        "answer_8ee04a2e"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 4088.3912999997847
+    },
+    {
+      "qid": "75f70248",
+      "qtype": "single-session-preference",
+      "config": "conservative",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "2d74df23_4",
+        "32387419_1",
+        "53dc1394",
+        "answer_8ee04a2e"
+      ],
+      "answer_session_ids": [
+        "answer_8ee04a2e"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3389.400799991563
+    },
+    {
+      "qid": "d6233ab6",
+      "qtype": "single-session-preference",
+      "config": "baseline",
+      "recall": 0.0,
+      "binary_hit": 0.0,
+      "top_k_session_ids": [
+        "0e726047",
+        "32f28c7b_1",
+        "cb05ed10",
+        "f916c63a_2",
+        "ultrachat_125013"
+      ],
+      "answer_session_ids": [
+        "answer_b0fac439"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2010.0648999941768
+    },
+    {
+      "qid": "d6233ab6",
+      "qtype": "single-session-preference",
+      "config": "bm25",
+      "recall": 0.0,
+      "binary_hit": 0.0,
+      "top_k_session_ids": [
+        "0e726047",
+        "32f28c7b_1",
+        "87cfeb28_2",
+        "f916c63a_2",
+        "ultrachat_125013"
+      ],
+      "answer_session_ids": [
+        "answer_b0fac439"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3641.343900002539
+    },
+    {
+      "qid": "d6233ab6",
+      "qtype": "single-session-preference",
+      "config": "mmr07",
+      "recall": 0.0,
+      "binary_hit": 0.0,
+      "top_k_session_ids": [
+        "0e726047",
+        "32f28c7b_1",
+        "94bc18df_3",
+        "cb05ed10",
+        "f916c63a_2",
+        "ultrachat_125013"
+      ],
+      "answer_session_ids": [
+        "answer_b0fac439"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2052.9969000053825
+    },
+    {
+      "qid": "d6233ab6",
+      "qtype": "single-session-preference",
+      "config": "mmr03",
+      "recall": 0.0,
+      "binary_hit": 0.0,
+      "top_k_session_ids": [
+        "0e726047",
+        "32f28c7b_1",
+        "94bc18df_3",
+        "c927ffbb",
+        "cb05ed10",
+        "f916c63a_2",
+        "ultrachat_125013",
+        "ultrachat_329160"
+      ],
+      "answer_session_ids": [
+        "answer_b0fac439"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2009.3273000093177
+    },
+    {
+      "qid": "d6233ab6",
+      "qtype": "single-session-preference",
+      "config": "recent",
+      "recall": 0.0,
+      "binary_hit": 0.0,
+      "top_k_session_ids": [
+        "0e726047",
+        "32f28c7b_1",
+        "cb05ed10",
+        "f916c63a_2",
+        "ultrachat_125013"
+      ],
+      "answer_session_ids": [
+        "answer_b0fac439"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2609.5540999958757
+    },
+    {
+      "qid": "d6233ab6",
+      "qtype": "single-session-preference",
+      "config": "recency",
+      "recall": 0.0,
+      "binary_hit": 0.0,
+      "top_k_session_ids": [
+        "b45e05f6",
+        "c927ffbb",
+        "cb05ed10",
+        "ultrachat_125013",
+        "ultrachat_329160"
+      ],
+      "answer_session_ids": [
+        "answer_b0fac439"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2006.8132000014884
+    },
+    {
+      "qid": "d6233ab6",
+      "qtype": "single-session-preference",
+      "config": "autotemp",
+      "recall": 0.0,
+      "binary_hit": 0.0,
+      "top_k_session_ids": [
+        "0e726047",
+        "32f28c7b_1",
+        "cb05ed10",
+        "f916c63a_2",
+        "ultrachat_125013"
+      ],
+      "answer_session_ids": [
+        "answer_b0fac439"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 1998.844799993094
+    },
+    {
+      "qid": "d6233ab6",
+      "qtype": "single-session-preference",
+      "config": "bm25+aut",
+      "recall": 0.0,
+      "binary_hit": 0.0,
+      "top_k_session_ids": [
+        "0e726047",
+        "32f28c7b_1",
+        "87cfeb28_2",
+        "f916c63a_2",
+        "ultrachat_125013"
+      ],
+      "answer_session_ids": [
+        "answer_b0fac439"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3482.196400000248
+    },
+    {
+      "qid": "d6233ab6",
+      "qtype": "single-session-preference",
+      "config": "bm25+mmr",
+      "recall": 0.0,
+      "binary_hit": 0.0,
+      "top_k_session_ids": [
+        "0e726047",
+        "32f28c7b_1",
+        "87cfeb28_2",
+        "e419b7c3_4",
+        "f916c63a_2",
+        "ultrachat_125013",
+        "ultrachat_457634"
+      ],
+      "answer_session_ids": [
+        "answer_b0fac439"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3492.3660999920685
+    },
+    {
+      "qid": "d6233ab6",
+      "qtype": "single-session-preference",
+      "config": "bm25+rec",
+      "recall": 0.0,
+      "binary_hit": 0.0,
+      "top_k_session_ids": [
+        "0e726047",
+        "32f28c7b_1",
+        "87cfeb28_2",
+        "f916c63a_2",
+        "ultrachat_125013"
+      ],
+      "answer_session_ids": [
+        "answer_b0fac439"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 4099.025999996229
+    },
+    {
+      "qid": "d6233ab6",
+      "qtype": "single-session-preference",
+      "config": "all_aggressive",
+      "recall": 0.0,
+      "binary_hit": 0.0,
+      "top_k_session_ids": [
+        "c927ffbb",
+        "cb05ed10"
+      ],
+      "answer_session_ids": [
+        "answer_b0fac439"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 4113.136300002225
+    },
+    {
+      "qid": "d6233ab6",
+      "qtype": "single-session-preference",
+      "config": "conservative",
+      "recall": 0.0,
+      "binary_hit": 0.0,
+      "top_k_session_ids": [
+        "0e726047",
+        "32f28c7b_1",
+        "87cfeb28_2",
+        "f916c63a_2",
+        "ultrachat_125013"
+      ],
+      "answer_session_ids": [
+        "answer_b0fac439"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3474.9330999911763
+    },
+    {
+      "qid": "1da05512",
+      "qtype": "single-session-preference",
+      "config": "baseline",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_4d3be2ab"
+      ],
+      "answer_session_ids": [
+        "answer_4d3be2ab"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2056.2766999937594
+    },
+    {
+      "qid": "1da05512",
+      "qtype": "single-session-preference",
+      "config": "bm25",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_4d3be2ab"
+      ],
+      "answer_session_ids": [
+        "answer_4d3be2ab"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3123.0369999975665
+    },
+    {
+      "qid": "1da05512",
+      "qtype": "single-session-preference",
+      "config": "mmr07",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "aea71da3_2",
+        "answer_4d3be2ab",
+        "e28c1f0e_1",
+        "f2565b3b_2",
+        "f57e382c",
+        "sharegpt_CCmWG77_0"
+      ],
+      "answer_session_ids": [
+        "answer_4d3be2ab"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2027.2259000048507
+    },
+    {
+      "qid": "1da05512",
+      "qtype": "single-session-preference",
+      "config": "mmr03",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "58de8f9b",
+        "aea71da3_2",
+        "answer_4d3be2ab",
+        "e28c1f0e_1",
+        "f2565b3b_2",
+        "f57e382c",
+        "sharegpt_CCmWG77_0"
+      ],
+      "answer_session_ids": [
+        "answer_4d3be2ab"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2033.934599996428
+    },
+    {
+      "qid": "1da05512",
+      "qtype": "single-session-preference",
+      "config": "recent",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_4d3be2ab"
+      ],
+      "answer_session_ids": [
+        "answer_4d3be2ab"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2724.1164000006393
+    },
+    {
+      "qid": "1da05512",
+      "qtype": "single-session-preference",
+      "config": "recency",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_4d3be2ab"
+      ],
+      "answer_session_ids": [
+        "answer_4d3be2ab"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2029.1562999918824
+    },
+    {
+      "qid": "1da05512",
+      "qtype": "single-session-preference",
+      "config": "autotemp",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_4d3be2ab"
+      ],
+      "answer_session_ids": [
+        "answer_4d3be2ab"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2020.824299994274
+    },
+    {
+      "qid": "1da05512",
+      "qtype": "single-session-preference",
+      "config": "bm25+aut",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_4d3be2ab"
+      ],
+      "answer_session_ids": [
+        "answer_4d3be2ab"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3021.939199999906
+    },
+    {
+      "qid": "1da05512",
+      "qtype": "single-session-preference",
+      "config": "bm25+mmr",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "402e0082_4",
+        "6b93018e_2",
+        "6dfa3dc6_2",
+        "aea71da3_2",
+        "answer_4d3be2ab",
+        "f2565b3b_2"
+      ],
+      "answer_session_ids": [
+        "answer_4d3be2ab"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3036.117199997534
+    },
+    {
+      "qid": "1da05512",
+      "qtype": "single-session-preference",
+      "config": "bm25+rec",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_4d3be2ab"
+      ],
+      "answer_session_ids": [
+        "answer_4d3be2ab"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3703.4513000107836
+    },
+    {
+      "qid": "1da05512",
+      "qtype": "single-session-preference",
+      "config": "all_aggressive",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "370bf05f_1",
+        "402e0082_4",
+        "aea71da3_2",
+        "answer_4d3be2ab",
+        "f2565b3b_2",
+        "sharegpt_AtnznbL_0"
+      ],
+      "answer_session_ids": [
+        "answer_4d3be2ab"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3714.501199996448
+    },
+    {
+      "qid": "1da05512",
+      "qtype": "single-session-preference",
+      "config": "conservative",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_4d3be2ab"
+      ],
+      "answer_session_ids": [
+        "answer_4d3be2ab"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3021.9958999950904
+    },
+    {
+      "qid": "fca70973",
+      "qtype": "single-session-preference",
+      "config": "baseline",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "762a8b45_2",
+        "answer_a1e169b1",
+        "f504b269",
+        "fc005760"
+      ],
+      "answer_session_ids": [
+        "answer_a1e169b1"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2076.0835999972187
+    },
+    {
+      "qid": "fca70973",
+      "qtype": "single-session-preference",
+      "config": "bm25",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "762a8b45_2",
+        "answer_a1e169b1",
+        "f504b269",
+        "fc005760"
+      ],
+      "answer_session_ids": [
+        "answer_a1e169b1"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3526.485499998671
+    },
+    {
+      "qid": "fca70973",
+      "qtype": "single-session-preference",
+      "config": "mmr07",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "5d5e80c5_1",
+        "762a8b45_2",
+        "7b9ee249_2",
+        "answer_a1e169b1",
+        "f504b269",
+        "fc005760",
+        "ultrachat_546214"
+      ],
+      "answer_session_ids": [
+        "answer_a1e169b1"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2086.4700000092853
+    },
+    {
+      "qid": "fca70973",
+      "qtype": "single-session-preference",
+      "config": "mmr03",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "5d5e80c5_1",
+        "762a8b45_2",
+        "7b9ee249_2",
+        "answer_a1e169b1",
+        "f504b269",
+        "fc005760",
+        "ultrachat_546214"
+      ],
+      "answer_session_ids": [
+        "answer_a1e169b1"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2032.849900002475
+    },
+    {
+      "qid": "fca70973",
+      "qtype": "single-session-preference",
+      "config": "recent",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "762a8b45_2",
+        "answer_a1e169b1",
+        "f504b269",
+        "fc005760"
+      ],
+      "answer_session_ids": [
+        "answer_a1e169b1"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2096.9552000024123
+    },
+    {
+      "qid": "fca70973",
+      "qtype": "single-session-preference",
+      "config": "recency",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "762a8b45_2",
+        "answer_a1e169b1",
+        "f504b269",
+        "fc005760"
+      ],
+      "answer_session_ids": [
+        "answer_a1e169b1"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2039.5780999970157
+    },
+    {
+      "qid": "fca70973",
+      "qtype": "single-session-preference",
+      "config": "autotemp",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "762a8b45_2",
+        "answer_a1e169b1",
+        "f504b269",
+        "fc005760"
+      ],
+      "answer_session_ids": [
+        "answer_a1e169b1"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2033.8723999884678
+    },
+    {
+      "qid": "fca70973",
+      "qtype": "single-session-preference",
+      "config": "bm25+aut",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "762a8b45_2",
+        "answer_a1e169b1",
+        "f504b269",
+        "fc005760"
+      ],
+      "answer_session_ids": [
+        "answer_a1e169b1"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3419.28960000223
+    },
+    {
+      "qid": "fca70973",
+      "qtype": "single-session-preference",
+      "config": "bm25+mmr",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "2f2884ad_1",
+        "4e3f0831_1",
+        "55e0c6db_2",
+        "5d5e80c5_1",
+        "answer_a1e169b1",
+        "e46a5384",
+        "f504b269",
+        "fc005760",
+        "sharegpt_3Ht62Qx_0"
+      ],
+      "answer_session_ids": [
+        "answer_a1e169b1"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3444.140799998422
+    },
+    {
+      "qid": "fca70973",
+      "qtype": "single-session-preference",
+      "config": "bm25+rec",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "762a8b45_2",
+        "answer_a1e169b1",
+        "f504b269",
+        "fc005760"
+      ],
+      "answer_session_ids": [
+        "answer_a1e169b1"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3499.6853999909945
+    },
+    {
+      "qid": "fca70973",
+      "qtype": "single-session-preference",
+      "config": "all_aggressive",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "2f2884ad_1",
+        "4e3f0831_1",
+        "55e0c6db_2",
+        "5d5e80c5_1",
+        "answer_a1e169b1",
+        "e46a5384",
+        "f504b269",
+        "fc005760",
+        "sharegpt_3Ht62Qx_0"
+      ],
+      "answer_session_ids": [
+        "answer_a1e169b1"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3514.7395999956643
+    },
+    {
+      "qid": "fca70973",
+      "qtype": "single-session-preference",
+      "config": "conservative",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "762a8b45_2",
+        "answer_a1e169b1",
+        "f504b269",
+        "fc005760"
+      ],
+      "answer_session_ids": [
+        "answer_a1e169b1"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3439.9224999942817
+    },
+    {
+      "qid": "b6025781",
+      "qtype": "single-session-preference",
+      "config": "baseline",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_8414cc57",
+        "f20c73f5_3"
+      ],
+      "answer_session_ids": [
+        "answer_8414cc57"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2038.637599995127
+    },
+    {
+      "qid": "b6025781",
+      "qtype": "single-session-preference",
+      "config": "bm25",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_8414cc57",
+        "f20c73f5_3"
+      ],
+      "answer_session_ids": [
+        "answer_8414cc57"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3687.407899997197
+    },
+    {
+      "qid": "b6025781",
+      "qtype": "single-session-preference",
+      "config": "mmr07",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_8414cc57",
+        "d6956a2e_1",
+        "f20c73f5_3"
+      ],
+      "answer_session_ids": [
+        "answer_8414cc57"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2029.4436999975005
+    },
+    {
+      "qid": "b6025781",
+      "qtype": "single-session-preference",
+      "config": "mmr03",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "612c8368_2",
+        "answer_8414cc57",
+        "d6956a2e_1",
+        "f20c73f5_3"
+      ],
+      "answer_session_ids": [
+        "answer_8414cc57"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2028.761099994881
+    },
+    {
+      "qid": "b6025781",
+      "qtype": "single-session-preference",
+      "config": "recent",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_8414cc57",
+        "f20c73f5_3"
+      ],
+      "answer_session_ids": [
+        "answer_8414cc57"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2665.307200004463
+    },
+    {
+      "qid": "b6025781",
+      "qtype": "single-session-preference",
+      "config": "recency",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_8414cc57",
+        "f20c73f5_3"
+      ],
+      "answer_session_ids": [
+        "answer_8414cc57"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2031.4797999890288
+    },
+    {
+      "qid": "b6025781",
+      "qtype": "single-session-preference",
+      "config": "autotemp",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_8414cc57",
+        "f20c73f5_3"
+      ],
+      "answer_session_ids": [
+        "answer_8414cc57"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2040.3052999899955
+    },
+    {
+      "qid": "b6025781",
+      "qtype": "single-session-preference",
+      "config": "bm25+aut",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_8414cc57",
+        "f20c73f5_3"
+      ],
+      "answer_session_ids": [
+        "answer_8414cc57"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3216.0065999923972
+    },
+    {
+      "qid": "b6025781",
+      "qtype": "single-session-preference",
+      "config": "bm25+mmr",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "1d6744b5_1",
+        "2ef53f61_1",
+        "6446f6e6",
+        "answer_8414cc57",
+        "d6956a2e_1",
+        "f20c73f5_3"
+      ],
+      "answer_session_ids": [
+        "answer_8414cc57"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3218.613799996092
+    },
+    {
+      "qid": "b6025781",
+      "qtype": "single-session-preference",
+      "config": "bm25+rec",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_8414cc57",
+        "f20c73f5_3"
+      ],
+      "answer_session_ids": [
+        "answer_8414cc57"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3877.076400007354
+    },
+    {
+      "qid": "b6025781",
+      "qtype": "single-session-preference",
+      "config": "all_aggressive",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "2ef53f61_1",
+        "answer_8414cc57",
+        "f20c73f5_3",
+        "sharegpt_X1NXUxZ_0",
+        "ultrachat_177995"
+      ],
+      "answer_session_ids": [
+        "answer_8414cc57"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3885.145799999009
+    },
+    {
+      "qid": "b6025781",
+      "qtype": "single-session-preference",
+      "config": "conservative",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_8414cc57",
+        "f20c73f5_3"
+      ],
+      "answer_session_ids": [
+        "answer_8414cc57"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3218.6006999982055
+    },
+    {
+      "qid": "a89d7624",
+      "qtype": "single-session-preference",
+      "config": "baseline",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "082fc07f_1",
+        "39a056ae",
+        "99f2f5b1_1",
+        "a479a7d6_4",
+        "answer_8f15ac24"
+      ],
+      "answer_session_ids": [
+        "answer_8f15ac24"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2054.520500008948
+    },
+    {
+      "qid": "a89d7624",
+      "qtype": "single-session-preference",
+      "config": "bm25",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "39a056ae",
+        "99f2f5b1_1",
+        "a479a7d6_4",
+        "answer_8f15ac24"
+      ],
+      "answer_session_ids": [
+        "answer_8f15ac24"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3512.1360999910394
+    },
+    {
+      "qid": "a89d7624",
+      "qtype": "single-session-preference",
+      "config": "mmr07",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "082fc07f_1",
+        "39a056ae",
+        "99f2f5b1_1",
+        "a1d698f1_3",
+        "a479a7d6_4",
+        "answer_8f15ac24"
+      ],
+      "answer_session_ids": [
+        "answer_8f15ac24"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2059.7471999935806
+    },
+    {
+      "qid": "a89d7624",
+      "qtype": "single-session-preference",
+      "config": "mmr03",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "082fc07f_1",
+        "39a056ae",
+        "99f2f5b1_1",
+        "a1d698f1_3",
+        "a479a7d6_4",
+        "answer_8f15ac24"
+      ],
+      "answer_session_ids": [
+        "answer_8f15ac24"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2061.5402000112226
+    },
+    {
+      "qid": "a89d7624",
+      "qtype": "single-session-preference",
+      "config": "recent",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "082fc07f_1",
+        "39a056ae",
+        "99f2f5b1_1",
+        "a479a7d6_4",
+        "answer_8f15ac24"
+      ],
+      "answer_session_ids": [
+        "answer_8f15ac24"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2699.6352999994997
+    },
+    {
+      "qid": "a89d7624",
+      "qtype": "single-session-preference",
+      "config": "recency",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "99f2f5b1_1",
+        "a1d698f1_3",
+        "a479a7d6_4",
+        "answer_8f15ac24"
+      ],
+      "answer_session_ids": [
+        "answer_8f15ac24"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2058.8176000019303
+    },
+    {
+      "qid": "a89d7624",
+      "qtype": "single-session-preference",
+      "config": "autotemp",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "082fc07f_1",
+        "39a056ae",
+        "99f2f5b1_1",
+        "a479a7d6_4",
+        "answer_8f15ac24"
+      ],
+      "answer_session_ids": [
+        "answer_8f15ac24"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2058.6726000037743
+    },
+    {
+      "qid": "a89d7624",
+      "qtype": "single-session-preference",
+      "config": "bm25+aut",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "39a056ae",
+        "99f2f5b1_1",
+        "a479a7d6_4",
+        "answer_8f15ac24"
+      ],
+      "answer_session_ids": [
+        "answer_8f15ac24"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3447.160299998359
+    },
+    {
+      "qid": "a89d7624",
+      "qtype": "single-session-preference",
+      "config": "bm25+mmr",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "082fc07f_1",
+        "39a056ae",
+        "3cb41ab8_4",
+        "6d270dfd",
+        "99f2f5b1_1",
+        "a479a7d6_4",
+        "answer_8f15ac24",
+        "fd778d8e",
+        "ultrachat_171619"
+      ],
+      "answer_session_ids": [
+        "answer_8f15ac24"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3438.8829999952577
+    },
+    {
+      "qid": "a89d7624",
+      "qtype": "single-session-preference",
+      "config": "bm25+rec",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "39a056ae",
+        "99f2f5b1_1",
+        "a479a7d6_4",
+        "answer_8f15ac24"
+      ],
+      "answer_session_ids": [
+        "answer_8f15ac24"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 4108.185200006119
+    },
+    {
+      "qid": "a89d7624",
+      "qtype": "single-session-preference",
+      "config": "all_aggressive",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "168776ed_2",
+        "99f2f5b1_1",
+        "a479a7d6_4",
+        "answer_8f15ac24",
+        "fd778d8e",
+        "sharegpt_uDliw4H_0",
+        "ultrachat_572842"
+      ],
+      "answer_session_ids": [
+        "answer_8f15ac24"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 4114.466400002129
+    },
+    {
+      "qid": "a89d7624",
+      "qtype": "single-session-preference",
+      "config": "conservative",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "39a056ae",
+        "99f2f5b1_1",
+        "a479a7d6_4",
+        "answer_8f15ac24"
+      ],
+      "answer_session_ids": [
+        "answer_8f15ac24"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3440.3664999990724
+    },
+    {
+      "qid": "b0479f84",
+      "qtype": "single-session-preference",
+      "config": "baseline",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "0cf86cbe_2",
+        "4b563ae6_1",
+        "90c9bcd3",
+        "answer_30f63ddb"
+      ],
+      "answer_session_ids": [
+        "answer_30f63ddb"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2065.722300001653
+    },
+    {
+      "qid": "b0479f84",
+      "qtype": "single-session-preference",
+      "config": "bm25",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "0cf86cbe_2",
+        "457b1adb_1",
+        "90c9bcd3",
+        "answer_30f63ddb",
+        "fbfda981"
+      ],
+      "answer_session_ids": [
+        "answer_30f63ddb"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3764.58809999167
+    },
+    {
+      "qid": "b0479f84",
+      "qtype": "single-session-preference",
+      "config": "mmr07",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "0cf86cbe_2",
+        "4b563ae6_1",
+        "4f37e5ec",
+        "90c9bcd3",
+        "answer_30f63ddb",
+        "ultrachat_419825"
+      ],
+      "answer_session_ids": [
+        "answer_30f63ddb"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2079.080499999691
+    },
+    {
+      "qid": "b0479f84",
+      "qtype": "single-session-preference",
+      "config": "mmr03",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "0cf86cbe_2",
+        "4b563ae6_1",
+        "4f37e5ec",
+        "90c9bcd3",
+        "answer_30f63ddb",
+        "ultrachat_419825"
+      ],
+      "answer_session_ids": [
+        "answer_30f63ddb"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2069.355600004201
+    },
+    {
+      "qid": "b0479f84",
+      "qtype": "single-session-preference",
+      "config": "recent",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "0cf86cbe_2",
+        "4b563ae6_1",
+        "90c9bcd3",
+        "answer_30f63ddb"
+      ],
+      "answer_session_ids": [
+        "answer_30f63ddb"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2709.362499997951
+    },
+    {
+      "qid": "b0479f84",
+      "qtype": "single-session-preference",
+      "config": "recency",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "0cf86cbe_2",
+        "90c9bcd3",
+        "answer_30f63ddb",
+        "ultrachat_419825"
+      ],
+      "answer_session_ids": [
+        "answer_30f63ddb"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2062.6410000113538
+    },
+    {
+      "qid": "b0479f84",
+      "qtype": "single-session-preference",
+      "config": "autotemp",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "0cf86cbe_2",
+        "4b563ae6_1",
+        "90c9bcd3",
+        "answer_30f63ddb"
+      ],
+      "answer_session_ids": [
+        "answer_30f63ddb"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2059.155099996133
+    },
+    {
+      "qid": "b0479f84",
+      "qtype": "single-session-preference",
+      "config": "bm25+aut",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "0cf86cbe_2",
+        "457b1adb_1",
+        "90c9bcd3",
+        "answer_30f63ddb",
+        "fbfda981"
+      ],
+      "answer_session_ids": [
+        "answer_30f63ddb"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3663.3021000016015
+    },
+    {
+      "qid": "b0479f84",
+      "qtype": "single-session-preference",
+      "config": "bm25+mmr",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "1cde7ee4_1",
+        "457b1adb_1",
+        "4f37e5ec",
+        "6af947bf_1",
+        "9090b1f0_2",
+        "answer_30f63ddb",
+        "d1bb5323_1",
+        "effe05f7"
+      ],
+      "answer_session_ids": [
+        "answer_30f63ddb"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3679.302699994878
+    },
+    {
+      "qid": "b0479f84",
+      "qtype": "single-session-preference",
+      "config": "bm25+rec",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "0cf86cbe_2",
+        "457b1adb_1",
+        "90c9bcd3",
+        "answer_30f63ddb",
+        "fbfda981"
+      ],
+      "answer_session_ids": [
+        "answer_30f63ddb"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 4322.98530000844
+    },
+    {
+      "qid": "b0479f84",
+      "qtype": "single-session-preference",
+      "config": "all_aggressive",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "1cde7ee4_1",
+        "4f37e5ec",
+        "9090b1f0_2",
+        "answer_30f63ddb",
+        "d1bb5323_1",
+        "effe05f7",
+        "ultrachat_63538"
+      ],
+      "answer_session_ids": [
+        "answer_30f63ddb"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 4324.951999995392
+    },
+    {
+      "qid": "b0479f84",
+      "qtype": "single-session-preference",
+      "config": "conservative",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "0cf86cbe_2",
+        "457b1adb_1",
+        "90c9bcd3",
+        "answer_30f63ddb",
+        "fbfda981"
+      ],
+      "answer_session_ids": [
+        "answer_30f63ddb"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3666.8415000021923
+    },
+    {
+      "qid": "1d4e3b97",
+      "qtype": "single-session-preference",
+      "config": "baseline",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_e6b6353d",
+        "ecb24dd8_2"
+      ],
+      "answer_session_ids": [
+        "answer_e6b6353d"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2073.859900003299
+    },
+    {
+      "qid": "1d4e3b97",
+      "qtype": "single-session-preference",
+      "config": "bm25",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_e6b6353d",
+        "ecb24dd8_2"
+      ],
+      "answer_session_ids": [
+        "answer_e6b6353d"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3212.7204999997048
+    },
+    {
+      "qid": "1d4e3b97",
+      "qtype": "single-session-preference",
+      "config": "mmr07",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "02f70006_1",
+        "5cd6ab1b",
+        "answer_e6b6353d",
+        "ecb24dd8_2"
+      ],
+      "answer_session_ids": [
+        "answer_e6b6353d"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2062.3107999999775
+    },
+    {
+      "qid": "1d4e3b97",
+      "qtype": "single-session-preference",
+      "config": "mmr03",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "02f70006_1",
+        "5cd6ab1b",
+        "809cabca_1",
+        "answer_e6b6353d",
+        "ecb24dd8_2"
+      ],
+      "answer_session_ids": [
+        "answer_e6b6353d"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2060.5240000004414
+    },
+    {
+      "qid": "1d4e3b97",
+      "qtype": "single-session-preference",
+      "config": "recent",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_e6b6353d",
+        "ecb24dd8_2"
+      ],
+      "answer_session_ids": [
+        "answer_e6b6353d"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2759.6140000096057
+    },
+    {
+      "qid": "1d4e3b97",
+      "qtype": "single-session-preference",
+      "config": "recency",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_e6b6353d",
+        "ecb24dd8_2"
+      ],
+      "answer_session_ids": [
+        "answer_e6b6353d"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2059.5772999949986
+    },
+    {
+      "qid": "1d4e3b97",
+      "qtype": "single-session-preference",
+      "config": "autotemp",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_e6b6353d",
+        "ecb24dd8_2"
+      ],
+      "answer_session_ids": [
+        "answer_e6b6353d"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2058.729999989737
+    },
+    {
+      "qid": "1d4e3b97",
+      "qtype": "single-session-preference",
+      "config": "bm25+aut",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_e6b6353d",
+        "ecb24dd8_2"
+      ],
+      "answer_session_ids": [
+        "answer_e6b6353d"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3147.851500005345
+    },
+    {
+      "qid": "1d4e3b97",
+      "qtype": "single-session-preference",
+      "config": "bm25+mmr",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "7c9732ff_1",
+        "answer_e6b6353d",
+        "c6ac3a67",
+        "d5a8d732_3",
+        "ecb24dd8_2",
+        "sharegpt_lWLBUhQ_539"
+      ],
+      "answer_session_ids": [
+        "answer_e6b6353d"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3159.8739000037313
+    },
+    {
+      "qid": "1d4e3b97",
+      "qtype": "single-session-preference",
+      "config": "bm25+rec",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_e6b6353d",
+        "ecb24dd8_2"
+      ],
+      "answer_session_ids": [
+        "answer_e6b6353d"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3842.5944000046
+    },
+    {
+      "qid": "1d4e3b97",
+      "qtype": "single-session-preference",
+      "config": "all_aggressive",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "12b6f0f1_3",
+        "7c9732ff_1",
+        "answer_e6b6353d",
+        "d5a8d732_3",
+        "ecb24dd8_2"
+      ],
+      "answer_session_ids": [
+        "answer_e6b6353d"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3840.8820000040578
+    },
+    {
+      "qid": "1d4e3b97",
+      "qtype": "single-session-preference",
+      "config": "conservative",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "answer_e6b6353d",
+        "ecb24dd8_2"
+      ],
+      "answer_session_ids": [
+        "answer_e6b6353d"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3148.367400004645
+    },
+    {
+      "qid": "07b6f563",
+      "qtype": "single-session-preference",
+      "config": "baseline",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "39358a85_2",
+        "6af947bf_1",
+        "answer_d03098f9"
+      ],
+      "answer_session_ids": [
+        "answer_d03098f9"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2097.229100007098
+    },
+    {
+      "qid": "07b6f563",
+      "qtype": "single-session-preference",
+      "config": "bm25",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "39358a85_2",
+        "6af947bf_1",
+        "answer_d03098f9"
+      ],
+      "answer_session_ids": [
+        "answer_d03098f9"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 4010.3406999987783
+    },
+    {
+      "qid": "07b6f563",
+      "qtype": "single-session-preference",
+      "config": "mmr07",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "0ac1a6f9_2",
+        "39358a85_2",
+        "66ab6260",
+        "6af947bf_1",
+        "answer_d03098f9"
+      ],
+      "answer_session_ids": [
+        "answer_d03098f9"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2087.8224999905797
+    },
+    {
+      "qid": "07b6f563",
+      "qtype": "single-session-preference",
+      "config": "mmr03",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "0ac1a6f9_2",
+        "39358a85_2",
+        "66ab6260",
+        "6af947bf_1",
+        "answer_d03098f9",
+        "dcc7f430_1"
+      ],
+      "answer_session_ids": [
+        "answer_d03098f9"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2100.3621999989264
+    },
+    {
+      "qid": "07b6f563",
+      "qtype": "single-session-preference",
+      "config": "recent",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "39358a85_2",
+        "6af947bf_1",
+        "answer_d03098f9"
+      ],
+      "answer_session_ids": [
+        "answer_d03098f9"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2742.437000008067
+    },
+    {
+      "qid": "07b6f563",
+      "qtype": "single-session-preference",
+      "config": "recency",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "0ac1a6f9_2",
+        "39358a85_2",
+        "55c267aa",
+        "answer_d03098f9"
+      ],
+      "answer_session_ids": [
+        "answer_d03098f9"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2081.95560000604
+    },
+    {
+      "qid": "07b6f563",
+      "qtype": "single-session-preference",
+      "config": "autotemp",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "39358a85_2",
+        "6af947bf_1",
+        "answer_d03098f9"
+      ],
+      "answer_session_ids": [
+        "answer_d03098f9"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2097.7922000020044
+    },
+    {
+      "qid": "07b6f563",
+      "qtype": "single-session-preference",
+      "config": "bm25+aut",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "39358a85_2",
+        "6af947bf_1",
+        "answer_d03098f9"
+      ],
+      "answer_session_ids": [
+        "answer_d03098f9"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3613.308200001484
+    },
+    {
+      "qid": "07b6f563",
+      "qtype": "single-session-preference",
+      "config": "bm25+mmr",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "368276ab_3",
+        "39358a85_2",
+        "answer_d03098f9",
+        "sharegpt_0y8w7hJ_27",
+        "ultrachat_221828"
+      ],
+      "answer_session_ids": [
+        "answer_d03098f9"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3612.2449999966193
+    },
+    {
+      "qid": "07b6f563",
+      "qtype": "single-session-preference",
+      "config": "bm25+rec",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "39358a85_2",
+        "6af947bf_1",
+        "answer_d03098f9"
+      ],
+      "answer_session_ids": [
+        "answer_d03098f9"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 4273.639500010177
+    },
+    {
+      "qid": "07b6f563",
+      "qtype": "single-session-preference",
+      "config": "all_aggressive",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "0ac1a6f9_2",
+        "39358a85_2",
+        "answer_d03098f9",
+        "sharegpt_HPZHo9C_0",
+        "ultrachat_392007"
+      ],
+      "answer_session_ids": [
+        "answer_d03098f9"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 4270.774999997229
+    },
+    {
+      "qid": "07b6f563",
+      "qtype": "single-session-preference",
+      "config": "conservative",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "39358a85_2",
+        "6af947bf_1",
+        "answer_d03098f9"
+      ],
+      "answer_session_ids": [
+        "answer_d03098f9"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3605.471499991836
+    },
+    {
+      "qid": "1c0ddc50",
+      "qtype": "single-session-preference",
+      "config": "baseline",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "2aa70c9c_1",
+        "a0aa5035",
+        "answer_8da8c7e0",
+        "b33e89b5_1"
+      ],
+      "answer_session_ids": [
+        "answer_8da8c7e0"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2094.5685999904526
+    },
+    {
+      "qid": "1c0ddc50",
+      "qtype": "single-session-preference",
+      "config": "bm25",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "2aa70c9c_1",
+        "a0aa5035",
+        "answer_8da8c7e0",
+        "b33e89b5_1"
+      ],
+      "answer_session_ids": [
+        "answer_8da8c7e0"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3304.9868999951286
+    },
+    {
+      "qid": "1c0ddc50",
+      "qtype": "single-session-preference",
+      "config": "mmr07",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "2aa70c9c_1",
+        "a0aa5035",
+        "answer_8da8c7e0",
+        "b33e89b5_1"
+      ],
+      "answer_session_ids": [
+        "answer_8da8c7e0"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2071.732800002792
+    },
+    {
+      "qid": "1c0ddc50",
+      "qtype": "single-session-preference",
+      "config": "mmr03",
+      "recall": 0.0,
+      "binary_hit": 0.0,
+      "top_k_session_ids": [
+        "2aa70c9c_1",
+        "a0aa5035",
+        "b33e89b5_1",
+        "c7ca6dff",
+        "ebc1319b",
+        "sharegpt_ikJXzOG_0",
+        "ultrachat_494933"
+      ],
+      "answer_session_ids": [
+        "answer_8da8c7e0"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2076.5324999956647
+    },
+    {
+      "qid": "1c0ddc50",
+      "qtype": "single-session-preference",
+      "config": "recent",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "2aa70c9c_1",
+        "a0aa5035",
+        "answer_8da8c7e0",
+        "b33e89b5_1"
+      ],
+      "answer_session_ids": [
+        "answer_8da8c7e0"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2733.958299999358
+    },
+    {
+      "qid": "1c0ddc50",
+      "qtype": "single-session-preference",
+      "config": "recency",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "2aa70c9c_1",
+        "a0aa5035",
+        "answer_8da8c7e0",
+        "b33e89b5_1"
+      ],
+      "answer_session_ids": [
+        "answer_8da8c7e0"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2084.8460999986855
+    },
+    {
+      "qid": "1c0ddc50",
+      "qtype": "single-session-preference",
+      "config": "autotemp",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "2aa70c9c_1",
+        "a0aa5035",
+        "answer_8da8c7e0",
+        "b33e89b5_1"
+      ],
+      "answer_session_ids": [
+        "answer_8da8c7e0"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2076.4583999989554
+    },
+    {
+      "qid": "1c0ddc50",
+      "qtype": "single-session-preference",
+      "config": "bm25+aut",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "2aa70c9c_1",
+        "a0aa5035",
+        "answer_8da8c7e0",
+        "b33e89b5_1"
+      ],
+      "answer_session_ids": [
+        "answer_8da8c7e0"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3215.6620000023395
+    },
+    {
+      "qid": "1c0ddc50",
+      "qtype": "single-session-preference",
+      "config": "bm25+mmr",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "2aa70c9c_1",
+        "a0aa5035",
+        "answer_8da8c7e0",
+        "b33e89b5_1"
+      ],
+      "answer_session_ids": [
+        "answer_8da8c7e0"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3203.467199986335
+    },
+    {
+      "qid": "1c0ddc50",
+      "qtype": "single-session-preference",
+      "config": "bm25+rec",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "2aa70c9c_1",
+        "a0aa5035",
+        "answer_8da8c7e0",
+        "b33e89b5_1"
+      ],
+      "answer_session_ids": [
+        "answer_8da8c7e0"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3862.6642000017455
+    },
+    {
+      "qid": "1c0ddc50",
+      "qtype": "single-session-preference",
+      "config": "all_aggressive",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "2aa70c9c_1",
+        "a0aa5035",
+        "answer_8da8c7e0",
+        "b33e89b5_1",
+        "sharegpt_fVpT6Aa_35"
+      ],
+      "answer_session_ids": [
+        "answer_8da8c7e0"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3867.108000005828
+    },
+    {
+      "qid": "1c0ddc50",
+      "qtype": "single-session-preference",
+      "config": "conservative",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "2aa70c9c_1",
+        "a0aa5035",
+        "answer_8da8c7e0",
+        "b33e89b5_1"
+      ],
+      "answer_session_ids": [
+        "answer_8da8c7e0"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3204.1936999885365
+    },
+    {
+      "qid": "0a34ad58",
+      "qtype": "single-session-preference",
+      "config": "baseline",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "5c0574b1",
+        "answer_cebb7159"
+      ],
+      "answer_session_ids": [
+        "answer_cebb7159"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2078.273699997226
+    },
+    {
+      "qid": "0a34ad58",
+      "qtype": "single-session-preference",
+      "config": "bm25",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "5c0574b1",
+        "answer_cebb7159"
+      ],
+      "answer_session_ids": [
+        "answer_cebb7159"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3896.685100000468
+    },
+    {
+      "qid": "0a34ad58",
+      "qtype": "single-session-preference",
+      "config": "mmr07",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "58ad78d6_2",
+        "5c0574b1",
+        "answer_cebb7159"
+      ],
+      "answer_session_ids": [
+        "answer_cebb7159"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2091.3105999934487
+    },
+    {
+      "qid": "0a34ad58",
+      "qtype": "single-session-preference",
+      "config": "mmr03",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "58ad78d6_2",
+        "5c0574b1",
+        "answer_cebb7159",
+        "f7e682c3_5"
+      ],
+      "answer_session_ids": [
+        "answer_cebb7159"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2074.5363000023644
+    },
+    {
+      "qid": "0a34ad58",
+      "qtype": "single-session-preference",
+      "config": "recent",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "5c0574b1",
+        "answer_cebb7159"
+      ],
+      "answer_session_ids": [
+        "answer_cebb7159"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2336.702599990531
+    },
+    {
+      "qid": "0a34ad58",
+      "qtype": "single-session-preference",
+      "config": "recency",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "5c0574b1",
+        "answer_cebb7159"
+      ],
+      "answer_session_ids": [
+        "answer_cebb7159"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2074.2080000054557
+    },
+    {
+      "qid": "0a34ad58",
+      "qtype": "single-session-preference",
+      "config": "autotemp",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "5c0574b1",
+        "answer_cebb7159"
+      ],
+      "answer_session_ids": [
+        "answer_cebb7159"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 2076.470200001495
+    },
+    {
+      "qid": "0a34ad58",
+      "qtype": "single-session-preference",
+      "config": "bm25+aut",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "5c0574b1",
+        "answer_cebb7159"
+      ],
+      "answer_session_ids": [
+        "answer_cebb7159"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3786.68839999591
+    },
+    {
+      "qid": "0a34ad58",
+      "qtype": "single-session-preference",
+      "config": "bm25+mmr",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "5c0574b1",
+        "answer_cebb7159",
+        "b869d7ed_2",
+        "f2b8e6a8_1",
+        "fb048b5d_1",
+        "ultrachat_267974"
+      ],
+      "answer_session_ids": [
+        "answer_cebb7159"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3804.466700006742
+    },
+    {
+      "qid": "0a34ad58",
+      "qtype": "single-session-preference",
+      "config": "bm25+rec",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "5c0574b1",
+        "answer_cebb7159"
+      ],
+      "answer_session_ids": [
+        "answer_cebb7159"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 4069.783600003575
+    },
+    {
+      "qid": "0a34ad58",
+      "qtype": "single-session-preference",
+      "config": "all_aggressive",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "5c0574b1",
+        "8f589040_3",
+        "answer_cebb7159",
+        "f2b8e6a8_1",
+        "fb048b5d_1",
+        "ultrachat_267974"
+      ],
+      "answer_session_ids": [
+        "answer_cebb7159"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 4091.9658999919193
+    },
+    {
+      "qid": "0a34ad58",
+      "qtype": "single-session-preference",
+      "config": "conservative",
+      "recall": 1.0,
+      "binary_hit": 1.0,
+      "top_k_session_ids": [
+        "5c0574b1",
+        "answer_cebb7159"
+      ],
+      "answer_session_ids": [
+        "answer_cebb7159"
+      ],
+      "score": null,
+      "response": null,
+      "error": null,
+      "latency_ms": 3792.6414999965345
+    }
+  ]
+}

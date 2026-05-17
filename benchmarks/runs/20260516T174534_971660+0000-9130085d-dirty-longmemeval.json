@@ -1,0 +1,340 @@
+{
+  "aggregate_metrics": {
+    "accuracy": 0.0,
+    "accuracy_correct": 0.0,
+    "accuracy_correct_knowledge-update": 0.0,
+    "accuracy_correct_multi-session": 0.0,
+    "accuracy_correct_single-session-assistant": 0.0,
+    "accuracy_correct_single-session-preference": 0.0,
+    "accuracy_correct_single-session-user": 0.0,
+    "accuracy_correct_temporal-reasoning": 0.0,
+    "accuracy_knowledge-update": 0.0,
+    "accuracy_multi-session": 0.0,
+    "accuracy_single-session-assistant": 0.0,
+    "accuracy_single-session-preference": 0.0,
+    "accuracy_single-session-user": 0.0,
+    "accuracy_temporal-reasoning": 0.0,
+    "error_rate": 0.0,
+    "k": 10.0,
+    "n_completed": 8.0,
+    "n_completed_knowledge-update": 1.0,
+    "n_completed_multi-session": 2.0,
+    "n_completed_single-session-assistant": 1.0,
+    "n_completed_single-session-preference": 1.0,
+    "n_completed_single-session-user": 1.0,
+    "n_completed_temporal-reasoning": 2.0,
+    "n_errored": 0.0,
+    "n_errored_knowledge-update": 0.0,
+    "n_errored_multi-session": 0.0,
+    "n_errored_single-session-assistant": 0.0,
+    "n_errored_single-session-preference": 0.0,
+    "n_errored_single-session-user": 0.0,
+    "n_errored_temporal-reasoning": 0.0,
+    "n_knowledge-update": 1.0,
+    "n_multi-session": 2.0,
+    "n_questions": 8.0,
+    "n_single-session-assistant": 1.0,
+    "n_single-session-preference": 1.0,
+    "n_single-session-user": 1.0,
+    "n_temporal-reasoning": 2.0
+  },
+  "confidence_intervals": {
+    "accuracy": [
+      0.0,
+      0.0
+    ],
+    "accuracy_correct": [
+      0.0,
+      0.0
+    ],
+    "accuracy_correct_knowledge-update": [
+      0.0,
+      0.0
+    ],
+    "accuracy_correct_multi-session": [
+      0.0,
+      0.0
+    ],
+    "accuracy_correct_single-session-assistant": [
+      0.0,
+      0.0
+    ],
+    "accuracy_correct_single-session-preference": [
+      0.0,
+      0.0
+    ],
+    "accuracy_correct_single-session-user": [
+      0.0,
+      0.0
+    ],
+    "accuracy_correct_temporal-reasoning": [
+      0.0,
+      0.0
+    ],
+    "accuracy_knowledge-update": [
+      0.0,
+      0.0
+    ],
+    "accuracy_multi-session": [
+      0.0,
+      0.0
+    ],
+    "accuracy_single-session-assistant": [
+      0.0,
+      0.0
+    ],
+    "accuracy_single-session-preference": [
+      0.0,
+      0.0
+    ],
+    "accuracy_single-session-user": [
+      0.0,
+      0.0
+    ],
+    "accuracy_temporal-reasoning": [
+      0.0,
+      0.0
+    ],
+    "error_rate": [
+      0.0,
+      0.0
+    ],
+    "k": [
+      10.0,
+      10.0
+    ],
+    "n_completed": [
+      8.0,
+      8.0
+    ],
+    "n_completed_knowledge-update": [
+      1.0,
+      1.0
+    ],
+    "n_completed_multi-session": [
+      2.0,
+      2.0
+    ],
+    "n_completed_single-session-assistant": [
+      1.0,
+      1.0
+    ],
+    "n_completed_single-session-preference": [
+      1.0,
+      1.0
+    ],
+    "n_completed_single-session-user": [
+      1.0,
+      1.0
+    ],
+    "n_completed_temporal-reasoning": [
+      2.0,
+      2.0
+    ],
+    "n_errored": [
+      0.0,
+      0.0
+    ],
+    "n_errored_knowledge-update": [
+      0.0,
+      0.0
+    ],
+    "n_errored_multi-session": [
+      0.0,
+      0.0
+    ],
+    "n_errored_single-session-assistant": [
+      0.0,
+      0.0
+    ],
+    "n_errored_single-session-preference": [
+      0.0,
+      0.0
+    ],
+    "n_errored_single-session-user": [
+      0.0,
+      0.0
+    ],
+    "n_errored_temporal-reasoning": [
+      0.0,
+      0.0
+    ],
+    "n_knowledge-update": [
+      1.0,
+      1.0
+    ],
+    "n_multi-session": [
+      2.0,
+      2.0
+    ],
+    "n_questions": [
+      8.0,
+      8.0
+    ],
+    "n_single-session-assistant": [
+      1.0,
+      1.0
+    ],
+    "n_single-session-preference": [
+      1.0,
+      1.0
+    ],
+    "n_single-session-user": [
+      1.0,
+      1.0
+    ],
+    "n_temporal-reasoning": [
+      2.0,
+      2.0
+    ]
+  },
+  "cpu": "AMD64 Family 26 Model 36 Stepping 0, AuthenticAMD",
+  "dataset_checksum": "longmemeval/longmemeval_s_cleaned.json/d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442",
+  "dataset_version": "longmemeval-s-cleaned-v1",
+  "engram_config": {
+    "parallel": 8,
+    "sample_n": 8,
+    "seed": 1337
+  },
+  "git_commit": "9130085daca392ad1a891c379be9c92819c0c534",
+  "git_dirty": true,
+  "latency_ms": {
+    "answer": [
+      0.6170999840833247,
+      1.3920000055804849,
+      2.3720999888610095,
+      0.8890999888535589,
+      1.5372000052593648,
+      1.9175000197719783,
+      1.4840999792795628,
+      2.0355999877210706
+    ],
+    "ingest": [
+      1108.450100000482,
+      1061.6783000004943,
+      1141.6232000046875,
+      1066.0577999951784,
+      1156.8198000022676,
+      1151.2022000097204,
+      1003.4251000033692,
+      1070.2947000099812
+    ],
+    "judge": [
+      0.4087999986950308,
+      1.1519000108819455,
+      0.48230000538751483,
+      0.5636999849230051,
+      0.4991999885533005,
+      0.6290000164881349,
+      0.8049000171013176,
+      1.1915999930351973
+    ],
+    "retrieve": [
+      122.05269999685697,
+      158.3334999741055,
+      95.46640000189655,
+      103.29570001340471,
+      86.80140000069514,
+      92.19030002714135,
+      141.87749999109656,
+      87.54219999536872
+    ]
+  },
+  "os": "Windows 11",
+  "per_question": [
+    {
+      "consolidate_ms": 0.0,
+      "gold": "55-inch",
+      "k": 10,
+      "question": "What size is my new Samsung TV?",
+      "question_id": "76d63226",
+      "question_type": "single-session-user",
+      "response": "[fake: input_hash=384bde392a35]",
+      "score": 0.0,
+      "turns_ingested": 489
+    },
+    {
+      "consolidate_ms": 0.0,
+      "gold": "$6",
+      "k": 10,
+      "question": "For my daily commute, how much more expensive was the taxi ride compared to the train fare?",
+      "question_id": "cc06de0d",
+      "question_type": "multi-session",
+      "response": "[fake: input_hash=71c859ca76b6]",
+      "score": 0.0,
+      "turns_ingested": 462
+    },
+    {
+      "consolidate_ms": 0.0,
+      "gold": 2,
+      "k": 10,
+      "question": "How many different museums or galleries did I visit in the month of February?",
+      "question_id": "80ec1f4f",
+      "question_type": "multi-session",
+      "response": "[fake: input_hash=d179319c812e]",
+      "score": 0.0,
+      "turns_ingested": 487
+    },
+    {
+      "consolidate_ms": 0.0,
+      "gold": "The user would prefer responses that build upon their previous mention of purchasing a portable power bank, such as suggestions on how to optimize its use, like ensuring it's fully charged before use. They might also appreciate tips on utilizing battery-saving features on their phone. The user may not prefer responses that suggest alternative solutions or unrelated advice.",
+      "k": 10,
+      "question": "I've been having trouble with the battery life on my phone lately. Any tips?",
+      "question_id": "09d032c9",
+      "question_type": "single-session-preference",
+      "response": "[fake: input_hash=f92240607ce6]",
+      "score": 0.0,
+      "turns_ingested": 481
+    },
+    {
+      "consolidate_ms": 0.0,
+      "gold": "a smoker",
+      "k": 10,
+      "question": "What kitchen appliance did I buy 10 days ago?",
+      "question_id": "gpt4_8279ba03",
+      "question_type": "temporal-reasoning",
+      "response": "[fake: input_hash=0d6bae1c8335]",
+      "score": 0.0,
+      "turns_ingested": 500
+    },
+    {
+      "consolidate_ms": 0.0,
+      "gold": "4 days. 5 days (including the last day) is also acceptable.",
+      "k": 10,
+      "question": "How many days passed between the day I fixed my mountain bike and the day I decided to upgrade my road bike's pedals?",
+      "question_id": "gpt4_e414231e",
+      "question_type": "temporal-reasoning",
+      "response": "[fake: input_hash=11713ac714f6]",
+      "score": 0.0,
+      "turns_ingested": 507
+    },
+    {
+      "consolidate_ms": 0.0,
+      "gold": "6",
+      "k": 10,
+      "question": "How many women are on the team led by my former manager Rachel?",
+      "question_id": "ba61f0b9",
+      "question_type": "knowledge-update",
+      "response": "[fake: input_hash=0a33afa24580]",
+      "score": 0.0,
+      "turns_ingested": 454
+    },
+    {
+      "consolidate_ms": 0.0,
+      "gold": "The 6S algorithm is implemented in the SIAC_GEE tool.",
+      "k": 10,
+      "question": "I was going through our previous conversation about atmospheric correction methods, and I wanted to confirm - you mentioned that 6S, MAJA, and Sen2Cor are all algorithms for atmospheric correction of remote sensing images. Can you remind me which one is implemented in the SIAC_GEE tool?",
+      "question_id": "6222b6eb",
+      "question_type": "single-session-assistant",
+      "response": "[fake: input_hash=e4c66ef39e34]",
+      "score": 0.0,
+      "turns_ingested": 497
+    }
+  ],
+  "provider": "fake",
+  "provider_hash": "fake/3086c16442850732",
+  "python_version": "3.13.12",
+  "ram_gb": 32.0,
+  "suite": "longmemeval",
+  "timestamp": "2026-05-16T17:45:34.971660+00:00"
+}

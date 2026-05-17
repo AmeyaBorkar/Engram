@@ -1,0 +1,13 @@
+{
+  "out_dir": "benchmarks\\runs\\eval_all_20260515_023910",
+  "limit": 30,
+  "sweep_limit": 30,
+  "k": 10,
+  "embed_model": "BAAI/bge-large-en-v1.5",
+  "embed_device": "cuda",
+  "dtype": "fp32",
+  "reranker": "BAAI/bge-reranker-v2-m3",
+  "skip_phase": [],
+  "resume": false,
+  "started_at": "2026-05-15 02:39:11 India Standard Time"
+}

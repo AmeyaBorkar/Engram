@@ -46,7 +46,7 @@ import statistics
 import sys
 import time
 from collections.abc import Sequence
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -144,9 +144,7 @@ def _build_reranker(model: str | None, device: str | None, dtype: str) -> Any:
     return _build_reranker_common(model, device, dtype)
 
 
-def _result_to_event_session_pair(
-    memory: Memory, result: Any
-) -> tuple[str | None, str | None]:
+def _result_to_event_session_pair(memory: Memory, result: Any) -> tuple[str | None, str | None]:
     """Return (event_id_hex, session_id) for one retrieval result.
 
     For event-level results, session_id comes straight from event
@@ -282,11 +280,7 @@ def _evaluate_one(
             if filt:
                 retrieve_kwargs["lexical_filter"] = filt
         results = memory.retrieve(q.question, **retrieve_kwargs)
-        if (
-            auto_temporal
-            and not results
-            and retrieve_kwargs.get("lexical_filter")
-        ):
+        if auto_temporal and not results and retrieve_kwargs.get("lexical_filter"):
             retrieve_kwargs.pop("lexical_filter", None)
             results = memory.retrieve(q.question, **retrieve_kwargs)
     except (KeyboardInterrupt, SystemExit):
@@ -349,16 +343,12 @@ def _aggregate(
             agg[f"precision@{k}"] = sum(r.metrics.precision_at[k] for r in rs) / n
         agg["mrr"] = sum(r.metrics.mrr for r in rs) / n
         first_ranks = [
-            r.metrics.first_correct_rank
-            for r in rs
-            if r.metrics.first_correct_rank is not None
+            r.metrics.first_correct_rank for r in rs if r.metrics.first_correct_rank is not None
         ]
         agg["median_first_correct_rank"] = (
             float(statistics.median(first_ranks)) if first_ranks else float("nan")
         )
-        agg["pct_with_a_hit"] = (
-            sum(1 for r in rs if r.metrics.first_correct_rank is not None) / n
-        )
+        agg["pct_with_a_hit"] = sum(1 for r in rs if r.metrics.first_correct_rank is not None) / n
         agg["latency_ms"] = sum(r.metrics.latency_ms for r in rs) / n
         out[key] = agg
     return out
@@ -387,9 +377,7 @@ def _stats_section(
     # Collect aligned per-question metrics for each (baseline, candidate).
     qids = sorted({r.qid for r in rows})
     lines: list[str] = []
-    lines.append(
-        f"\n## Statistical significance vs `{baseline}` (overall, paired)\n"
-    )
+    lines.append(f"\n## Statistical significance vs `{baseline}` (overall, paired)\n")
     lines.append(
         f"| config | n | mean recall@{primary_k} (CI) | Δ recall (CI) | "
         f"Δ multi-recall (CI) | McNemar hit@{primary_k} |"
@@ -449,7 +437,9 @@ def _stats_section(
         )
 
     # Failure mode listing: which qids broke at any non-baseline config.
-    lines.append(f"\n## Failure mode: questions broken by each config (hit@{primary_k}=0 where baseline=1)\n")
+    lines.append(
+        f"\n## Failure mode: questions broken by each config (hit@{primary_k}=0 where baseline=1)\n"
+    )
     for c in configs[1:]:
         broken: list[tuple[str, str]] = []
         for q in qids:
@@ -603,9 +593,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"dataset not found: {dataset_path}", file=sys.stderr)
         return 2
     qids = [q.strip() for q in args.qid.split(",") if q.strip()] if args.qid else None
-    questions = _filter_questions(
-        all_questions, qtype=args.qtype, qids=qids, limit=args.limit
-    )
+    questions = _filter_questions(all_questions, qtype=args.qtype, qids=qids, limit=args.limit)
     if not questions:
         print("no questions match the filter", file=sys.stderr)
         return 2
@@ -696,9 +684,7 @@ def main(argv: list[str] | None = None) -> int:
             }
             for r in rows
         ],
-        "aggregate": {
-            f"{qt}|{c}": metrics for (qt, c), metrics in agg.items()
-        },
+        "aggregate": {f"{qt}|{c}": metrics for (qt, c), metrics in agg.items()},
     }
     with args.output.open("w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2)

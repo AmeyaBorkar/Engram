@@ -1,0 +1,189 @@
+{
+  "aggregate_metrics": {
+    "accuracy": 0.0,
+    "accuracy_correct": 0.0,
+    "accuracy_correct_knowledge-update": 0.0,
+    "accuracy_correct_multi-session": 0.0,
+    "accuracy_correct_temporal-reasoning": 0.0,
+    "accuracy_knowledge-update": 0.0,
+    "accuracy_multi-session": 0.0,
+    "accuracy_temporal-reasoning": 0.0,
+    "error_rate": 0.0,
+    "k": 10.0,
+    "n_completed": 3.0,
+    "n_completed_knowledge-update": 1.0,
+    "n_completed_multi-session": 1.0,
+    "n_completed_temporal-reasoning": 1.0,
+    "n_errored": 0.0,
+    "n_errored_knowledge-update": 0.0,
+    "n_errored_multi-session": 0.0,
+    "n_errored_temporal-reasoning": 0.0,
+    "n_knowledge-update": 1.0,
+    "n_multi-session": 1.0,
+    "n_questions": 3.0,
+    "n_temporal-reasoning": 1.0
+  },
+  "confidence_intervals": {
+    "accuracy": [
+      0.0,
+      0.0
+    ],
+    "accuracy_correct": [
+      0.0,
+      0.0
+    ],
+    "accuracy_correct_knowledge-update": [
+      0.0,
+      0.0
+    ],
+    "accuracy_correct_multi-session": [
+      0.0,
+      0.0
+    ],
+    "accuracy_correct_temporal-reasoning": [
+      0.0,
+      0.0
+    ],
+    "accuracy_knowledge-update": [
+      0.0,
+      0.0
+    ],
+    "accuracy_multi-session": [
+      0.0,
+      0.0
+    ],
+    "accuracy_temporal-reasoning": [
+      0.0,
+      0.0
+    ],
+    "error_rate": [
+      0.0,
+      0.0
+    ],
+    "k": [
+      10.0,
+      10.0
+    ],
+    "n_completed": [
+      3.0,
+      3.0
+    ],
+    "n_completed_knowledge-update": [
+      1.0,
+      1.0
+    ],
+    "n_completed_multi-session": [
+      1.0,
+      1.0
+    ],
+    "n_completed_temporal-reasoning": [
+      1.0,
+      1.0
+    ],
+    "n_errored": [
+      0.0,
+      0.0
+    ],
+    "n_errored_knowledge-update": [
+      0.0,
+      0.0
+    ],
+    "n_errored_multi-session": [
+      0.0,
+      0.0
+    ],
+    "n_errored_temporal-reasoning": [
+      0.0,
+      0.0
+    ],
+    "n_knowledge-update": [
+      1.0,
+      1.0
+    ],
+    "n_multi-session": [
+      1.0,
+      1.0
+    ],
+    "n_questions": [
+      3.0,
+      3.0
+    ],
+    "n_temporal-reasoning": [
+      1.0,
+      1.0
+    ]
+  },
+  "cpu": "AMD64 Family 26 Model 36 Stepping 0, AuthenticAMD",
+  "dataset_checksum": "longmemeval/longmemeval_s_cleaned.json/d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442",
+  "dataset_version": "longmemeval-s-cleaned-v1",
+  "engram_config": {
+    "sample_n": 3,
+    "seed": 1337
+  },
+  "git_commit": "0166c0b5d433eb0edea28e28a1d82420b3477763",
+  "git_dirty": true,
+  "latency_ms": {
+    "answer": [
+      0.8614000107627362,
+      0.5097999819554389,
+      0.5629000079352409
+    ],
+    "ingest": [
+      63.480000011622906,
+      65.1376000023447,
+      63.010499987285584
+    ],
+    "judge": [
+      0.25359998107887805,
+      0.22650000755675137,
+      0.17809998826123774
+    ],
+    "retrieve": [
+      3.461800020886585,
+      3.3628999954089522,
+      2.779800008283928
+    ]
+  },
+  "os": "Windows 11",
+  "per_question": [
+    {
+      "consolidate_ms": 0.0,
+      "gold": "$6",
+      "k": 10,
+      "question": "For my daily commute, how much more expensive was the taxi ride compared to the train fare?",
+      "question_id": "cc06de0d",
+      "question_type": "multi-session",
+      "response": "[fake: input_hash=71c859ca76b6]",
+      "score": 0.0,
+      "turns_ingested": 462
+    },
+    {
+      "consolidate_ms": 0.0,
+      "gold": "a smoker",
+      "k": 10,
+      "question": "What kitchen appliance did I buy 10 days ago?",
+      "question_id": "gpt4_8279ba03",
+      "question_type": "temporal-reasoning",
+      "response": "[fake: input_hash=0d6bae1c8335]",
+      "score": 0.0,
+      "turns_ingested": 500
+    },
+    {
+      "consolidate_ms": 0.0,
+      "gold": "6",
+      "k": 10,
+      "question": "How many women are on the team led by my former manager Rachel?",
+      "question_id": "ba61f0b9",
+      "question_type": "knowledge-update",
+      "response": "[fake: input_hash=0a33afa24580]",
+      "score": 0.0,
+      "turns_ingested": 454
+    }
+  ],
+  "provider": "fake",
+  "provider_hash": "fake/3086c16442850732",
+  "python_version": "3.13.12",
+  "ram_gb": 32.0,
+  "suite": "longmemeval",
+  "timestamp": "2026-05-17T10:18:40.510449+00:00"
+}

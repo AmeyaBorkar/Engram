@@ -155,9 +155,7 @@ _V2_QTYPE_HINTS: dict[str, str] = {
 # entirely. v2b keeps the per-qtype routing but strips the work-show
 # instructions; the model is told the expected answer FORM only.
 _V2B_QTYPE_HINTS: dict[str, str] = {
-    "single-session-user": (
-        "Expected answer form: the specific fact in 1-5 words."
-    ),
+    "single-session-user": ("Expected answer form: the specific fact in 1-5 words."),
     "single-session-assistant": (
         "Expected answer form: the assistant's recommendation, faithfully "
         "paraphrased in 1-2 sentences."
@@ -174,10 +172,7 @@ _V2B_QTYPE_HINTS: dict[str, str] = {
         "Expected answer form: a single concrete date or duration. "
         "No reasoning shown. Off-by-one days are tolerated."
     ),
-    "knowledge-update": (
-        "Expected answer form: the most recent value for the fact. "
-        "1-5 words."
-    ),
+    "knowledge-update": ("Expected answer form: the most recent value for the fact. 1-5 words."),
 }
 
 # Map prompt_version -> (template_filename_version, qtype_hints_dict).
@@ -290,11 +285,7 @@ class _Progress:
     lock: threading.Lock = field(default_factory=threading.Lock)
 
     def mark(self, outcome: _QuestionOutcome) -> None:
-        verdict = (
-            "ERROR"
-            if outcome.error_msg
-            else ("PASS" if outcome.score == 1.0 else "FAIL")
-        )
+        verdict = "ERROR" if outcome.error_msg else ("PASS" if outcome.score == 1.0 else "FAIL")
         with self.lock:
             self.completed += 1
             self.correct += outcome.score
@@ -303,8 +294,7 @@ class _Progress:
             should_log = done % self.log_interval == 0 or done == self.total
             if should_log:
                 _LOG.info(
-                    "q %d/%d [%s] -> %s "
-                    "(ingest %d turns in %.1fs, ans %.1fs, jud %.1fs; acc=%.3f)",
+                    "q %d/%d [%s] -> %s (ingest %d turns in %.1fs, ans %.1fs, jud %.1fs; acc=%.3f)",
                     done,
                     self.total,
                     outcome.qtype,
@@ -741,6 +731,7 @@ def _apply_tools(response: str) -> str:
     original tag in place so the output is monotonic with respect to
     tool failures.
     """
+
     def _execute(match: re.Match[str]) -> str:
         op = match.group(1).upper()
         args_str = match.group(2)
@@ -774,6 +765,7 @@ def _apply_tools(response: str) -> str:
             return str(tool(args))
         except (ValueError, ZeroDivisionError, TypeError):
             return match.group(0)
+
     return _TOOL_PATTERN.sub(_execute, response)
 
 
@@ -795,7 +787,7 @@ _TOOLS_PROMPT_SUFFIX = (
     "  <tool>YEARS_BETWEEN(2020-05-01, 2024-05-01)</tool> -> 4\n"
     "Use tools whenever the answer involves arithmetic; do NOT compute "
     "manually. Always write the values as readable units in your final "
-    "answer (e.g., \"<tool>SUM(50, 70)</tool> pounds\" -> \"120 pounds\")."
+    'answer (e.g., "<tool>SUM(50, 70)</tool> pounds" -> "120 pounds").'
 )
 
 
@@ -1146,8 +1138,7 @@ class LongMemEvalSuite:
         self._gpu_concurrency = gpu_concurrency
         if prompt_version not in _PROMPT_VARIANTS:
             raise ValueError(
-                f"prompt_version must be one of {sorted(_PROMPT_VARIANTS)}, "
-                f"got {prompt_version!r}"
+                f"prompt_version must be one of {sorted(_PROMPT_VARIANTS)}, got {prompt_version!r}"
             )
         self._prompt_version = prompt_version
         self._bm25_weight = bm25_weight
@@ -1163,20 +1154,14 @@ class LongMemEvalSuite:
         self._recent_window_k = recent_window_k
         self._auto_temporal = auto_temporal
         if min_sessions_in_topk < 0:
-            raise ValueError(
-                f"min_sessions_in_topk must be >= 0, got {min_sessions_in_topk}"
-            )
+            raise ValueError(f"min_sessions_in_topk must be >= 0, got {min_sessions_in_topk}")
         self._min_sessions_in_topk = min_sessions_in_topk
         self._within_session_oversample = within_session_oversample
         if context_format not in ("flat", "grouped"):
-            raise ValueError(
-                f"context_format must be 'flat' or 'grouped', got {context_format!r}"
-            )
+            raise ValueError(f"context_format must be 'flat' or 'grouped', got {context_format!r}")
         self._context_format = context_format
         if answer_form not in ("freeform", "structured"):
-            raise ValueError(
-                f"answer_form must be 'freeform' or 'structured', got {answer_form!r}"
-            )
+            raise ValueError(f"answer_form must be 'freeform' or 'structured', got {answer_form!r}")
         self._answer_form = answer_form
         self._distill_chat = distill_chat
         self._enable_tools = enable_tools
@@ -1220,9 +1205,7 @@ class LongMemEvalSuite:
                     self._sample_n,
                     self._max,
                 )
-            questions = _stratified_sample(
-                questions, self._sample_n, seed=self._seed
-            )
+            questions = _stratified_sample(questions, self._sample_n, seed=self._seed)
             _LOG.info(
                 "longmemeval: stratified sample of %d questions (seed=%s)",
                 len(questions),
@@ -1308,10 +1291,7 @@ class LongMemEvalSuite:
             # SDK clients, BGEReranker, and the disk cache (which holds
             # its own internal lock).
             with ThreadPoolExecutor(max_workers=self._parallel) as ex:
-                fut_to_idx = {
-                    ex.submit(_run, q_idx, q): q_idx
-                    for q_idx, q in enumerate(questions)
-                }
+                fut_to_idx = {ex.submit(_run, q_idx, q): q_idx for q_idx, q in enumerate(questions)}
                 for fut in as_completed(fut_to_idx):
                     idx, outcome = fut.result()
                     outcomes[idx] = outcome
@@ -1409,9 +1389,7 @@ class LongMemEvalSuite:
             qt_errored = per_type_errored.get(qtype, 0)
             qt_completed = qt_total - qt_errored
             metrics[f"accuracy_{qtype}"] = _safe_div(qt_correct, float(qt_total))
-            metrics[f"accuracy_correct_{qtype}"] = _safe_div(
-                qt_correct, float(qt_completed)
-            )
+            metrics[f"accuracy_correct_{qtype}"] = _safe_div(qt_correct, float(qt_completed))
             metrics[f"n_{qtype}"] = float(qt_total)
             metrics[f"n_completed_{qtype}"] = float(qt_completed)
             metrics[f"n_errored_{qtype}"] = float(qt_errored)
@@ -1525,11 +1503,7 @@ class LongMemEvalSuite:
                     if filt:
                         retrieve_kwargs["lexical_filter"] = filt
                 results = memory.retrieve(q.question, **retrieve_kwargs)
-                if (
-                    self._auto_temporal
-                    and not results
-                    and retrieve_kwargs.get("lexical_filter")
-                ):
+                if self._auto_temporal and not results and retrieve_kwargs.get("lexical_filter"):
                     retrieve_kwargs.pop("lexical_filter", None)
                     results = memory.retrieve(q.question, **retrieve_kwargs)
                 retrieve_ms_v = (time.perf_counter() - t0) * 1000.0
@@ -1590,9 +1564,7 @@ class LongMemEvalSuite:
             error_msg=error_msg,
         )
 
-    def _format_memory_for_answer(
-        self, results: Sequence[Any], storage: Any
-    ) -> str:
+    def _format_memory_for_answer(self, results: Sequence[Any], storage: Any) -> str:
         """Dispatch on `self._context_format`. 'flat' is bit-identical
         to the legacy `_format_memory`; 'grouped' uses session-grouped
         formatting with metadata."""
@@ -1738,17 +1710,18 @@ class LongMemEvalSuite:
                 # version as the first attempt; ReAct-style refinement
                 # is the `retrieve_iterative` job, not the verifier's.
                 fresh = memory.retrieve(question, k=self._k, reinforce=False)
-                current_memory_text = self._format_memory_for_answer(
-                    fresh, memory.storage
+                current_memory_text = self._format_memory_for_answer(fresh, memory.storage)
+                fresh_prompt = (
+                    _read_prompt("answer", version=template_version).format(
+                        memory=current_memory_text,
+                        question=question,
+                        question_date=question_date or "(date unknown)",
+                        qtype_hint=qtype_hint,
+                    )
+                    + cot_suffix
+                    + aff_suffix
+                    + tools_suffix
                 )
-                fresh_prompt = _read_prompt(
-                    "answer", version=template_version
-                ).format(
-                    memory=current_memory_text,
-                    question=question,
-                    question_date=question_date or "(date unknown)",
-                    qtype_hint=qtype_hint,
-                ) + cot_suffix + aff_suffix + tools_suffix
                 response = _one_call(fresh_prompt)
 
         # Two-Pass Answer Distillation: extract just the final answer
@@ -1762,9 +1735,7 @@ class LongMemEvalSuite:
 
         return response
 
-    def _distill_answer(
-        self, *, primary_response: str, question: str, qtype: str
-    ) -> str:
+    def _distill_answer(self, *, primary_response: str, question: str, qtype: str) -> str:
         """Run the configured `distill_chat` to extract just the
         final answer from the primary response.
 
@@ -1788,9 +1759,7 @@ class LongMemEvalSuite:
             "Final answer:"
         )
         try:
-            distilled = self._distill_chat.chat(
-                [Message(role="user", content=prompt)]
-            )
+            distilled = self._distill_chat.chat([Message(role="user", content=prompt)])
         except Exception as exc:
             _LOG.warning("  distill_chat failed: %s; using primary response", exc)
             return primary_response

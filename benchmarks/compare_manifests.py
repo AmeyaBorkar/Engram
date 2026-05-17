@@ -88,8 +88,8 @@ def _qtype_accuracies(agg: dict[str, Any]) -> dict[str, float]:
     out: dict[str, float] = {}
     for key, val in agg.items():
         if isinstance(val, (int, float)) and (
-            key.startswith("accuracy_correct_") or
-            (key.startswith("accuracy_") and not key.startswith("accuracy_correct"))
+            key.startswith("accuracy_correct_")
+            or (key.startswith("accuracy_") and not key.startswith("accuracy_correct"))
         ):
             qtype = key.removeprefix("accuracy_correct_").removeprefix("accuracy_")
             if qtype in {"correct"}:  # the bare "accuracy_correct" overall
@@ -125,10 +125,7 @@ def _shape_summary(pq: list[dict]) -> dict[str, Any]:
     """Aggregate response-shape stats for a manifest's per_question list."""
     responses = [q.get("response", "") for q in pq]
     classifications = Counter(_classify_response(r) for r in responses)
-    cliff = sum(
-        1 for r in responses
-        if isinstance(r, str) and _CLIFF_LOW <= len(r) <= _CLIFF_HIGH
-    )
+    cliff = sum(1 for r in responses if isinstance(r, str) and _CLIFF_LOW <= len(r) <= _CLIFF_HIGH)
     return {
         "n": len(pq),
         "length": _length_stats(responses),
@@ -146,9 +143,7 @@ def _fmt_pp(delta: float) -> str:
     return f"{sign}{100 * delta:.1f}pp"
 
 
-def _diff_questions(
-    base_pq: list[dict], new_pq: list[dict]
-) -> dict[str, list[dict]]:
+def _diff_questions(base_pq: list[dict], new_pq: list[dict]) -> dict[str, list[dict]]:
     """Return question lists keyed by transition: PP, FF, PF, FP, only_in_base, only_in_new."""
     base_by_id = {q.get("question_id"): q for q in base_pq if q.get("question_id")}
     new_by_id = {q.get("question_id"): q for q in new_pq if q.get("question_id")}
@@ -176,14 +171,15 @@ def _diff_questions(
         else:
             fp.append(rec)
     return {
-        "PP": pp, "FF": ff, "PF": pf, "FP": fp,
+        "PP": pp,
+        "FF": ff,
+        "PF": pf,
+        "FP": fp,
         "only_in_base": [
-            {"qid": qid, **base_by_id[qid]}
-            for qid in (base_by_id.keys() - new_by_id.keys())
+            {"qid": qid, **base_by_id[qid]} for qid in (base_by_id.keys() - new_by_id.keys())
         ],
         "only_in_new": [
-            {"qid": qid, **new_by_id[qid]}
-            for qid in (new_by_id.keys() - base_by_id.keys())
+            {"qid": qid, **new_by_id[qid]} for qid in (new_by_id.keys() - base_by_id.keys())
         ],
     }
 
@@ -225,7 +221,10 @@ def _qtype_flip_table(diff: dict[str, list[dict]]) -> str:
     for label in ("PP", "FF", "PF", "FP"):
         for r in diff[label]:
             by_qtype[r["qtype"] or "?"][label] += 1
-    lines = ["| qtype | PP | FF | **PF (lost)** | **FP (gained)** | net |", "|---|---:|---:|---:|---:|---:|"]
+    lines = [
+        "| qtype | PP | FF | **PF (lost)** | **FP (gained)** | net |",
+        "|---|---:|---:|---:|---:|---:|",
+    ]
     grand = Counter()
     for qtype in sorted(by_qtype.keys()):
         c = by_qtype[qtype]
@@ -243,9 +242,7 @@ def _qtype_flip_table(diff: dict[str, list[dict]]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def build_report(
-    base_path: Path, new_path: Path, base: dict, new: dict
-) -> str:
+def build_report(base_path: Path, new_path: Path, base: dict, new: dict) -> str:
     base_pq = base.get("per_question", [])
     new_pq = new.get("per_question", [])
 

@@ -34,10 +34,8 @@ from __future__ import annotations
 
 import argparse
 import datetime as _dt
-import hashlib
 import json
 import logging
-import math
 import os
 import sys
 import time
@@ -148,9 +146,7 @@ def _build_reranker(model: str, device: str | None, dtype: str) -> Any:
     return _build_reranker_common(model, device, dtype)
 
 
-def _retrieved_session_ids(
-    memory: Memory, results: Sequence[Any]
-) -> set[str]:
+def _retrieved_session_ids(memory: Memory, results: Sequence[Any]) -> set[str]:
     """Pull session_id from each result via the Event metadata blob.
 
     Memory items (consolidated abstractions) don't carry a session_id
@@ -227,11 +223,7 @@ def _run_one(
             if filt:
                 retrieve_kwargs["lexical_filter"] = filt
         results = memory.retrieve(q.question, **retrieve_kwargs)
-        if (
-            auto_temporal
-            and not results
-            and retrieve_kwargs.get("lexical_filter")
-        ):
+        if auto_temporal and not results and retrieve_kwargs.get("lexical_filter"):
             retrieve_kwargs.pop("lexical_filter", None)
             results = memory.retrieve(q.question, **retrieve_kwargs)
 
@@ -390,9 +382,7 @@ def main(argv: list[str] | None = None) -> int:
         default="BAAI/bge-large-en-v1.5",
     )
     parser.add_argument("--embed-device", default=None)
-    parser.add_argument(
-        "--dtype", default="fp32", choices=("auto", "fp16", "fp32")
-    )
+    parser.add_argument("--dtype", default="fp32", choices=("auto", "fp16", "fp32"))
     parser.add_argument("--reranker", default="BAAI/bge-reranker-v2-m3")
     parser.add_argument("--k", type=int, default=10)
     parser.add_argument(
@@ -451,9 +441,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"dataset not found: {dataset_path}", file=sys.stderr)
         return 2
     qids = [q.strip() for q in args.qid.split(",") if q.strip()] if args.qid else None
-    questions = _filter_questions(
-        all_questions, qtype=args.qtype, qids=qids, limit=args.limit
-    )
+    questions = _filter_questions(all_questions, qtype=args.qtype, qids=qids, limit=args.limit)
     if not questions:
         print("no questions match the filter", file=sys.stderr)
         return 2

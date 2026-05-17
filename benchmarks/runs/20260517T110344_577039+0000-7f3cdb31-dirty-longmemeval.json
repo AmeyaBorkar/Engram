@@ -1,0 +1,233 @@
+{
+  "aggregate_metrics": {
+    "accuracy": 0.0,
+    "accuracy_correct": 0.0,
+    "accuracy_correct_knowledge-update": 0.0,
+    "accuracy_correct_multi-session": 0.0,
+    "accuracy_correct_single-session-user": 0.0,
+    "accuracy_correct_temporal-reasoning": 0.0,
+    "accuracy_knowledge-update": 0.0,
+    "accuracy_multi-session": 0.0,
+    "accuracy_single-session-user": 0.0,
+    "accuracy_temporal-reasoning": 0.0,
+    "error_rate": 0.0,
+    "k": 10.0,
+    "n_completed": 4.0,
+    "n_completed_knowledge-update": 1.0,
+    "n_completed_multi-session": 1.0,
+    "n_completed_single-session-user": 1.0,
+    "n_completed_temporal-reasoning": 1.0,
+    "n_errored": 0.0,
+    "n_errored_knowledge-update": 0.0,
+    "n_errored_multi-session": 0.0,
+    "n_errored_single-session-user": 0.0,
+    "n_errored_temporal-reasoning": 0.0,
+    "n_knowledge-update": 1.0,
+    "n_multi-session": 1.0,
+    "n_questions": 4.0,
+    "n_single-session-user": 1.0,
+    "n_temporal-reasoning": 1.0
+  },
+  "confidence_intervals": {
+    "accuracy": [
+      0.0,
+      0.0
+    ],
+    "accuracy_correct": [
+      0.0,
+      0.0
+    ],
+    "accuracy_correct_knowledge-update": [
+      0.0,
+      0.0
+    ],
+    "accuracy_correct_multi-session": [
+      0.0,
+      0.0
+    ],
+    "accuracy_correct_single-session-user": [
+      0.0,
+      0.0
+    ],
+    "accuracy_correct_temporal-reasoning": [
+      0.0,
+      0.0
+    ],
+    "accuracy_knowledge-update": [
+      0.0,
+      0.0
+    ],
+    "accuracy_multi-session": [
+      0.0,
+      0.0
+    ],
+    "accuracy_single-session-user": [
+      0.0,
+      0.0
+    ],
+    "accuracy_temporal-reasoning": [
+      0.0,
+      0.0
+    ],
+    "error_rate": [
+      0.0,
+      0.0
+    ],
+    "k": [
+      10.0,
+      10.0
+    ],
+    "n_completed": [
+      4.0,
+      4.0
+    ],
+    "n_completed_knowledge-update": [
+      1.0,
+      1.0
+    ],
+    "n_completed_multi-session": [
+      1.0,
+      1.0
+    ],
+    "n_completed_single-session-user": [
+      1.0,
+      1.0
+    ],
+    "n_completed_temporal-reasoning": [
+      1.0,
+      1.0
+    ],
+    "n_errored": [
+      0.0,
+      0.0
+    ],
+    "n_errored_knowledge-update": [
+      0.0,
+      0.0
+    ],
+    "n_errored_multi-session": [
+      0.0,
+      0.0
+    ],
+    "n_errored_single-session-user": [
+      0.0,
+      0.0
+    ],
+    "n_errored_temporal-reasoning": [
+      0.0,
+      0.0
+    ],
+    "n_knowledge-update": [
+      1.0,
+      1.0
+    ],
+    "n_multi-session": [
+      1.0,
+      1.0
+    ],
+    "n_questions": [
+      4.0,
+      4.0
+    ],
+    "n_single-session-user": [
+      1.0,
+      1.0
+    ],
+    "n_temporal-reasoning": [
+      1.0,
+      1.0
+    ]
+  },
+  "cpu": "AMD64 Family 26 Model 36 Stepping 0, AuthenticAMD",
+  "dataset_checksum": "longmemeval/longmemeval_s_cleaned.json/d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442",
+  "dataset_version": "longmemeval-s-cleaned-v1",
+  "engram_config": {
+    "answer_form": "structured",
+    "enable_tools": true,
+    "parallel": 2,
+    "prompt_version": "v2c",
+    "sample_n": 4,
+    "seed": 1337
+  },
+  "git_commit": "7f3cdb319a95856fc703896da7303649f842d0a1",
+  "git_dirty": true,
+  "latency_ms": {
+    "answer": [
+      0.4354999982751906,
+      0.5662000039592385,
+      0.5678999878000468,
+      1.5258000057656318
+    ],
+    "ingest": [
+      145.48999999533407,
+      147.62989999144338,
+      147.3208999959752,
+      140.59540000744164
+    ],
+    "judge": [
+      0.25209999876096845,
+      0.2041999832727015,
+      1.56460001016967,
+      0.4071999865118414
+    ],
+    "retrieve": [
+      5.490999988978729,
+      18.41190000413917,
+      12.157000019215047,
+      6.346999987727031
+    ]
+  },
+  "os": "Windows 11",
+  "per_question": [
+    {
+      "consolidate_ms": 0.0,
+      "gold": "55-inch",
+      "k": 10,
+      "question": "What size is my new Samsung TV?",
+      "question_id": "76d63226",
+      "question_type": "single-session-user",
+      "response": "[fake: input_hash=ee58cc522259]",
+      "score": 0.0,
+      "turns_ingested": 489
+    },
+    {
+      "consolidate_ms": 0.0,
+      "gold": "$6",
+      "k": 10,
+      "question": "For my daily commute, how much more expensive was the taxi ride compared to the train fare?",
+      "question_id": "cc06de0d",
+      "question_type": "multi-session",
+      "response": "[fake: input_hash=fb4e3a216504]",
+      "score": 0.0,
+      "turns_ingested": 462
+    },
+    {
+      "consolidate_ms": 0.0,
+      "gold": "a smoker",
+      "k": 10,
+      "question": "What kitchen appliance did I buy 10 days ago?",
+      "question_id": "gpt4_8279ba03",
+      "question_type": "temporal-reasoning",
+      "response": "[fake: input_hash=010d99db99a3]",
+      "score": 0.0,
+      "turns_ingested": 500
+    },
+    {
+      "consolidate_ms": 0.0,
+      "gold": "6",
+      "k": 10,
+      "question": "How many women are on the team led by my former manager Rachel?",
+      "question_id": "ba61f0b9",
+      "question_type": "knowledge-update",
+      "response": "[fake: input_hash=8950e5185225]",
+      "score": 0.0,
+      "turns_ingested": 454
+    }
+  ],
+  "provider": "fake",
+  "provider_hash": "fake/3086c16442850732",
+  "python_version": "3.13.12",
+  "ram_gb": 32.0,
+  "suite": "longmemeval",
+  "timestamp": "2026-05-17T11:03:44.577039+00:00"
+}

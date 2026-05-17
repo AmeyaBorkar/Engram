@@ -231,6 +231,32 @@ select = [
 #                  the existing test conventions.
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["S101", "S311", "B", "SIM", "ARG", "PT011", "PT018", "RUF012", "RUF015", "RUF059", "F841", "E501"]
+# Scripts and benchmarks are runtime tools, not library code. Relax the
+# strict library rules:
+#   E501 long-line — bench tables and markdown emit are wide on purpose
+#   S110 / SIM105 — best-effort cleanup paths
+#   S311 — bootstrap CIs use stdlib random; not crypto
+#   F541 — empty f-strings used as future-proof template scaffolding
+#   F841 — debug-snapshot variables kept for trace readability
+#   N806 — UPPER_CASE inside functions for symbolic constants (_CAP, etc.)
+#   N814 — alias for typing-narrowing imports
+#   F821 — `Sequence` referenced via `from __future__ import annotations`
+#   ARG001 — dispatch interfaces share signatures; some args unused per call
+#   B007 — destructured tuples where one element is documented
+#   C420 — bench code uses dict-comp for clarity; perf isn't critical
+#   RUF001/RUF002/RUF003 — bench prose uses `×`, `−`, em-dash intentionally
+#   I001 — bench import-order convention groups `_common` → `engram` → suite
+#   RUF100 — `# noqa: E402` on intentional sys.path-insert-then-import pattern
+"scripts/*" = [
+    "E501", "S110", "SIM105", "S311", "F541", "F841",
+    "N806", "N814", "F821", "ARG001", "ARG002", "B007", "C420",
+    "RUF001", "RUF002", "RUF003", "I001", "RUF100",
+]
+"benchmarks/*" = [
+    "E501", "S110", "SIM105", "S311", "F541", "F841",
+    "N806", "N814", "F821", "ARG001", "ARG002", "B007", "C420",
+    "RUF001", "RUF002", "RUF003", "I001", "RUF100",
+]
 # The prompt-injection corpus and the line-separator escapes in
 # `_prompt_util.inline` intentionally embed full-width / U+2028 /
 # U+2029 Unicode — those ARE the attack payloads the module exists
@@ -249,7 +275,8 @@ select = [
 "src/engram/storage/sqlite.py" = ["S608", "S101"]
 # BM25 `assert` checks are invariants the algorithm depends on.
 "src/engram/retrieve/_bm25.py" = ["S101"]
-
+# Benchmark baselines copy the bench-tier rules.
+"benchmarks/baselines/*" = ["E501", "S110", "SIM105", "S311", "F541", "F841", "N806", "ARG001"]
 [tool.mypy]
 python_version = "3.10"
 strict = true

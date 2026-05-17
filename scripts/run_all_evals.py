@@ -73,25 +73,18 @@ from engram.providers._fake import FakeChat  # noqa: E402
 from engram.retrieve._bm25 import (  # noqa: E402
     BM25Index,
     reciprocal_rank_fusion,
-    tokenize,
 )
 from engram.retrieve._mmr import mmr_select  # noqa: E402
-from engram.retrieve._params import RetrieveParams  # noqa: E402
 
 from benchmarks.suites.longmemeval import (  # noqa: E402
     DATASET_ROOT,
     DEFAULT_FILENAME,
-    _Question,
     _build_auto_temporal_filter,
     _ingest_haystack,
     _load_dataset,
-    _parse_haystack_date,
 )
 from scripts._stats import (  # noqa: E402
-    bootstrap_mean_ci,
     bootstrap_paired_diff_ci,
-    format_ci,
-    format_p,
     mcnemar,
 )
 from scripts.ablate_longmemeval import (  # noqa: E402
@@ -100,7 +93,7 @@ from scripts.ablate_longmemeval import (  # noqa: E402
     _run_one as ablate_eval_one,
 )
 from scripts.retrieval_trace import _trace_question  # noqa: E402
-from scripts.sweep import SWEEPS, _evaluate_one as sweep_eval_one  # noqa: E402
+from scripts.sweep import _evaluate_one as sweep_eval_one  # noqa: E402
 
 _LOG = logging.getLogger("engram.eval_all")
 
@@ -162,6 +155,7 @@ def test_bm25() -> dict[str, Any]:
         for k, v in d.items():
             b.add_doc(k, v)
         return b
+
     r1 = _build({"a": "one two three", "b": "two three four"}).search("two three", k=5)
     r2 = _build({"a": "one two three", "b": "two three four"}).search("two three", k=5)
     tests.append(_ok("deterministic", r1 == r2))
@@ -189,11 +183,13 @@ def test_bm25() -> dict[str, Any]:
     )
     r = idx.search("fish", k=2)
     # Length normalization should favor the SHORT doc despite same term count
-    tests.append(_ok(
-        "length norm favors short doc",
-        len(r) == 2 and r[0][0] == "short" and r[0][1] > r[1][1],
-        f"short={r[0][1]:.3f}, long={r[1][1]:.3f}",
-    ))
+    tests.append(
+        _ok(
+            "length norm favors short doc",
+            len(r) == 2 and r[0][0] == "short" and r[0][1] > r[1][1],
+            f"short={r[0][1]:.3f}, long={r[1][1]:.3f}",
+        )
+    )
 
     passed = sum(1 for t in tests if t["passed"])
     failed = len(tests) - passed
@@ -253,14 +249,21 @@ def test_mmr() -> dict[str, Any]:
     rel = [1.0, 0.8, 0.7]
     vecs = [[1, 0], [0.99, 0.01], [0, 1]]
     r = mmr_select(items, rel, vecs, k=2, lambda_=0.5)
-    tests.append(_ok(
-        "λ=0.5 picks diverse over redundant",
-        r == ["top", "diverse"],
-        f"got {r}",
-    ))
+    tests.append(
+        _ok(
+            "λ=0.5 picks diverse over redundant",
+            r == ["top", "diverse"],
+            f"got {r}",
+        )
+    )
 
     passed = sum(1 for t in tests if t["passed"])
-    return {"component": "mmr_select", "tests": tests, "passed": passed, "failed": len(tests) - passed}
+    return {
+        "component": "mmr_select",
+        "tests": tests,
+        "passed": passed,
+        "failed": len(tests) - passed,
+    }
 
 
 def test_rrf() -> dict[str, Any]:
@@ -275,10 +278,12 @@ def test_rrf() -> dict[str, Any]:
     tests.append(_ok("single ranking: order preserved", [d for d, _ in r] == ["a", "b"]))
 
     # 3. Common top across rankings stays on top
-    r = reciprocal_rank_fusion([
-        [("a", 0.9), ("b", 0.5)],
-        [("a", 0.8), ("c", 0.4)],
-    ])
+    r = reciprocal_rank_fusion(
+        [
+            [("a", 0.9), ("b", 0.5)],
+            [("a", 0.8), ("c", 0.4)],
+        ]
+    )
     tests.append(_ok("common top wins", r[0][0] == "a"))
 
     # 4. Doc in only one ranking still surfaces
@@ -288,14 +293,21 @@ def test_rrf() -> dict[str, Any]:
     # 5. Exact math: rank-1 in both rankings → 2/(k+1)
     r = reciprocal_rank_fusion([[("a", 1)], [("a", 1)]], k=60)
     expected = 2 * (1.0 / 61.0)
-    tests.append(_ok(
-        "exact RRF(a) with rank=1 in two rankings",
-        r[0][0] == "a" and abs(r[0][1] - expected) < 1e-6,
-        f"got {r[0][1]:.6f}, expected {expected:.6f}",
-    ))
+    tests.append(
+        _ok(
+            "exact RRF(a) with rank=1 in two rankings",
+            r[0][0] == "a" and abs(r[0][1] - expected) < 1e-6,
+            f"got {r[0][1]:.6f}, expected {expected:.6f}",
+        )
+    )
 
     passed = sum(1 for t in tests if t["passed"])
-    return {"component": "reciprocal_rank_fusion", "tests": tests, "passed": passed, "failed": len(tests) - passed}
+    return {
+        "component": "reciprocal_rank_fusion",
+        "tests": tests,
+        "passed": passed,
+        "failed": len(tests) - passed,
+    }
 
 
 def test_auto_temporal() -> dict[str, Any]:
@@ -308,10 +320,12 @@ def test_auto_temporal() -> dict[str, Any]:
     tests.append(_ok("one year extracted", f is not None and "2023" in f))
 
     f = _build_auto_temporal_filter("Between 2023 and 2024 what happened?")
-    tests.append(_ok(
-        "two years extracted",
-        f is not None and "2023" in f and "2024" in f,
-    ))
+    tests.append(
+        _ok(
+            "two years extracted",
+            f is not None and "2023" in f and "2024" in f,
+        )
+    )
 
     # Non-year 4-digit (regex requires (19|20) prefix)
     f = _build_auto_temporal_filter("I have 1000 apples")
@@ -322,7 +336,12 @@ def test_auto_temporal() -> dict[str, Any]:
     tests.append(_ok("year glued to word → not matched", f is None, f"got {f!r}"))
 
     passed = sum(1 for t in tests if t["passed"])
-    return {"component": "_build_auto_temporal_filter", "tests": tests, "passed": passed, "failed": len(tests) - passed}
+    return {
+        "component": "_build_auto_temporal_filter",
+        "tests": tests,
+        "passed": passed,
+        "failed": len(tests) - passed,
+    }
 
 
 def test_recency_math() -> dict[str, Any]:
@@ -346,13 +365,20 @@ def test_recency_math() -> dict[str, Any]:
     for base in (5.0, -2.0, 0.0):
         boosted = base + lambda_
         # boosted - base should equal lambda (positive) regardless of base sign
-        tests.append(_ok(
-            f"additive bonus is sign-correct (base={base})",
-            abs((boosted - base) - lambda_) < 1e-6,
-        ))
+        tests.append(
+            _ok(
+                f"additive bonus is sign-correct (base={base})",
+                abs((boosted - base) - lambda_) < 1e-6,
+            )
+        )
 
     passed = sum(1 for t in tests if t["passed"])
-    return {"component": "recency_boost_math", "tests": tests, "passed": passed, "failed": len(tests) - passed}
+    return {
+        "component": "recency_boost_math",
+        "tests": tests,
+        "passed": passed,
+        "failed": len(tests) - passed,
+    }
 
 
 def phase1_component_tests(out_dir: Path) -> dict[str, Any]:
@@ -461,16 +487,18 @@ def phase2_ablation(
                         k=k,
                         retrieval_only=True,
                     )
-                    rows.append({
-                        "qid": row.qid,
-                        "qtype": row.qtype,
-                        "config": row.config,
-                        "recall": row.recall,
-                        "binary_hit": row.binary_hit,
-                        "score": row.score,
-                        "error": row.error,
-                        "latency_ms": row.latency_ms,
-                    })
+                    rows.append(
+                        {
+                            "qid": row.qid,
+                            "qtype": row.qtype,
+                            "config": row.config,
+                            "recall": row.recall,
+                            "binary_hit": row.binary_hit,
+                            "score": row.score,
+                            "error": row.error,
+                            "latency_ms": row.latency_ms,
+                        }
+                    )
                 _LOG.info(
                     "  q %d/%d qid=%s turns=%d ingest=%.1fs",
                     q_idx + 1,
@@ -500,9 +528,7 @@ def phase2_ablation(
         summary[qt] = {"n_questions": len(questions), "elapsed_s": elapsed, "configs": agg}
         _LOG.info("PHASE 2 [%s]: done in %.1fs", qt, elapsed)
 
-    (out_dir / "phase2_summary.json").write_text(
-        json.dumps(summary, indent=2), encoding="utf-8"
-    )
+    (out_dir / "phase2_summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     return summary
 
 
@@ -611,7 +637,11 @@ def phase3_sweeps(
             "per_value": per_value_summary,
         }
         (out_dir / f"phase3_sweep_{knob}.json").write_text(
-            json.dumps({"per_value": {str(k): v for k, v in per_value.items()}, "summary": summary[knob]}, indent=2, default=str),
+            json.dumps(
+                {"per_value": {str(k): v for k, v in per_value.items()}, "summary": summary[knob]},
+                indent=2,
+                default=str,
+            ),
             encoding="utf-8",
         )
         _LOG.info("PHASE 3 [%s]: done in %.1fs", knob, elapsed)
@@ -698,9 +728,7 @@ def phase4_traces(
         storage = SqliteStorage(":memory:")
         storage.initialize()
         try:
-            ingest_memory = Memory(
-                storage=storage, embedder=embedder, chat=chat, reranker=reranker
-            )
+            ingest_memory = Memory(storage=storage, embedder=embedder, chat=chat, reranker=reranker)
             _ingest_haystack(ingest_memory, q)
             text = _trace_question(
                 q=q,
@@ -719,9 +747,7 @@ def phase4_traces(
         _LOG.info("PHASE 4 [%s]: traced %s -> %s", qt, qid[:8], out_path)
         summary[qt] = {"qid": qid, "trace_path": str(out_path.relative_to(out_dir))}
 
-    (out_dir / "phase4_summary.json").write_text(
-        json.dumps(summary, indent=2), encoding="utf-8"
-    )
+    (out_dir / "phase4_summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     return summary
 
 
@@ -819,7 +845,7 @@ def phase5_report(
             all_configs = list(first_qt["configs"].keys())
         # Mean recall matrix
         lines.append("### Mean recall@k by (config, qtype)\n")
-        header = "| config | " + " | ".join(qt[:14] for qt in phase2.keys()) + " |"
+        header = "| config | " + " | ".join(qt[:14] for qt in phase2) + " |"
         sep = "|---|" + "|".join(["---:"] * len(phase2)) + "|"
         lines.append(header)
         lines.append(sep)
@@ -856,7 +882,9 @@ def phase5_report(
     if phase3:
         for knob, knob_data in phase3.items():
             lines.append(f"\n### `{knob}`\n")
-            lines.append(f"Baseline value: `{knob_data['baseline_value']}`, n_questions = {knob_data['n_questions']}\n")
+            lines.append(
+                f"Baseline value: `{knob_data['baseline_value']}`, n_questions = {knob_data['n_questions']}\n"
+            )
             lines.append("| value | n | recall@k | hit@k | mrr | Δ recall (paired CI) | sig? |")
             lines.append("|---|---:|---:|---:|---:|---|---|")
             for v_str, entry in knob_data["per_value"].items():
@@ -878,7 +906,9 @@ def phase5_report(
     # ---- Phase 4 ----
     lines.append("\n## Phase 4: Diagnostic traces\n")
     if phase4:
-        lines.append("Per-qtype trace of one question where any config flipped a baseline pass to a failure.\n")
+        lines.append(
+            "Per-qtype trace of one question where any config flipped a baseline pass to a failure.\n"
+        )
         lines.append("| qtype | qid | trace file |")
         lines.append("|---|---|---|")
         for qt, entry in phase4.items():
@@ -893,7 +923,8 @@ def phase5_report(
     if phase2:
         verdict = _verdict_from_phase2(phase2)
         keepers = [
-            c for c, v in verdict.items()
+            c
+            for c, v in verdict.items()
             if v.startswith("PASS") or v == "NEUTRAL (no lift, no regression)"
         ]
         lines.append("Configs that pass the per-qtype regression gate (Δ ≥ −0.02 everywhere):")
@@ -909,7 +940,9 @@ def phase5_report(
         lines.append("")
         lines.append("```powershell")
         lines.append("python -m engram.bench run longmemeval `")
-        lines.append("  --embedder local --embed-model BAAI/bge-large-en-v1.5 --embed-device cuda --dtype fp32 `")
+        lines.append(
+            "  --embedder local --embed-model BAAI/bge-large-en-v1.5 --embed-device cuda --dtype fp32 `"
+        )
         lines.append("  --chat opencode-go --chat-model kimi-k2.6 `")
         lines.append("  --reranker bge --k 10 --seed 1337 `")
         lines.append("  --rerank-pool-multiplier 5 `")
@@ -940,9 +973,7 @@ def _load_existing(out_dir: Path, name: str) -> dict[str, Any] | None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
-        description="End-to-end retrieval evaluation orchestrator."
-    )
+    parser = argparse.ArgumentParser(description="End-to-end retrieval evaluation orchestrator.")
     parser.add_argument("--out-dir", type=Path, default=Path("benchmarks/runs/eval_all"))
     parser.add_argument("--limit", type=int, default=30, help="Questions per qtype.")
     parser.add_argument(
@@ -971,9 +1002,7 @@ def main(argv: list[str] | None = None) -> int:
             "re-running them. Use after a crash."
         ),
     )
-    parser.add_argument(
-        "--log-level", default=os.environ.get("ENGRAM_LOG_LEVEL", "INFO")
-    )
+    parser.add_argument("--log-level", default=os.environ.get("ENGRAM_LOG_LEVEL", "INFO"))
     args = parser.parse_args(argv)
 
     logging.basicConfig(
@@ -1019,10 +1048,12 @@ def main(argv: list[str] | None = None) -> int:
         history = existing.get("resume_history")
         if not isinstance(history, list):
             history = []
-        history.append({
-            "resumed_at": time.strftime("%Y-%m-%d %H:%M:%S %Z"),
-            "args": config_args,
-        })
+        history.append(
+            {
+                "resumed_at": time.strftime("%Y-%m-%d %H:%M:%S %Z"),
+                "args": config_args,
+            }
+        )
         existing["resume_history"] = history
         config_path.write_text(json.dumps(existing, indent=2), encoding="utf-8")
     else:
@@ -1091,7 +1122,7 @@ def main(argv: list[str] | None = None) -> int:
 
     elapsed = time.perf_counter() - t_start
     _LOG.info("ALL PHASES DONE in %.1f min. Report at %s", elapsed / 60, out_dir / "REPORT.md")
-    print(f"\n[done] Report: {out_dir / 'REPORT.md'} (total {elapsed/60:.1f} min)\n")
+    print(f"\n[done] Report: {out_dir / 'REPORT.md'} (total {elapsed / 60:.1f} min)\n")
     return 0
 
 

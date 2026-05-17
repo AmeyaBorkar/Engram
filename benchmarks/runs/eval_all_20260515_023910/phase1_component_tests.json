@@ -1,0 +1,206 @@
+{
+  "suites": [
+    {
+      "component": "BM25Index",
+      "tests": [
+        {
+          "name": "empty corpus \u2192 []",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "single matching doc",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "no match \u2192 []",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "higher tf ranks higher",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "rare term lifts unique doc",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "tokenizer lowercases + word-only",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "deterministic",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "frozen after search()",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "length norm favors short doc",
+          "passed": true,
+          "detail": "short=0.321, long=0.245"
+        }
+      ],
+      "passed": 9,
+      "failed": 0
+    },
+    {
+      "component": "mmr_select",
+      "tests": [
+        {
+          "name": "empty input \u2192 []",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "single item returns it",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "\u03bb=1.0 \u2192 relevance sort",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "k==N with duplicates: all selected",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "\u03bb=0.0 with orthogonal: both selected",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "all None vectors \u2192 relevance sort",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "invalid \u03bb raises",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "\u03bb=0.5 picks diverse over redundant",
+          "passed": true,
+          "detail": "got ['top', 'diverse']"
+        }
+      ],
+      "passed": 8,
+      "failed": 0
+    },
+    {
+      "component": "reciprocal_rank_fusion",
+      "tests": [
+        {
+          "name": "empty rankings \u2192 []",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "single ranking: order preserved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "common top wins",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "both docs appear",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "exact RRF(a) with rank=1 in two rankings",
+          "passed": true,
+          "detail": "got 0.032787, expected 0.032787"
+        }
+      ],
+      "passed": 5,
+      "failed": 0
+    },
+    {
+      "component": "_build_auto_temporal_filter",
+      "tests": [
+        {
+          "name": "no year \u2192 None",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "one year extracted",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "two years extracted",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "non-year 4-digit \u2192 None",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "year glued to word \u2192 not matched",
+          "passed": true,
+          "detail": "got None"
+        }
+      ],
+      "passed": 5,
+      "failed": 0
+    },
+    {
+      "component": "recency_boost_math",
+      "tests": [
+        {
+          "name": "0-day-old: bonus == lambda",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "decay_days old: bonus == \u03bb/e",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "100\u00d7 decay old: bonus \u2248 0",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "additive bonus is sign-correct (base=5.0)",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "additive bonus is sign-correct (base=-2.0)",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "additive bonus is sign-correct (base=0.0)",
+          "passed": true,
+          "detail": ""
+        }
+      ],
+      "passed": 6,
+      "failed": 0
+    }
+  ],
+  "total_passed": 33,
+  "total_failed": 0
+}

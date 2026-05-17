@@ -1,0 +1,26 @@
+{
+  "aggregate_metrics": {
+    "noop": 1.0
+  },
+  "confidence_intervals": {
+    "noop": [
+      1.0,
+      1.0
+    ]
+  },
+  "cpu": "AMD64 Family 26 Model 36 Stepping 0, AuthenticAMD",
+  "dataset_checksum": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "dataset_version": "noop-1",
+  "engram_config": {},
+  "git_commit": "cebf6dc1125e025796a72639dfbeceb44c406eac",
+  "git_dirty": true,
+  "latency_ms": {},
+  "os": "Windows 11",
+  "per_question": [],
+  "provider": "fake",
+  "provider_hash": "fake/3086c16442850732",
+  "python_version": "3.13.12",
+  "ram_gb": 32.0,
+  "suite": "noop",
+  "timestamp": "2026-05-16T17:23:48.471297+00:00"
+}

@@ -128,7 +128,7 @@ def _trace_dense(
     )
     lines = [f"\n--- Dense top-{k} (raw cosine, no rerank) ---"]
     lines.append(f"{'rank':>4} | {'session':<12} | {'score':>6} | content")
-    lines.append(f"{'-'*4}-+-{'-'*12}-+-{'-'*6}-+-{'-'*60}")
+    lines.append(f"{'-' * 4}-+-{'-' * 12}-+-{'-' * 6}-+-{'-' * 60}")
     for i, (eid, content, score) in enumerate(hits, start=1):
         ev = storage.get_event(eid)
         sid = ev.metadata.get("session_id") if ev else None
@@ -151,7 +151,7 @@ def _trace_bm25(
         return [f"\n--- BM25 top-{k} (ERROR: {exc}) ---"]
     lines = [f"\n--- BM25 top-{k} (lexical, raw scores) ---"]
     lines.append(f"{'rank':>4} | {'session':<12} | {'score':>6} | content")
-    lines.append(f"{'-'*4}-+-{'-'*12}-+-{'-'*6}-+-{'-'*60}")
+    lines.append(f"{'-' * 4}-+-{'-' * 12}-+-{'-' * 6}-+-{'-' * 60}")
     if not hits:
         lines.append("(no BM25 hits for this query)")
         return lines
@@ -173,7 +173,7 @@ def _trace_recent(
     hits = storage.list_recent_events(k=k)
     lines = [f"\n--- Recent-window top-{k} (created_at DESC) ---"]
     lines.append(f"{'rank':>4} | {'session':<12} | content")
-    lines.append(f"{'-'*4}-+-{'-'*12}-+-{'-'*60}")
+    lines.append(f"{'-' * 4}-+-{'-' * 12}-+-{'-' * 60}")
     for i, (eid, content) in enumerate(hits, start=1):
         ev = storage.get_event(eid)
         sid = ev.metadata.get("session_id") if ev else None
@@ -252,9 +252,7 @@ def _trace_config(
     n_gold = sum(1 for s in retrieved_sessions if s in answer_sessions)
     n_unique_gold = len({s for s in retrieved_sessions if s in answer_sessions})
     recall = n_unique_gold / max(len(answer_sessions), 1)
-    lines = [
-        f"\n--- Config: {config_name} (top-{k}, {elapsed_ms:.0f}ms) ---"
-    ]
+    lines = [f"\n--- Config: {config_name} (top-{k}, {elapsed_ms:.0f}ms) ---"]
     if used_filter:
         lines.append(f"    [auto-temporal filter: {used_filter}]")
     lines.append(
@@ -262,7 +260,7 @@ def _trace_config(
         f"{n_gold} of {len(results)} retrieved items are from a gold session)"
     )
     lines.append(f"{'rank':>4} | {'session':<12} | {'level':<10} | {'score':>6} | content")
-    lines.append(f"{'-'*4}-+-{'-'*12}-+-{'-'*10}-+-{'-'*6}-+-{'-'*60}")
+    lines.append(f"{'-' * 4}-+-{'-' * 12}-+-{'-' * 10}-+-{'-' * 6}-+-{'-' * 60}")
     for i, (r, sid) in enumerate(zip(results, retrieved_sessions, strict=True), start=1):
         tag = _session_tag(sid, answer_sessions)
         lines.append(
@@ -292,16 +290,19 @@ def _trace_question(
     # header lines. The plain-text header below stays unchanged for
     # human readability.
     import json as _json
-    meta_payload = _json.dumps({
-        "qid": q.qid,
-        "qtype": q.qtype,
-        "question_date": q.question_date,
-        "question": q.question,
-        "gold": q.gold,
-        "answer_session_ids": sorted(answer_sessions),
-        "n_haystack_sessions": len(q.haystack_sessions),
-        "n_haystack_events": n_haystack_events,
-    })
+
+    meta_payload = _json.dumps(
+        {
+            "qid": q.qid,
+            "qtype": q.qtype,
+            "question_date": q.question_date,
+            "question": q.question,
+            "gold": q.gold,
+            "answer_session_ids": sorted(answer_sessions),
+            "n_haystack_sessions": len(q.haystack_sessions),
+            "n_haystack_events": n_haystack_events,
+        }
+    )
     header = [
         f"<trace-meta>{meta_payload}</trace-meta>",
         "=" * 80,
@@ -316,16 +317,30 @@ def _trace_question(
     ]
 
     parts = [*header]
-    parts.extend(_trace_dense(
-        storage=storage, embedder=embedder, question=q.question,
-        k=deep_n, answer_sessions=answer_sessions,
-    ))
-    parts.extend(_trace_bm25(
-        storage=storage, question=q.question, k=deep_n, answer_sessions=answer_sessions,
-    ))
-    parts.extend(_trace_recent(
-        storage=storage, k=min(deep_n, 20), answer_sessions=answer_sessions,
-    ))
+    parts.extend(
+        _trace_dense(
+            storage=storage,
+            embedder=embedder,
+            question=q.question,
+            k=deep_n,
+            answer_sessions=answer_sessions,
+        )
+    )
+    parts.extend(
+        _trace_bm25(
+            storage=storage,
+            question=q.question,
+            k=deep_n,
+            answer_sessions=answer_sessions,
+        )
+    )
+    parts.extend(
+        _trace_recent(
+            storage=storage,
+            k=min(deep_n, 20),
+            answer_sessions=answer_sessions,
+        )
+    )
 
     parts.append("\n" + "-" * 80)
     parts.append("FINAL TOP-K PER CONFIG")
@@ -334,17 +349,19 @@ def _trace_question(
         if c not in CONFIGS:
             parts.append(f"\n  (unknown config: {c}; skipping)")
             continue
-        parts.extend(_trace_config(
-            config_name=c,
-            config=CONFIGS[c],
-            storage=storage,
-            embedder=embedder,
-            reranker=reranker,
-            chat=chat,
-            q=q,
-            k=k,
-            answer_sessions=answer_sessions,
-        ))
+        parts.extend(
+            _trace_config(
+                config_name=c,
+                config=CONFIGS[c],
+                storage=storage,
+                embedder=embedder,
+                reranker=reranker,
+                chat=chat,
+                q=q,
+                k=k,
+                answer_sessions=answer_sessions,
+            )
+        )
     return "\n".join(parts)
 
 
@@ -406,9 +423,7 @@ def main(argv: list[str] | None = None) -> int:
     if not all_questions:
         print(f"dataset not found: {dataset_path}", file=sys.stderr)
         return 2
-    questions = _filter_questions(
-        all_questions, qid=args.qid, qtype=args.qtype, limit=args.limit
-    )
+    questions = _filter_questions(all_questions, qid=args.qid, qtype=args.qtype, limit=args.limit)
     if not questions:
         print("no questions match the filter", file=sys.stderr)
         return 2
@@ -427,7 +442,9 @@ def main(argv: list[str] | None = None) -> int:
             turns = _ingest_haystack(memory, q)
             _LOG.warning(
                 "[ingest] qid=%s turns=%d in %.1fs",
-                q.qid, turns, time.perf_counter() - t0,
+                q.qid,
+                turns,
+                time.perf_counter() - t0,
             )
             chunk = _trace_question(
                 q=q,

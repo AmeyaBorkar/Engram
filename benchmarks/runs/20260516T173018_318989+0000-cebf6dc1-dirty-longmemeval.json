@@ -1,0 +1,400 @@
+{
+  "aggregate_metrics": {
+    "accuracy": 0.0,
+    "accuracy_correct": 0.0,
+    "accuracy_correct_knowledge-update": 0.0,
+    "accuracy_correct_multi-session": 0.0,
+    "accuracy_correct_single-session-assistant": 0.0,
+    "accuracy_correct_single-session-preference": 0.0,
+    "accuracy_correct_single-session-user": 0.0,
+    "accuracy_correct_temporal-reasoning": 0.0,
+    "accuracy_knowledge-update": 0.0,
+    "accuracy_multi-session": 0.0,
+    "accuracy_single-session-assistant": 0.0,
+    "accuracy_single-session-preference": 0.0,
+    "accuracy_single-session-user": 0.0,
+    "accuracy_temporal-reasoning": 0.0,
+    "error_rate": 0.0,
+    "k": 10.0,
+    "n_completed": 12.0,
+    "n_completed_knowledge-update": 2.0,
+    "n_completed_multi-session": 3.0,
+    "n_completed_single-session-assistant": 1.0,
+    "n_completed_single-session-preference": 1.0,
+    "n_completed_single-session-user": 2.0,
+    "n_completed_temporal-reasoning": 3.0,
+    "n_errored": 0.0,
+    "n_errored_knowledge-update": 0.0,
+    "n_errored_multi-session": 0.0,
+    "n_errored_single-session-assistant": 0.0,
+    "n_errored_single-session-preference": 0.0,
+    "n_errored_single-session-user": 0.0,
+    "n_errored_temporal-reasoning": 0.0,
+    "n_knowledge-update": 2.0,
+    "n_multi-session": 3.0,
+    "n_questions": 12.0,
+    "n_single-session-assistant": 1.0,
+    "n_single-session-preference": 1.0,
+    "n_single-session-user": 2.0,
+    "n_temporal-reasoning": 3.0
+  },
+  "confidence_intervals": {
+    "accuracy": [
+      0.0,
+      0.0
+    ],
+    "accuracy_correct": [
+      0.0,
+      0.0
+    ],
+    "accuracy_correct_knowledge-update": [
+      0.0,
+      0.0
+    ],
+    "accuracy_correct_multi-session": [
+      0.0,
+      0.0
+    ],
+    "accuracy_correct_single-session-assistant": [
+      0.0,
+      0.0
+    ],
+    "accuracy_correct_single-session-preference": [
+      0.0,
+      0.0
+    ],
+    "accuracy_correct_single-session-user": [
+      0.0,
+      0.0
+    ],
+    "accuracy_correct_temporal-reasoning": [
+      0.0,
+      0.0
+    ],
+    "accuracy_knowledge-update": [
+      0.0,
+      0.0
+    ],
+    "accuracy_multi-session": [
+      0.0,
+      0.0
+    ],
+    "accuracy_single-session-assistant": [
+      0.0,
+      0.0
+    ],
+    "accuracy_single-session-preference": [
+      0.0,
+      0.0
+    ],
+    "accuracy_single-session-user": [
+      0.0,
+      0.0
+    ],
+    "accuracy_temporal-reasoning": [
+      0.0,
+      0.0
+    ],
+    "error_rate": [
+      0.0,
+      0.0
+    ],
+    "k": [
+      10.0,
+      10.0
+    ],
+    "n_completed": [
+      12.0,
+      12.0
+    ],
+    "n_completed_knowledge-update": [
+      2.0,
+      2.0
+    ],
+    "n_completed_multi-session": [
+      3.0,
+      3.0
+    ],
+    "n_completed_single-session-assistant": [
+      1.0,
+      1.0
+    ],
+    "n_completed_single-session-preference": [
+      1.0,
+      1.0
+    ],
+    "n_completed_single-session-user": [
+      2.0,
+      2.0
+    ],
+    "n_completed_temporal-reasoning": [
+      3.0,
+      3.0
+    ],
+    "n_errored": [
+      0.0,
+      0.0
+    ],
+    "n_errored_knowledge-update": [
+      0.0,
+      0.0
+    ],
+    "n_errored_multi-session": [
+      0.0,
+      0.0
+    ],
+    "n_errored_single-session-assistant": [
+      0.0,
+      0.0
+    ],
+    "n_errored_single-session-preference": [
+      0.0,
+      0.0
+    ],
+    "n_errored_single-session-user": [
+      0.0,
+      0.0
+    ],
+    "n_errored_temporal-reasoning": [
+      0.0,
+      0.0
+    ],
+    "n_knowledge-update": [
+      2.0,
+      2.0
+    ],
+    "n_multi-session": [
+      3.0,
+      3.0
+    ],
+    "n_questions": [
+      12.0,
+      12.0
+    ],
+    "n_single-session-assistant": [
+      1.0,
+      1.0
+    ],
+    "n_single-session-preference": [
+      1.0,
+      1.0
+    ],
+    "n_single-session-user": [
+      2.0,
+      2.0
+    ],
+    "n_temporal-reasoning": [
+      3.0,
+      3.0
+    ]
+  },
+  "cpu": "AMD64 Family 26 Model 36 Stepping 0, AuthenticAMD",
+  "dataset_checksum": "longmemeval/longmemeval_s_cleaned.json/d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442",
+  "dataset_version": "longmemeval-s-cleaned-v1",
+  "engram_config": {
+    "parallel": 4,
+    "sample_n": 12,
+    "seed": 42
+  },
+  "git_commit": "cebf6dc1125e025796a72639dfbeceb44c406eac",
+  "git_dirty": true,
+  "latency_ms": {
+    "answer": [
+      0.9263000101782382,
+      0.437700015027076,
+      1.3627999869640917,
+      0.5095999804325402,
+      0.44600002001971006,
+      1.4746999950148165,
+      0.6338999955914915,
+      0.8795000030659139,
+      1.9665000145323575,
+      1.4601000002585351,
+      0.8573000086471438,
+      0.9545999928377569
+    ],
+    "ingest": [
+      366.37360000167973,
+      397.40879999590106,
+      381.7142000189051,
+      335.8287000155542,
+      392.25550001719967,
+      363.4827999921981,
+      351.9161999865901,
+      339.1006000165362,
+      314.6346999856178,
+      356.92680001375265,
+      323.77779998932965,
+      352.7287000033539
+    ],
+    "judge": [
+      0.9328000014647841,
+      0.4985999839846045,
+      0.38410001434385777,
+      0.9479000000283122,
+      0.2502000133972615,
+      0.29230001382529736,
+      0.3711000026669353,
+      0.32049999572336674,
+      1.3849999813828617,
+      0.285700021777302,
+      0.7042000070214272,
+      0.18149998504668474
+    ],
+    "retrieve": [
+      29.131699993740767,
+      29.480299999704584,
+      32.475899992277846,
+      38.69610000401735,
+      27.782300021499395,
+      41.22859999188222,
+      21.069300011731684,
+      36.86819999711588,
+      45.368899998720735,
+      17.27850001771003,
+      28.265800006920472,
+      14.922600006684661
+    ]
+  },
+  "os": "Windows 11",
+  "per_question": [
+    {
+      "consolidate_ms": 0.0,
+      "gold": "bronchitis",
+      "k": 10,
+      "question": "What health issue did I initially think was just a cold?",
+      "question_id": "36580ce8",
+      "question_type": "single-session-user",
+      "response": "[fake: input_hash=749822f490d4]",
+      "score": 0.0,
+      "turns_ingested": 545
+    },
+    {
+      "consolidate_ms": 0.0,
+      "gold": "my sister",
+      "k": 10,
+      "question": "Who gave me a new stand mixer as a birthday gift?",
+      "question_id": "f4f1d8a4",
+      "question_type": "single-session-user",
+      "response": "[fake: input_hash=3464191a5bab]",
+      "score": 0.0,
+      "turns_ingested": 585
+    },
+    {
+      "consolidate_ms": 0.0,
+      "gold": 17,
+      "k": 10,
+      "question": "How many fish are there in total in both of my aquariums?",
+      "question_id": "eeda8a6d",
+      "question_type": "multi-session",
+      "response": "[fake: input_hash=228ab9dc94dd]",
+      "score": 0.0,
+      "turns_ingested": 513
+    },
+    {
+      "consolidate_ms": 0.0,
+      "gold": "5 days. 6 days (including the last day) is also acceptable.",
+      "k": 10,
+      "question": "How many days did it take for my laptop backpack to arrive after I bought it?",
+      "question_id": "60bf93ed",
+      "question_type": "multi-session",
+      "response": "[fake: input_hash=e14ed5e17ef5]",
+      "score": 0.0,
+      "turns_ingested": 494
+    },
+    {
+      "consolidate_ms": 0.0,
+      "gold": "$50",
+      "k": 10,
+      "question": "How much more money did I raise than my initial goal in the charity cycling event?",
+      "question_id": "078150f1",
+      "question_type": "multi-session",
+      "response": "[fake: input_hash=38743aa4c810]",
+      "score": 0.0,
+      "turns_ingested": 551
+    },
+    {
+      "consolidate_ms": 0.0,
+      "gold": "The user would prefer responses that take into account their previous experience in Denver, specifically their interest in live music and memorable encounter with Brandon Flowers. They might appreciate suggestions that revisit or build upon this experience, such as revisiting the same bar or exploring similar music venues in the area. The user may not prefer general tourist recommendations or activities unrelated to their interest in live music.",
+      "k": 10,
+      "question": "I'm planning a trip to Denver soon. Any suggestions on what to do there?",
+      "question_id": "a89d7624",
+      "question_type": "single-session-preference",
+      "response": "[fake: input_hash=1fe93b5c0757]",
+      "score": 0.0,
+      "turns_ingested": 496
+    },
+    {
+      "consolidate_ms": 0.0,
+      "gold": "4 months ago",
+      "k": 10,
+      "question": "How many months ago did I attend the Seattle International Film Festival?",
+      "question_id": "gpt4_6dc9b45b",
+      "question_type": "temporal-reasoning",
+      "response": "[fake: input_hash=ed78251f9f5a]",
+      "score": 0.0,
+      "turns_ingested": 565
+    },
+    {
+      "consolidate_ms": 0.0,
+      "gold": "18 days. 19 days (including the last day) is also acceptable.",
+      "k": 10,
+      "question": "How many days had passed since I finished reading 'The Seven Husbands of Evelyn Hugo' when I attended the book reading event at the local library, where the author of 'The Silent Patient' is discussing her latest thriller novel?",
+      "question_id": "0db4c65d",
+      "question_type": "temporal-reasoning",
+      "response": "[fake: input_hash=871bc5fde222]",
+      "score": 0.0,
+      "turns_ingested": 462
+    },
+    {
+      "consolidate_ms": 0.0,
+      "gold": "You participated in a social media challenge called #PlankChallenge.",
+      "k": 10,
+      "question": "What was the social media activity I participated 5 days ago?",
+      "question_id": "gpt4_68e94288",
+      "question_type": "temporal-reasoning",
+      "response": "[fake: input_hash=0526a00b837f]",
+      "score": 0.0,
+      "turns_ingested": 459
+    },
+    {
+      "consolidate_ms": 0.0,
+      "gold": "in my bedroom",
+      "k": 10,
+      "question": "Where is the painting 'Ethereal Dreams' by Emma Taylor currently hanging?",
+      "question_id": "e493bb7c",
+      "question_type": "knowledge-update",
+      "response": "[fake: input_hash=96c6070e1c7f]",
+      "score": 0.0,
+      "turns_ingested": 506
+    },
+    {
+      "consolidate_ms": 0.0,
+      "gold": "5",
+      "k": 10,
+      "question": "How many projects have I completed since starting painting classes?",
+      "question_id": "06db6396",
+      "question_type": "knowledge-update",
+      "response": "[fake: input_hash=df6c2630a732]",
+      "score": 0.0,
+      "turns_ingested": 479
+    },
+    {
+      "consolidate_ms": 0.0,
+      "gold": "Grilled Snapper with Mango Salsa",
+      "k": 10,
+      "question": "I was looking back at our previous conversation about Caribbean dishes and I was wondering, what was the name of that Jamaican dish you recommended I try with snapper that has fruit in it?",
+      "question_id": "778164c6",
+      "question_type": "single-session-assistant",
+      "response": "[fake: input_hash=df4b62eae3ba]",
+      "score": 0.0,
+      "turns_ingested": 542
+    }
+  ],
+  "provider": "fake",
+  "provider_hash": "fake/3086c16442850732",
+  "python_version": "3.13.12",
+  "ram_gb": 32.0,
+  "suite": "longmemeval",
+  "timestamp": "2026-05-16T17:30:18.318989+00:00"
+}

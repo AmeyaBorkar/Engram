@@ -1,0 +1,332 @@
+{
+  "single-session-user": {
+    "n_questions": 30,
+    "elapsed_s": 1649.0693406999999,
+    "configs": {
+      "baseline": {
+        "n": 30.0,
+        "mean_recall": 1.0,
+        "hit_rate": 1.0
+      },
+      "bm25": {
+        "n": 30.0,
+        "mean_recall": 1.0,
+        "hit_rate": 1.0
+      },
+      "mmr07": {
+        "n": 30.0,
+        "mean_recall": 0.9666666666666667,
+        "hit_rate": 0.9666666666666667
+      },
+      "mmr03": {
+        "n": 30.0,
+        "mean_recall": 1.0,
+        "hit_rate": 1.0
+      },
+      "recent": {
+        "n": 30.0,
+        "mean_recall": 1.0,
+        "hit_rate": 1.0
+      },
+      "recency": {
+        "n": 30.0,
+        "mean_recall": 0.9666666666666667,
+        "hit_rate": 0.9666666666666667
+      },
+      "autotemp": {
+        "n": 30.0,
+        "mean_recall": 1.0,
+        "hit_rate": 1.0
+      },
+      "bm25+aut": {
+        "n": 30.0,
+        "mean_recall": 1.0,
+        "hit_rate": 1.0
+      },
+      "bm25+mmr": {
+        "n": 30.0,
+        "mean_recall": 1.0,
+        "hit_rate": 1.0
+      },
+      "bm25+rec": {
+        "n": 30.0,
+        "mean_recall": 1.0,
+        "hit_rate": 1.0
+      },
+      "all_aggressive": {
+        "n": 30.0,
+        "mean_recall": 1.0,
+        "hit_rate": 1.0
+      },
+      "conservative": {
+        "n": 30.0,
+        "mean_recall": 1.0,
+        "hit_rate": 1.0
+      }
+    }
+  },
+  "single-session-preference": {
+    "n_questions": 30,
+    "elapsed_s": 1626.8090943999996,
+    "configs": {
+      "baseline": {
+        "n": 30.0,
+        "mean_recall": 0.9666666666666667,
+        "hit_rate": 0.9666666666666667
+      },
+      "bm25": {
+        "n": 30.0,
+        "mean_recall": 0.9666666666666667,
+        "hit_rate": 0.9666666666666667
+      },
+      "mmr07": {
+        "n": 30.0,
+        "mean_recall": 0.9666666666666667,
+        "hit_rate": 0.9666666666666667
+      },
+      "mmr03": {
+        "n": 30.0,
+        "mean_recall": 0.9333333333333333,
+        "hit_rate": 0.9333333333333333
+      },
+      "recent": {
+        "n": 30.0,
+        "mean_recall": 0.9666666666666667,
+        "hit_rate": 0.9666666666666667
+      },
+      "recency": {
+        "n": 30.0,
+        "mean_recall": 0.9,
+        "hit_rate": 0.9
+      },
+      "autotemp": {
+        "n": 30.0,
+        "mean_recall": 0.9666666666666667,
+        "hit_rate": 0.9666666666666667
+      },
+      "bm25+aut": {
+        "n": 30.0,
+        "mean_recall": 0.9666666666666667,
+        "hit_rate": 0.9666666666666667
+      },
+      "bm25+mmr": {
+        "n": 30.0,
+        "mean_recall": 0.9666666666666667,
+        "hit_rate": 0.9666666666666667
+      },
+      "bm25+rec": {
+        "n": 30.0,
+        "mean_recall": 0.9666666666666667,
+        "hit_rate": 0.9666666666666667
+      },
+      "all_aggressive": {
+        "n": 30.0,
+        "mean_recall": 0.9,
+        "hit_rate": 0.9
+      },
+      "conservative": {
+        "n": 30.0,
+        "mean_recall": 0.9666666666666667,
+        "hit_rate": 0.9666666666666667
+      }
+    }
+  },
+  "multi-session": {
+    "n_questions": 30,
+    "elapsed_s": 1599.1790791999993,
+    "configs": {
+      "baseline": {
+        "n": 30.0,
+        "mean_recall": 0.9433333333333334,
+        "hit_rate": 1.0
+      },
+      "bm25": {
+        "n": 30.0,
+        "mean_recall": 0.91,
+        "hit_rate": 1.0
+      },
+      "mmr07": {
+        "n": 30.0,
+        "mean_recall": 0.9322222222222222,
+        "hit_rate": 1.0
+      },
+      "mmr03": {
+        "n": 30.0,
+        "mean_recall": 0.91,
+        "hit_rate": 1.0
+      },
+      "recent": {
+        "n": 30.0,
+        "mean_recall": 0.9238888888888889,
+        "hit_rate": 1.0
+      },
+      "recency": {
+        "n": 30.0,
+        "mean_recall": 0.8183333333333334,
+        "hit_rate": 1.0
+      },
+      "autotemp": {
+        "n": 30.0,
+        "mean_recall": 0.9433333333333334,
+        "hit_rate": 1.0
+      },
+      "bm25+aut": {
+        "n": 30.0,
+        "mean_recall": 0.91,
+        "hit_rate": 1.0
+      },
+      "bm25+mmr": {
+        "n": 30.0,
+        "mean_recall": 0.8061111111111111,
+        "hit_rate": 1.0
+      },
+      "bm25+rec": {
+        "n": 30.0,
+        "mean_recall": 0.91,
+        "hit_rate": 1.0
+      },
+      "all_aggressive": {
+        "n": 30.0,
+        "mean_recall": 0.6483333333333333,
+        "hit_rate": 0.9333333333333333
+      },
+      "conservative": {
+        "n": 30.0,
+        "mean_recall": 0.91,
+        "hit_rate": 1.0
+      }
+    }
+  },
+  "knowledge-update": {
+    "n_questions": 30,
+    "elapsed_s": 1571.2663097000004,
+    "configs": {
+      "baseline": {
+        "n": 30.0,
+        "mean_recall": 1.0,
+        "hit_rate": 1.0
+      },
+      "bm25": {
+        "n": 30.0,
+        "mean_recall": 1.0,
+        "hit_rate": 1.0
+      },
+      "mmr07": {
+        "n": 30.0,
+        "mean_recall": 1.0,
+        "hit_rate": 1.0
+      },
+      "mmr03": {
+        "n": 30.0,
+        "mean_recall": 1.0,
+        "hit_rate": 1.0
+      },
+      "recent": {
+        "n": 30.0,
+        "mean_recall": 1.0,
+        "hit_rate": 1.0
+      },
+      "recency": {
+        "n": 30.0,
+        "mean_recall": 0.9833333333333333,
+        "hit_rate": 1.0
+      },
+      "autotemp": {
+        "n": 30.0,
+        "mean_recall": 1.0,
+        "hit_rate": 1.0
+      },
+      "bm25+aut": {
+        "n": 30.0,
+        "mean_recall": 1.0,
+        "hit_rate": 1.0
+      },
+      "bm25+mmr": {
+        "n": 30.0,
+        "mean_recall": 1.0,
+        "hit_rate": 1.0
+      },
+      "bm25+rec": {
+        "n": 30.0,
+        "mean_recall": 1.0,
+        "hit_rate": 1.0
+      },
+      "all_aggressive": {
+        "n": 30.0,
+        "mean_recall": 0.9666666666666667,
+        "hit_rate": 0.9666666666666667
+      },
+      "conservative": {
+        "n": 30.0,
+        "mean_recall": 1.0,
+        "hit_rate": 1.0
+      }
+    }
+  },
+  "temporal-reasoning": {
+    "n_questions": 30,
+    "elapsed_s": 1607.0176606999994,
+    "configs": {
+      "baseline": {
+        "n": 30.0,
+        "mean_recall": 0.9277777777777777,
+        "hit_rate": 1.0
+      },
+      "bm25": {
+        "n": 30.0,
+        "mean_recall": 0.9472222222222223,
+        "hit_rate": 1.0
+      },
+      "mmr07": {
+        "n": 30.0,
+        "mean_recall": 0.9388888888888889,
+        "hit_rate": 1.0
+      },
+      "mmr03": {
+        "n": 30.0,
+        "mean_recall": 0.9222222222222223,
+        "hit_rate": 1.0
+      },
+      "recent": {
+        "n": 30.0,
+        "mean_recall": 0.9277777777777777,
+        "hit_rate": 1.0
+      },
+      "recency": {
+        "n": 30.0,
+        "mean_recall": 0.8277777777777777,
+        "hit_rate": 1.0
+      },
+      "autotemp": {
+        "n": 30.0,
+        "mean_recall": 0.9277777777777777,
+        "hit_rate": 1.0
+      },
+      "bm25+aut": {
+        "n": 30.0,
+        "mean_recall": 0.9472222222222223,
+        "hit_rate": 1.0
+      },
+      "bm25+mmr": {
+        "n": 30.0,
+        "mean_recall": 0.8944444444444444,
+        "hit_rate": 1.0
+      },
+      "bm25+rec": {
+        "n": 30.0,
+        "mean_recall": 0.9472222222222223,
+        "hit_rate": 1.0
+      },
+      "all_aggressive": {
+        "n": 30.0,
+        "mean_recall": 0.7666666666666667,
+        "hit_rate": 1.0
+      },
+      "conservative": {
+        "n": 30.0,
+        "mean_recall": 0.9472222222222223,
+        "hit_rate": 1.0
+      }
+    }
+  }
+}

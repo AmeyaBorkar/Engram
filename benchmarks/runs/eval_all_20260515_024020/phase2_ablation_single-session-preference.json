@@ -1,0 +1,3602 @@
+[
+  {
+    "qid": "8a2466db",
+    "qtype": "single-session-preference",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2127.822800001013
+  },
+  {
+    "qid": "8a2466db",
+    "qtype": "single-session-preference",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3436.654199998884
+  },
+  {
+    "qid": "8a2466db",
+    "qtype": "single-session-preference",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2107.07960000218
+  },
+  {
+    "qid": "8a2466db",
+    "qtype": "single-session-preference",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2106.810699999187
+  },
+  {
+    "qid": "8a2466db",
+    "qtype": "single-session-preference",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2769.3379999982426
+  },
+  {
+    "qid": "8a2466db",
+    "qtype": "single-session-preference",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2101.448599998548
+  },
+  {
+    "qid": "8a2466db",
+    "qtype": "single-session-preference",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2102.679100000387
+  },
+  {
+    "qid": "8a2466db",
+    "qtype": "single-session-preference",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3322.968699998455
+  },
+  {
+    "qid": "8a2466db",
+    "qtype": "single-session-preference",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3343.09790000043
+  },
+  {
+    "qid": "8a2466db",
+    "qtype": "single-session-preference",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3985.9569000000192
+  },
+  {
+    "qid": "8a2466db",
+    "qtype": "single-session-preference",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4004.8838000002434
+  },
+  {
+    "qid": "8a2466db",
+    "qtype": "single-session-preference",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3332.611199999519
+  },
+  {
+    "qid": "06878be2",
+    "qtype": "single-session-preference",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2099.7945000017353
+  },
+  {
+    "qid": "06878be2",
+    "qtype": "single-session-preference",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4038.828000000649
+  },
+  {
+    "qid": "06878be2",
+    "qtype": "single-session-preference",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2118.435899999895
+  },
+  {
+    "qid": "06878be2",
+    "qtype": "single-session-preference",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2098.063200002798
+  },
+  {
+    "qid": "06878be2",
+    "qtype": "single-session-preference",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2686.1193000004278
+  },
+  {
+    "qid": "06878be2",
+    "qtype": "single-session-preference",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2088.175400000182
+  },
+  {
+    "qid": "06878be2",
+    "qtype": "single-session-preference",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2082.5495999997656
+  },
+  {
+    "qid": "06878be2",
+    "qtype": "single-session-preference",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3718.1812999988324
+  },
+  {
+    "qid": "06878be2",
+    "qtype": "single-session-preference",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3733.5605999978725
+  },
+  {
+    "qid": "06878be2",
+    "qtype": "single-session-preference",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4343.2481000018015
+  },
+  {
+    "qid": "06878be2",
+    "qtype": "single-session-preference",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4350.039100001595
+  },
+  {
+    "qid": "06878be2",
+    "qtype": "single-session-preference",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3722.560300000623
+  },
+  {
+    "qid": "75832dbd",
+    "qtype": "single-session-preference",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2063.398499998584
+  },
+  {
+    "qid": "75832dbd",
+    "qtype": "single-session-preference",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3823.0078000015055
+  },
+  {
+    "qid": "75832dbd",
+    "qtype": "single-session-preference",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2083.7055999982113
+  },
+  {
+    "qid": "75832dbd",
+    "qtype": "single-session-preference",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2064.373199998954
+  },
+  {
+    "qid": "75832dbd",
+    "qtype": "single-session-preference",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2742.68359999769
+  },
+  {
+    "qid": "75832dbd",
+    "qtype": "single-session-preference",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2060.8951000031084
+  },
+  {
+    "qid": "75832dbd",
+    "qtype": "single-session-preference",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2062.872200000129
+  },
+  {
+    "qid": "75832dbd",
+    "qtype": "single-session-preference",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3660.1190000001225
+  },
+  {
+    "qid": "75832dbd",
+    "qtype": "single-session-preference",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3653.9834000031988
+  },
+  {
+    "qid": "75832dbd",
+    "qtype": "single-session-preference",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4374.120699998457
+  },
+  {
+    "qid": "75832dbd",
+    "qtype": "single-session-preference",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4360.929500002385
+  },
+  {
+    "qid": "75832dbd",
+    "qtype": "single-session-preference",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3640.922300000966
+  },
+  {
+    "qid": "0edc2aef",
+    "qtype": "single-session-preference",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2130.6385999996564
+  },
+  {
+    "qid": "0edc2aef",
+    "qtype": "single-session-preference",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3245.885799999087
+  },
+  {
+    "qid": "0edc2aef",
+    "qtype": "single-session-preference",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2074.312999997346
+  },
+  {
+    "qid": "0edc2aef",
+    "qtype": "single-session-preference",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2087.581700001465
+  },
+  {
+    "qid": "0edc2aef",
+    "qtype": "single-session-preference",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2763.9161000006425
+  },
+  {
+    "qid": "0edc2aef",
+    "qtype": "single-session-preference",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2080.792400000064
+  },
+  {
+    "qid": "0edc2aef",
+    "qtype": "single-session-preference",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2078.2515999999305
+  },
+  {
+    "qid": "0edc2aef",
+    "qtype": "single-session-preference",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3170.933299999888
+  },
+  {
+    "qid": "0edc2aef",
+    "qtype": "single-session-preference",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3166.8247999987216
+  },
+  {
+    "qid": "0edc2aef",
+    "qtype": "single-session-preference",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3869.300199999998
+  },
+  {
+    "qid": "0edc2aef",
+    "qtype": "single-session-preference",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3856.8645999985165
+  },
+  {
+    "qid": "0edc2aef",
+    "qtype": "single-session-preference",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3178.7178999984462
+  },
+  {
+    "qid": "35a27287",
+    "qtype": "single-session-preference",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2066.209300002811
+  },
+  {
+    "qid": "35a27287",
+    "qtype": "single-session-preference",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3419.8031000014453
+  },
+  {
+    "qid": "35a27287",
+    "qtype": "single-session-preference",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2073.644799998874
+  },
+  {
+    "qid": "35a27287",
+    "qtype": "single-session-preference",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2073.8663999982236
+  },
+  {
+    "qid": "35a27287",
+    "qtype": "single-session-preference",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2742.087900001934
+  },
+  {
+    "qid": "35a27287",
+    "qtype": "single-session-preference",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2064.2439000002923
+  },
+  {
+    "qid": "35a27287",
+    "qtype": "single-session-preference",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2060.9026000020094
+  },
+  {
+    "qid": "35a27287",
+    "qtype": "single-session-preference",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3347.2791999993206
+  },
+  {
+    "qid": "35a27287",
+    "qtype": "single-session-preference",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3375.440800002252
+  },
+  {
+    "qid": "35a27287",
+    "qtype": "single-session-preference",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4044.699199999741
+  },
+  {
+    "qid": "35a27287",
+    "qtype": "single-session-preference",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4063.849799997115
+  },
+  {
+    "qid": "35a27287",
+    "qtype": "single-session-preference",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3354.4149000008474
+  },
+  {
+    "qid": "32260d93",
+    "qtype": "single-session-preference",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2065.0563999988663
+  },
+  {
+    "qid": "32260d93",
+    "qtype": "single-session-preference",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3662.683200000174
+  },
+  {
+    "qid": "32260d93",
+    "qtype": "single-session-preference",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2037.84910000104
+  },
+  {
+    "qid": "32260d93",
+    "qtype": "single-session-preference",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2035.6915000011213
+  },
+  {
+    "qid": "32260d93",
+    "qtype": "single-session-preference",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2671.082299999398
+  },
+  {
+    "qid": "32260d93",
+    "qtype": "single-session-preference",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2022.310300002573
+  },
+  {
+    "qid": "32260d93",
+    "qtype": "single-session-preference",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2017.7728999988176
+  },
+  {
+    "qid": "32260d93",
+    "qtype": "single-session-preference",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3640.7065999992483
+  },
+  {
+    "qid": "32260d93",
+    "qtype": "single-session-preference",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3651.7794000028516
+  },
+  {
+    "qid": "32260d93",
+    "qtype": "single-session-preference",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4312.83170000097
+  },
+  {
+    "qid": "32260d93",
+    "qtype": "single-session-preference",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4301.172499999666
+  },
+  {
+    "qid": "32260d93",
+    "qtype": "single-session-preference",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3626.6289000013785
+  },
+  {
+    "qid": "195a1a1b",
+    "qtype": "single-session-preference",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2110.137899999245
+  },
+  {
+    "qid": "195a1a1b",
+    "qtype": "single-session-preference",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4121.2551000026
+  },
+  {
+    "qid": "195a1a1b",
+    "qtype": "single-session-preference",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2137.8537000018696
+  },
+  {
+    "qid": "195a1a1b",
+    "qtype": "single-session-preference",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2112.9450000007637
+  },
+  {
+    "qid": "195a1a1b",
+    "qtype": "single-session-preference",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2350.35820000121
+  },
+  {
+    "qid": "195a1a1b",
+    "qtype": "single-session-preference",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2099.9492999981157
+  },
+  {
+    "qid": "195a1a1b",
+    "qtype": "single-session-preference",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2112.8344999997353
+  },
+  {
+    "qid": "195a1a1b",
+    "qtype": "single-session-preference",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3697.4021999994875
+  },
+  {
+    "qid": "195a1a1b",
+    "qtype": "single-session-preference",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3701.1972999971476
+  },
+  {
+    "qid": "195a1a1b",
+    "qtype": "single-session-preference",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3968.106099997385
+  },
+  {
+    "qid": "195a1a1b",
+    "qtype": "single-session-preference",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3979.0059000006295
+  },
+  {
+    "qid": "195a1a1b",
+    "qtype": "single-session-preference",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3692.733500000031
+  },
+  {
+    "qid": "afdc33df",
+    "qtype": "single-session-preference",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2081.0462000008556
+  },
+  {
+    "qid": "afdc33df",
+    "qtype": "single-session-preference",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3451.9540000001143
+  },
+  {
+    "qid": "afdc33df",
+    "qtype": "single-session-preference",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2077.442900001188
+  },
+  {
+    "qid": "afdc33df",
+    "qtype": "single-session-preference",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2070.02360000115
+  },
+  {
+    "qid": "afdc33df",
+    "qtype": "single-session-preference",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2751.0873999999603
+  },
+  {
+    "qid": "afdc33df",
+    "qtype": "single-session-preference",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2065.508100000443
+  },
+  {
+    "qid": "afdc33df",
+    "qtype": "single-session-preference",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2065.209100001084
+  },
+  {
+    "qid": "afdc33df",
+    "qtype": "single-session-preference",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3346.0001000021293
+  },
+  {
+    "qid": "afdc33df",
+    "qtype": "single-session-preference",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3344.797699999617
+  },
+  {
+    "qid": "afdc33df",
+    "qtype": "single-session-preference",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3974.6922000013
+  },
+  {
+    "qid": "afdc33df",
+    "qtype": "single-session-preference",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3980.6351000006543
+  },
+  {
+    "qid": "afdc33df",
+    "qtype": "single-session-preference",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3342.4378000017896
+  },
+  {
+    "qid": "caf03d32",
+    "qtype": "single-session-preference",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2098.224500001379
+  },
+  {
+    "qid": "caf03d32",
+    "qtype": "single-session-preference",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3477.2465999994893
+  },
+  {
+    "qid": "caf03d32",
+    "qtype": "single-session-preference",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2109.943799998291
+  },
+  {
+    "qid": "caf03d32",
+    "qtype": "single-session-preference",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2094.937199999549
+  },
+  {
+    "qid": "caf03d32",
+    "qtype": "single-session-preference",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2301.9114999988233
+  },
+  {
+    "qid": "caf03d32",
+    "qtype": "single-session-preference",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2089.036000001215
+  },
+  {
+    "qid": "caf03d32",
+    "qtype": "single-session-preference",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2098.2192999981635
+  },
+  {
+    "qid": "caf03d32",
+    "qtype": "single-session-preference",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3354.9796999977843
+  },
+  {
+    "qid": "caf03d32",
+    "qtype": "single-session-preference",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3352.427499998157
+  },
+  {
+    "qid": "caf03d32",
+    "qtype": "single-session-preference",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3570.472300001711
+  },
+  {
+    "qid": "caf03d32",
+    "qtype": "single-session-preference",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3556.110499997885
+  },
+  {
+    "qid": "caf03d32",
+    "qtype": "single-session-preference",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3348.95300000062
+  },
+  {
+    "qid": "54026fce",
+    "qtype": "single-session-preference",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2114.048500003264
+  },
+  {
+    "qid": "54026fce",
+    "qtype": "single-session-preference",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3986.4703999992344
+  },
+  {
+    "qid": "54026fce",
+    "qtype": "single-session-preference",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2132.1791999980633
+  },
+  {
+    "qid": "54026fce",
+    "qtype": "single-session-preference",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2058.396600001288
+  },
+  {
+    "qid": "54026fce",
+    "qtype": "single-session-preference",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2726.0768999985885
+  },
+  {
+    "qid": "54026fce",
+    "qtype": "single-session-preference",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2065.484499999002
+  },
+  {
+    "qid": "54026fce",
+    "qtype": "single-session-preference",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2059.6612000008463
+  },
+  {
+    "qid": "54026fce",
+    "qtype": "single-session-preference",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3759.2397000007622
+  },
+  {
+    "qid": "54026fce",
+    "qtype": "single-session-preference",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3736.4188999999897
+  },
+  {
+    "qid": "54026fce",
+    "qtype": "single-session-preference",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4423.4725999995135
+  },
+  {
+    "qid": "54026fce",
+    "qtype": "single-session-preference",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4411.15340000033
+  },
+  {
+    "qid": "54026fce",
+    "qtype": "single-session-preference",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3725.1949999990757
+  },
+  {
+    "qid": "06f04340",
+    "qtype": "single-session-preference",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2107.7293999987887
+  },
+  {
+    "qid": "06f04340",
+    "qtype": "single-session-preference",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3483.68660000051
+  },
+  {
+    "qid": "06f04340",
+    "qtype": "single-session-preference",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2099.5263999975577
+  },
+  {
+    "qid": "06f04340",
+    "qtype": "single-session-preference",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2092.444499998237
+  },
+  {
+    "qid": "06f04340",
+    "qtype": "single-session-preference",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2757.317999999941
+  },
+  {
+    "qid": "06f04340",
+    "qtype": "single-session-preference",
+    "config": "recency",
+    "recall": 0.0,
+    "binary_hit": 0.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2091.2091999998665
+  },
+  {
+    "qid": "06f04340",
+    "qtype": "single-session-preference",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2092.5650999997742
+  },
+  {
+    "qid": "06f04340",
+    "qtype": "single-session-preference",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3374.468500001967
+  },
+  {
+    "qid": "06f04340",
+    "qtype": "single-session-preference",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3401.6110000011395
+  },
+  {
+    "qid": "06f04340",
+    "qtype": "single-session-preference",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4060.6370999994397
+  },
+  {
+    "qid": "06f04340",
+    "qtype": "single-session-preference",
+    "config": "all_aggressive",
+    "recall": 0.0,
+    "binary_hit": 0.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4079.2672999996284
+  },
+  {
+    "qid": "06f04340",
+    "qtype": "single-session-preference",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3373.008700000355
+  },
+  {
+    "qid": "6b7dfb22",
+    "qtype": "single-session-preference",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2083.5051000030944
+  },
+  {
+    "qid": "6b7dfb22",
+    "qtype": "single-session-preference",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3865.1160999979766
+  },
+  {
+    "qid": "6b7dfb22",
+    "qtype": "single-session-preference",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2075.2838000007614
+  },
+  {
+    "qid": "6b7dfb22",
+    "qtype": "single-session-preference",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2077.5448999993387
+  },
+  {
+    "qid": "6b7dfb22",
+    "qtype": "single-session-preference",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2761.8580000016664
+  },
+  {
+    "qid": "6b7dfb22",
+    "qtype": "single-session-preference",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2069.2777000003844
+  },
+  {
+    "qid": "6b7dfb22",
+    "qtype": "single-session-preference",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2070.077600001241
+  },
+  {
+    "qid": "6b7dfb22",
+    "qtype": "single-session-preference",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3450.8238999987952
+  },
+  {
+    "qid": "6b7dfb22",
+    "qtype": "single-session-preference",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3461.080699999002
+  },
+  {
+    "qid": "6b7dfb22",
+    "qtype": "single-session-preference",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4095.5816999994568
+  },
+  {
+    "qid": "6b7dfb22",
+    "qtype": "single-session-preference",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4107.38610000044
+  },
+  {
+    "qid": "6b7dfb22",
+    "qtype": "single-session-preference",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3456.150999998499
+  },
+  {
+    "qid": "1a1907b4",
+    "qtype": "single-session-preference",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2107.846700000664
+  },
+  {
+    "qid": "1a1907b4",
+    "qtype": "single-session-preference",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3730.281299998751
+  },
+  {
+    "qid": "1a1907b4",
+    "qtype": "single-session-preference",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2093.5544999993
+  },
+  {
+    "qid": "1a1907b4",
+    "qtype": "single-session-preference",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2082.269999998971
+  },
+  {
+    "qid": "1a1907b4",
+    "qtype": "single-session-preference",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2730.1664000005985
+  },
+  {
+    "qid": "1a1907b4",
+    "qtype": "single-session-preference",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2074.0292000009504
+  },
+  {
+    "qid": "1a1907b4",
+    "qtype": "single-session-preference",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2070.3610999989905
+  },
+  {
+    "qid": "1a1907b4",
+    "qtype": "single-session-preference",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3687.0774000017263
+  },
+  {
+    "qid": "1a1907b4",
+    "qtype": "single-session-preference",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3689.910700002656
+  },
+  {
+    "qid": "1a1907b4",
+    "qtype": "single-session-preference",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4357.345799999166
+  },
+  {
+    "qid": "1a1907b4",
+    "qtype": "single-session-preference",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4378.555699997378
+  },
+  {
+    "qid": "1a1907b4",
+    "qtype": "single-session-preference",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3684.344199999032
+  },
+  {
+    "qid": "09d032c9",
+    "qtype": "single-session-preference",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2067.8669000008085
+  },
+  {
+    "qid": "09d032c9",
+    "qtype": "single-session-preference",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3632.6988999971945
+  },
+  {
+    "qid": "09d032c9",
+    "qtype": "single-session-preference",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2076.111399997899
+  },
+  {
+    "qid": "09d032c9",
+    "qtype": "single-session-preference",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2066.330799996649
+  },
+  {
+    "qid": "09d032c9",
+    "qtype": "single-session-preference",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2749.180599999818
+  },
+  {
+    "qid": "09d032c9",
+    "qtype": "single-session-preference",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2058.3163000010245
+  },
+  {
+    "qid": "09d032c9",
+    "qtype": "single-session-preference",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2053.6064000007173
+  },
+  {
+    "qid": "09d032c9",
+    "qtype": "single-session-preference",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3582.9679999988
+  },
+  {
+    "qid": "09d032c9",
+    "qtype": "single-session-preference",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3597.1428000011656
+  },
+  {
+    "qid": "09d032c9",
+    "qtype": "single-session-preference",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4238.0167999981495
+  },
+  {
+    "qid": "09d032c9",
+    "qtype": "single-session-preference",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4229.086399998778
+  },
+  {
+    "qid": "09d032c9",
+    "qtype": "single-session-preference",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3583.858300000429
+  },
+  {
+    "qid": "38146c39",
+    "qtype": "single-session-preference",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2099.5393000011973
+  },
+  {
+    "qid": "38146c39",
+    "qtype": "single-session-preference",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4010.51759999973
+  },
+  {
+    "qid": "38146c39",
+    "qtype": "single-session-preference",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2072.659299999941
+  },
+  {
+    "qid": "38146c39",
+    "qtype": "single-session-preference",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2097.1183000001474
+  },
+  {
+    "qid": "38146c39",
+    "qtype": "single-session-preference",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2738.274800001818
+  },
+  {
+    "qid": "38146c39",
+    "qtype": "single-session-preference",
+    "config": "recency",
+    "recall": 0.0,
+    "binary_hit": 0.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2076.0415000004286
+  },
+  {
+    "qid": "38146c39",
+    "qtype": "single-session-preference",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2069.586999998137
+  },
+  {
+    "qid": "38146c39",
+    "qtype": "single-session-preference",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3928.440200001205
+  },
+  {
+    "qid": "38146c39",
+    "qtype": "single-session-preference",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3936.6727999986324
+  },
+  {
+    "qid": "38146c39",
+    "qtype": "single-session-preference",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4591.712199999165
+  },
+  {
+    "qid": "38146c39",
+    "qtype": "single-session-preference",
+    "config": "all_aggressive",
+    "recall": 0.0,
+    "binary_hit": 0.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4607.9614000009315
+  },
+  {
+    "qid": "38146c39",
+    "qtype": "single-session-preference",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3929.8807999985
+  },
+  {
+    "qid": "d24813b1",
+    "qtype": "single-session-preference",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2095.323699999426
+  },
+  {
+    "qid": "d24813b1",
+    "qtype": "single-session-preference",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3881.5725999993447
+  },
+  {
+    "qid": "d24813b1",
+    "qtype": "single-session-preference",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2107.234300001437
+  },
+  {
+    "qid": "d24813b1",
+    "qtype": "single-session-preference",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2094.7434999980032
+  },
+  {
+    "qid": "d24813b1",
+    "qtype": "single-session-preference",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2749.639900001057
+  },
+  {
+    "qid": "d24813b1",
+    "qtype": "single-session-preference",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2096.739800002979
+  },
+  {
+    "qid": "d24813b1",
+    "qtype": "single-session-preference",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2088.7098999992304
+  },
+  {
+    "qid": "d24813b1",
+    "qtype": "single-session-preference",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3832.1257999996305
+  },
+  {
+    "qid": "d24813b1",
+    "qtype": "single-session-preference",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3840.790599999309
+  },
+  {
+    "qid": "d24813b1",
+    "qtype": "single-session-preference",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4420.929500000057
+  },
+  {
+    "qid": "d24813b1",
+    "qtype": "single-session-preference",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4434.38740000056
+  },
+  {
+    "qid": "d24813b1",
+    "qtype": "single-session-preference",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3831.0394000000088
+  },
+  {
+    "qid": "57f827a0",
+    "qtype": "single-session-preference",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2098.7079000005906
+  },
+  {
+    "qid": "57f827a0",
+    "qtype": "single-session-preference",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3702.5238999995054
+  },
+  {
+    "qid": "57f827a0",
+    "qtype": "single-session-preference",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2115.446800002246
+  },
+  {
+    "qid": "57f827a0",
+    "qtype": "single-session-preference",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2095.061199997872
+  },
+  {
+    "qid": "57f827a0",
+    "qtype": "single-session-preference",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2744.859499998711
+  },
+  {
+    "qid": "57f827a0",
+    "qtype": "single-session-preference",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2088.880999999674
+  },
+  {
+    "qid": "57f827a0",
+    "qtype": "single-session-preference",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2089.114599999448
+  },
+  {
+    "qid": "57f827a0",
+    "qtype": "single-session-preference",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3676.2004000011075
+  },
+  {
+    "qid": "57f827a0",
+    "qtype": "single-session-preference",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3695.327299999917
+  },
+  {
+    "qid": "57f827a0",
+    "qtype": "single-session-preference",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4355.999899999006
+  },
+  {
+    "qid": "57f827a0",
+    "qtype": "single-session-preference",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4369.58389999927
+  },
+  {
+    "qid": "57f827a0",
+    "qtype": "single-session-preference",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3682.1362000009685
+  },
+  {
+    "qid": "95228167",
+    "qtype": "single-session-preference",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2093.0182999982208
+  },
+  {
+    "qid": "95228167",
+    "qtype": "single-session-preference",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3694.9651000031736
+  },
+  {
+    "qid": "95228167",
+    "qtype": "single-session-preference",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2092.553599999519
+  },
+  {
+    "qid": "95228167",
+    "qtype": "single-session-preference",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2085.0448999990476
+  },
+  {
+    "qid": "95228167",
+    "qtype": "single-session-preference",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2721.802600000956
+  },
+  {
+    "qid": "95228167",
+    "qtype": "single-session-preference",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2071.9111999969755
+  },
+  {
+    "qid": "95228167",
+    "qtype": "single-session-preference",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2071.8147000006866
+  },
+  {
+    "qid": "95228167",
+    "qtype": "single-session-preference",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3650.21219999835
+  },
+  {
+    "qid": "95228167",
+    "qtype": "single-session-preference",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3665.055299999949
+  },
+  {
+    "qid": "95228167",
+    "qtype": "single-session-preference",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4186.3524000000325
+  },
+  {
+    "qid": "95228167",
+    "qtype": "single-session-preference",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4233.092500002385
+  },
+  {
+    "qid": "95228167",
+    "qtype": "single-session-preference",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3672.299699999712
+  },
+  {
+    "qid": "505af2f5",
+    "qtype": "single-session-preference",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2104.0414000017336
+  },
+  {
+    "qid": "505af2f5",
+    "qtype": "single-session-preference",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3503.8510999984283
+  },
+  {
+    "qid": "505af2f5",
+    "qtype": "single-session-preference",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2109.624700002314
+  },
+  {
+    "qid": "505af2f5",
+    "qtype": "single-session-preference",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2094.2518999981985
+  },
+  {
+    "qid": "505af2f5",
+    "qtype": "single-session-preference",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2498.1410000000324
+  },
+  {
+    "qid": "505af2f5",
+    "qtype": "single-session-preference",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2099.782299999788
+  },
+  {
+    "qid": "505af2f5",
+    "qtype": "single-session-preference",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2090.6291999999667
+  },
+  {
+    "qid": "505af2f5",
+    "qtype": "single-session-preference",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3422.1775000005437
+  },
+  {
+    "qid": "505af2f5",
+    "qtype": "single-session-preference",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3438.161099998979
+  },
+  {
+    "qid": "505af2f5",
+    "qtype": "single-session-preference",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3847.632299999532
+  },
+  {
+    "qid": "505af2f5",
+    "qtype": "single-session-preference",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3844.0967999995337
+  },
+  {
+    "qid": "505af2f5",
+    "qtype": "single-session-preference",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3441.6230999995605
+  },
+  {
+    "qid": "75f70248",
+    "qtype": "single-session-preference",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2040.315999998711
+  },
+  {
+    "qid": "75f70248",
+    "qtype": "single-session-preference",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3473.7854999984847
+  },
+  {
+    "qid": "75f70248",
+    "qtype": "single-session-preference",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2030.5293000019446
+  },
+  {
+    "qid": "75f70248",
+    "qtype": "single-session-preference",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2025.3607999984524
+  },
+  {
+    "qid": "75f70248",
+    "qtype": "single-session-preference",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2705.9088999994856
+  },
+  {
+    "qid": "75f70248",
+    "qtype": "single-session-preference",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2032.959899999696
+  },
+  {
+    "qid": "75f70248",
+    "qtype": "single-session-preference",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2030.317799999466
+  },
+  {
+    "qid": "75f70248",
+    "qtype": "single-session-preference",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3421.025200001168
+  },
+  {
+    "qid": "75f70248",
+    "qtype": "single-session-preference",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3435.741900000721
+  },
+  {
+    "qid": "75f70248",
+    "qtype": "single-session-preference",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4128.518800000165
+  },
+  {
+    "qid": "75f70248",
+    "qtype": "single-session-preference",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4126.558699997986
+  },
+  {
+    "qid": "75f70248",
+    "qtype": "single-session-preference",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3431.51239999861
+  },
+  {
+    "qid": "d6233ab6",
+    "qtype": "single-session-preference",
+    "config": "baseline",
+    "recall": 0.0,
+    "binary_hit": 0.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2079.1415000021516
+  },
+  {
+    "qid": "d6233ab6",
+    "qtype": "single-session-preference",
+    "config": "bm25",
+    "recall": 0.0,
+    "binary_hit": 0.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3915.1944000004733
+  },
+  {
+    "qid": "d6233ab6",
+    "qtype": "single-session-preference",
+    "config": "mmr07",
+    "recall": 0.0,
+    "binary_hit": 0.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2040.4355000027863
+  },
+  {
+    "qid": "d6233ab6",
+    "qtype": "single-session-preference",
+    "config": "mmr03",
+    "recall": 0.0,
+    "binary_hit": 0.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2040.626699999848
+  },
+  {
+    "qid": "d6233ab6",
+    "qtype": "single-session-preference",
+    "config": "recent",
+    "recall": 0.0,
+    "binary_hit": 0.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2650.491400003375
+  },
+  {
+    "qid": "d6233ab6",
+    "qtype": "single-session-preference",
+    "config": "recency",
+    "recall": 0.0,
+    "binary_hit": 0.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2032.316200002242
+  },
+  {
+    "qid": "d6233ab6",
+    "qtype": "single-session-preference",
+    "config": "autotemp",
+    "recall": 0.0,
+    "binary_hit": 0.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2025.2672999995411
+  },
+  {
+    "qid": "d6233ab6",
+    "qtype": "single-session-preference",
+    "config": "bm25+aut",
+    "recall": 0.0,
+    "binary_hit": 0.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3490.5065999992075
+  },
+  {
+    "qid": "d6233ab6",
+    "qtype": "single-session-preference",
+    "config": "bm25+mmr",
+    "recall": 0.0,
+    "binary_hit": 0.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3522.061899999244
+  },
+  {
+    "qid": "d6233ab6",
+    "qtype": "single-session-preference",
+    "config": "bm25+rec",
+    "recall": 0.0,
+    "binary_hit": 0.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4129.610700001649
+  },
+  {
+    "qid": "d6233ab6",
+    "qtype": "single-session-preference",
+    "config": "all_aggressive",
+    "recall": 0.0,
+    "binary_hit": 0.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4155.483499998809
+  },
+  {
+    "qid": "d6233ab6",
+    "qtype": "single-session-preference",
+    "config": "conservative",
+    "recall": 0.0,
+    "binary_hit": 0.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3499.6060999983456
+  },
+  {
+    "qid": "1da05512",
+    "qtype": "single-session-preference",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2086.7288000008557
+  },
+  {
+    "qid": "1da05512",
+    "qtype": "single-session-preference",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3165.0808000013058
+  },
+  {
+    "qid": "1da05512",
+    "qtype": "single-session-preference",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2046.375199999602
+  },
+  {
+    "qid": "1da05512",
+    "qtype": "single-session-preference",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2091.459899998881
+  },
+  {
+    "qid": "1da05512",
+    "qtype": "single-session-preference",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2744.3106999999145
+  },
+  {
+    "qid": "1da05512",
+    "qtype": "single-session-preference",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2047.9035999996995
+  },
+  {
+    "qid": "1da05512",
+    "qtype": "single-session-preference",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2042.5912999999127
+  },
+  {
+    "qid": "1da05512",
+    "qtype": "single-session-preference",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3051.3033000024734
+  },
+  {
+    "qid": "1da05512",
+    "qtype": "single-session-preference",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3054.5994999993127
+  },
+  {
+    "qid": "1da05512",
+    "qtype": "single-session-preference",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3751.8966999996337
+  },
+  {
+    "qid": "1da05512",
+    "qtype": "single-session-preference",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3746.3520000019344
+  },
+  {
+    "qid": "1da05512",
+    "qtype": "single-session-preference",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3046.3860999989265
+  },
+  {
+    "qid": "fca70973",
+    "qtype": "single-session-preference",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2067.601900002046
+  },
+  {
+    "qid": "fca70973",
+    "qtype": "single-session-preference",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3508.815600001981
+  },
+  {
+    "qid": "fca70973",
+    "qtype": "single-session-preference",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2074.0767999996024
+  },
+  {
+    "qid": "fca70973",
+    "qtype": "single-session-preference",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2063.215999998647
+  },
+  {
+    "qid": "fca70973",
+    "qtype": "single-session-preference",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2198.4518999997817
+  },
+  {
+    "qid": "fca70973",
+    "qtype": "single-session-preference",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2064.1881999981706
+  },
+  {
+    "qid": "fca70973",
+    "qtype": "single-session-preference",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2055.644100000791
+  },
+  {
+    "qid": "fca70973",
+    "qtype": "single-session-preference",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3467.4444000011135
+  },
+  {
+    "qid": "fca70973",
+    "qtype": "single-session-preference",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3482.6112000009743
+  },
+  {
+    "qid": "fca70973",
+    "qtype": "single-session-preference",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3610.4247000002943
+  },
+  {
+    "qid": "fca70973",
+    "qtype": "single-session-preference",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3632.097600002453
+  },
+  {
+    "qid": "fca70973",
+    "qtype": "single-session-preference",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3468.3842999984336
+  },
+  {
+    "qid": "b6025781",
+    "qtype": "single-session-preference",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2092.3226999984763
+  },
+  {
+    "qid": "b6025781",
+    "qtype": "single-session-preference",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3332.6914999997825
+  },
+  {
+    "qid": "b6025781",
+    "qtype": "single-session-preference",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2062.6163000015367
+  },
+  {
+    "qid": "b6025781",
+    "qtype": "single-session-preference",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2056.9359000000986
+  },
+  {
+    "qid": "b6025781",
+    "qtype": "single-session-preference",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2717.4163999989105
+  },
+  {
+    "qid": "b6025781",
+    "qtype": "single-session-preference",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2057.0073000017146
+  },
+  {
+    "qid": "b6025781",
+    "qtype": "single-session-preference",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2050.552000000607
+  },
+  {
+    "qid": "b6025781",
+    "qtype": "single-session-preference",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3244.815499998367
+  },
+  {
+    "qid": "b6025781",
+    "qtype": "single-session-preference",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3241.016599997238
+  },
+  {
+    "qid": "b6025781",
+    "qtype": "single-session-preference",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3907.4863999994704
+  },
+  {
+    "qid": "b6025781",
+    "qtype": "single-session-preference",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3930.2014999993844
+  },
+  {
+    "qid": "b6025781",
+    "qtype": "single-session-preference",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3255.1268999995955
+  },
+  {
+    "qid": "a89d7624",
+    "qtype": "single-session-preference",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2087.832900000649
+  },
+  {
+    "qid": "a89d7624",
+    "qtype": "single-session-preference",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3633.6817999981577
+  },
+  {
+    "qid": "a89d7624",
+    "qtype": "single-session-preference",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2137.2424000001047
+  },
+  {
+    "qid": "a89d7624",
+    "qtype": "single-session-preference",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2093.844099999842
+  },
+  {
+    "qid": "a89d7624",
+    "qtype": "single-session-preference",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2736.9596999997157
+  },
+  {
+    "qid": "a89d7624",
+    "qtype": "single-session-preference",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2083.709500002442
+  },
+  {
+    "qid": "a89d7624",
+    "qtype": "single-session-preference",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2084.0351000006194
+  },
+  {
+    "qid": "a89d7624",
+    "qtype": "single-session-preference",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3480.97129999951
+  },
+  {
+    "qid": "a89d7624",
+    "qtype": "single-session-preference",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3490.6704999993963
+  },
+  {
+    "qid": "a89d7624",
+    "qtype": "single-session-preference",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4144.182800002454
+  },
+  {
+    "qid": "a89d7624",
+    "qtype": "single-session-preference",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4148.840499998187
+  },
+  {
+    "qid": "a89d7624",
+    "qtype": "single-session-preference",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3467.319999999745
+  },
+  {
+    "qid": "b0479f84",
+    "qtype": "single-session-preference",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2150.924700003088
+  },
+  {
+    "qid": "b0479f84",
+    "qtype": "single-session-preference",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4131.963399999222
+  },
+  {
+    "qid": "b0479f84",
+    "qtype": "single-session-preference",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2109.329999999318
+  },
+  {
+    "qid": "b0479f84",
+    "qtype": "single-session-preference",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2100.9478000014497
+  },
+  {
+    "qid": "b0479f84",
+    "qtype": "single-session-preference",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2746.801500001311
+  },
+  {
+    "qid": "b0479f84",
+    "qtype": "single-session-preference",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2082.675499998004
+  },
+  {
+    "qid": "b0479f84",
+    "qtype": "single-session-preference",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2094.32630000083
+  },
+  {
+    "qid": "b0479f84",
+    "qtype": "single-session-preference",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3707.0917999990343
+  },
+  {
+    "qid": "b0479f84",
+    "qtype": "single-session-preference",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3717.3185999999987
+  },
+  {
+    "qid": "b0479f84",
+    "qtype": "single-session-preference",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4378.365299999132
+  },
+  {
+    "qid": "b0479f84",
+    "qtype": "single-session-preference",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4397.38049999869
+  },
+  {
+    "qid": "b0479f84",
+    "qtype": "single-session-preference",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3706.335200000467
+  },
+  {
+    "qid": "1d4e3b97",
+    "qtype": "single-session-preference",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2092.06020000056
+  },
+  {
+    "qid": "1d4e3b97",
+    "qtype": "single-session-preference",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3294.8038000031374
+  },
+  {
+    "qid": "1d4e3b97",
+    "qtype": "single-session-preference",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2089.060199999949
+  },
+  {
+    "qid": "1d4e3b97",
+    "qtype": "single-session-preference",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2084.9984000014956
+  },
+  {
+    "qid": "1d4e3b97",
+    "qtype": "single-session-preference",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2783.0164000006334
+  },
+  {
+    "qid": "1d4e3b97",
+    "qtype": "single-session-preference",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2085.84300000075
+  },
+  {
+    "qid": "1d4e3b97",
+    "qtype": "single-session-preference",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2091.248499997164
+  },
+  {
+    "qid": "1d4e3b97",
+    "qtype": "single-session-preference",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3196.4989000007336
+  },
+  {
+    "qid": "1d4e3b97",
+    "qtype": "single-session-preference",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3189.6665999993274
+  },
+  {
+    "qid": "1d4e3b97",
+    "qtype": "single-session-preference",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3894.1983000004257
+  },
+  {
+    "qid": "1d4e3b97",
+    "qtype": "single-session-preference",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3892.161700001452
+  },
+  {
+    "qid": "1d4e3b97",
+    "qtype": "single-session-preference",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3208.2183999991685
+  },
+  {
+    "qid": "07b6f563",
+    "qtype": "single-session-preference",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2140.4073999983666
+  },
+  {
+    "qid": "07b6f563",
+    "qtype": "single-session-preference",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3743.187299998681
+  },
+  {
+    "qid": "07b6f563",
+    "qtype": "single-session-preference",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2130.7211999992433
+  },
+  {
+    "qid": "07b6f563",
+    "qtype": "single-session-preference",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2108.9224999996077
+  },
+  {
+    "qid": "07b6f563",
+    "qtype": "single-session-preference",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2767.0293000010133
+  },
+  {
+    "qid": "07b6f563",
+    "qtype": "single-session-preference",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2105.4465000015625
+  },
+  {
+    "qid": "07b6f563",
+    "qtype": "single-session-preference",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2103.1636000006984
+  },
+  {
+    "qid": "07b6f563",
+    "qtype": "single-session-preference",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3660.1432999996177
+  },
+  {
+    "qid": "07b6f563",
+    "qtype": "single-session-preference",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3653.162599999632
+  },
+  {
+    "qid": "07b6f563",
+    "qtype": "single-session-preference",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4336.859200000617
+  },
+  {
+    "qid": "07b6f563",
+    "qtype": "single-session-preference",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4325.374899999588
+  },
+  {
+    "qid": "07b6f563",
+    "qtype": "single-session-preference",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3634.7265999975207
+  },
+  {
+    "qid": "1c0ddc50",
+    "qtype": "single-session-preference",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2105.407600000035
+  },
+  {
+    "qid": "1c0ddc50",
+    "qtype": "single-session-preference",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3299.1234000000986
+  },
+  {
+    "qid": "1c0ddc50",
+    "qtype": "single-session-preference",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2095.6470999990415
+  },
+  {
+    "qid": "1c0ddc50",
+    "qtype": "single-session-preference",
+    "config": "mmr03",
+    "recall": 0.0,
+    "binary_hit": 0.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2106.3340000000608
+  },
+  {
+    "qid": "1c0ddc50",
+    "qtype": "single-session-preference",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2757.4697000018205
+  },
+  {
+    "qid": "1c0ddc50",
+    "qtype": "single-session-preference",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2106.8088000029093
+  },
+  {
+    "qid": "1c0ddc50",
+    "qtype": "single-session-preference",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2095.914500001527
+  },
+  {
+    "qid": "1c0ddc50",
+    "qtype": "single-session-preference",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3243.733900002553
+  },
+  {
+    "qid": "1c0ddc50",
+    "qtype": "single-session-preference",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3273.8500999985263
+  },
+  {
+    "qid": "1c0ddc50",
+    "qtype": "single-session-preference",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3895.2645999997912
+  },
+  {
+    "qid": "1c0ddc50",
+    "qtype": "single-session-preference",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3903.316800002358
+  },
+  {
+    "qid": "1c0ddc50",
+    "qtype": "single-session-preference",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3220.8854999989853
+  },
+  {
+    "qid": "0a34ad58",
+    "qtype": "single-session-preference",
+    "config": "baseline",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2106.8274000026577
+  },
+  {
+    "qid": "0a34ad58",
+    "qtype": "single-session-preference",
+    "config": "bm25",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3877.4385999968217
+  },
+  {
+    "qid": "0a34ad58",
+    "qtype": "single-session-preference",
+    "config": "mmr07",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2113.1056000012904
+  },
+  {
+    "qid": "0a34ad58",
+    "qtype": "single-session-preference",
+    "config": "mmr03",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2098.1017999984033
+  },
+  {
+    "qid": "0a34ad58",
+    "qtype": "single-session-preference",
+    "config": "recent",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2347.512500000448
+  },
+  {
+    "qid": "0a34ad58",
+    "qtype": "single-session-preference",
+    "config": "recency",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2095.5924000008963
+  },
+  {
+    "qid": "0a34ad58",
+    "qtype": "single-session-preference",
+    "config": "autotemp",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 2092.9557000017667
+  },
+  {
+    "qid": "0a34ad58",
+    "qtype": "single-session-preference",
+    "config": "bm25+aut",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3840.5942999997933
+  },
+  {
+    "qid": "0a34ad58",
+    "qtype": "single-session-preference",
+    "config": "bm25+mmr",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3829.150600002322
+  },
+  {
+    "qid": "0a34ad58",
+    "qtype": "single-session-preference",
+    "config": "bm25+rec",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4049.0300999990723
+  },
+  {
+    "qid": "0a34ad58",
+    "qtype": "single-session-preference",
+    "config": "all_aggressive",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 4038.881599997694
+  },
+  {
+    "qid": "0a34ad58",
+    "qtype": "single-session-preference",
+    "config": "conservative",
+    "recall": 1.0,
+    "binary_hit": 1.0,
+    "score": null,
+    "error": null,
+    "latency_ms": 3835.5585999997857
+  }
+]
