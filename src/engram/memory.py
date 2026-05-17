@@ -1432,9 +1432,12 @@ class Memory:
                 placeholder = self.observe(f"user-state seed: {content[:200]}")
                 event_ids = [placeholder.id]
 
-        merged_metadata: dict[str, object] = {self._USER_STATE_FLAG: True}
-        if metadata:
-            merged_metadata.update(metadata)
+        # Caller metadata FIRST, then the internal flag overlays it so a
+        # caller passing `metadata={"engram_user_state": False}` cannot
+        # overwrite the singleton invariant flag and orphan the item
+        # from `get_user_state` lookups (audit M-181 / M-188).
+        merged_metadata: dict[str, object] = dict(metadata or {})
+        merged_metadata[self._USER_STATE_FLAG] = True
 
         item = MemoryItem(
             level=Level.GLOBAL,
