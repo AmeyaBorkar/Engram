@@ -209,8 +209,11 @@ class EngramAgent:
                     break
                 # Retry: re-retrieve (in case the corpus has changed
                 # via observations made during this turn) and re-chat.
+                # `reinforce=False` on the retry path so the same items
+                # don't get double-counted into decay state — the surface
+                # retrieve already fired reinforcement once (audit M-47).
                 results = self._memory.retrieve(
-                    user_message, k=self._retrieve_k
+                    user_message, k=self._retrieve_k, reinforce=False
                 )
                 context = format_context(
                     results,
@@ -228,8 +231,21 @@ class EngramAgent:
                 messages = [Message(role="system", content=system)]
                 messages.extend(history)
                 messages.append(Message(role="user", content=user_message))
-                raw_reply = self._chat.chat(messages)
-                reply = _strip_cot(raw_reply) if self._cot else raw_reply
+                # Mirror the initial-call branching: if self_consistency_n
+                # is on, vote on the retry too — otherwise a single-shot
+                # retry against a multi-sample initial pass produces
+                # asymmetric stability (audit M-187).
+                if self._self_consistency_n >= 2:
+                    samples = tuple(
+                        self._chat.chat(messages) for _ in range(self._self_consistency_n)
+                    )
+                    if self._cot:
+                        reply = _majority_vote(tuple(_strip_cot(s) for s in samples))
+                    else:
+                        reply = _majority_vote(samples)
+                else:
+                    raw_reply = self._chat.chat(messages)
+                    reply = _strip_cot(raw_reply) if self._cot else raw_reply
 
         observed_event_ids: list[UUID] = []
         if self._auto_observe:
