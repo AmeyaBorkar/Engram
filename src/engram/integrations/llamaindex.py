@@ -96,11 +96,13 @@ class EngramLlamaIndexMemory:
         k: int = 5,
         system_role: str = "system",
         include_level: bool = True,
+        chat_history_limit: int = 50,
     ) -> None:
         self._memory = memory
         self._k = k
         self._system_role = system_role
         self._include_level = include_level
+        self._chat_history_limit = chat_history_limit
 
     @property
     def memory(self) -> Memory:
@@ -169,9 +171,36 @@ class EngramLlamaIndexMemory:
         ]
 
     def get_all(self) -> Sequence[_PseudoChatMessage]:
-        """Not supported -- Engram doesn't store messages as chat turns;
-        it stores events. Returns an empty list."""
-        return []
+        """Return a memory dump as one synthetic system message.
+
+        The LlamaIndex `BaseMemory.get_all` contract is "return everything
+        the memory layer knows" — chat engines use it to seed long-context
+        models that don't need a separate retrieve step.  Engram doesn't
+        store turns, so we surface the top-K hot memories in the same
+        synthetic-message shape `get()` uses, just without filtering by
+        a specific query (audit M-52).
+
+        K is capped by `chat_history_limit` (default 50); operators who
+        want a different cap construct the adapter with a different value.
+        """
+        results = self.memory.retrieve(
+            query=" ",  # bag-of-words retrieve degenerates to recency-biased
+            k=self._chat_history_limit,
+            reinforce=False,
+        )
+        if not results:
+            return []
+        from engram.integrations._context import format_context
+
+        context = format_context(results, include_level=True)
+        if not context:
+            return []
+        return [
+            _PseudoChatMessage(
+                role=self._system_role,
+                content=f"Relevant memories:\n{context}",
+            )
+        ]
 
     def reset(self) -> None:
         """Reset is not a memory-layer concept; managing storage is the
