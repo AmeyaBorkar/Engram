@@ -1228,6 +1228,8 @@ All commits this session, oldest first:
 | `cebf6dc` | docs(JOURNEY): reframe SOTA gap as 4:1 LLM-stage vs retrieval-stage |
 | `9130085` | bench: parallel eval + stratified sample + honest scoring (H-76/77/78/80) |
 | `815b953` | gpu: process-wide concurrency cap to decouple --parallel from VRAM |
+| `e503e18` | docs: cross-family judge disproves self-preference hypothesis (n=100) |
+| `a361b22` | bench: --prompt-version v2 (abstain anchor + per-qtype hints) |
 
 Tags pushed: `v0.2.0`, `v0.2.1`.
 
@@ -1420,7 +1422,15 @@ Revised estimate of "real" 71.4% under official scoring with cross-family judge:
 | Kimi K2.6 (self, opencode-go) | **0.660** | 0 | $0 |
 | Agreement | 94/100 | — | — |
 
-This is the new comparison floor for every consolidation / prompt-fix experiment.
+### **Confirmed at n=500** (full population, manifest `20260516T224729`, commit `e503e185`)
+
+| Judge | accuracy_correct | n_completed | n_errored | OpenRouter spend |
+|---|---:|---:|---:|---:|
+| **Claude Sonnet 4.5 (OpenRouter)** | **0.6847** | 498 | 2 | ~$0.80 |
+
+**Sampling validation:** n=100 stratified (0.680) lands within 0.5 pp of n=500 (0.685). Stratified-100 with `--seed 1337` is a near-perfect proxy for the full population — use it for fast discovery.
+
+**This 68.5% is the project's load-bearing honest floor.** Every future lever measures Δ against it.
 
 ### Per-qtype n=100 baseline (Sonnet judge)
 
@@ -1434,19 +1444,42 @@ This is the new comparison floor for every consolidation / prompt-fix experiment
 | single-session-preference | 6 | 0.333 | 0.500 | −0.167 (n=6 noisy) |
 | **overall** | **100** | **0.680** | 0.714 | −0.034 |
 
-### Path-to-SOTA budget (post-§23)
+### Per-qtype n=500 baseline (Sonnet judge — full population)
+
+| qtype | n | this run (Sonnet k=20) | v0.1.0 (Kimi-self k=10) | Δ vs vanilla | Δ vs n=100 |
+|---|---:|---:|---:|---:|---:|
+| single-session-assistant | 56 | **0.964** | 0.946 | **+0.018** ✓ | −0.036 |
+| knowledge-update | 78 (1 err) | **0.727** | 0.692 | **+0.035** ✓ | +0.060 |
+| multi-session | 133 | **0.609** | 0.602 | **+0.007** ✓ | −0.021 |
+| single-session-user | 70 | 0.800 | 0.843 | −0.043 | +0.014 |
+| single-session-preference | 30 (1 err) | 0.414 | 0.500 | −0.086 | +0.081 |
+| temporal-reasoning | 133 | **0.617** | 0.722 | **−0.106** | −0.014 |
+| **overall** | **500 (2 err)** | **0.685** | 0.714 | **−0.029** | +0.005 |
+
+**Three qtypes IMPROVED under Sonnet judge at k=20** (sss-asst, ku, multi-session). The headline loss is concentrated in temporal-reasoning (−10.6 pp) where Sonnet enforces the off-by-one rubric literally while Kimi was lenient. sss-preference (−8.6 pp) and sss-user (−4.3 pp) are smaller losses to stricter form checking.
+
+### Failure-pattern shift (vanilla Kimi-self → n=500 Sonnet)
+
+| pattern | v0.1.0 (Kimi-self) | n=500 Sonnet | Note |
+|---|---:|---:|---|
+| Total fails | 143 / 500 | 157 / 498 | similar |
+| "I don't know" share of fails | **65%** (93/143) | **38%** (60/157) | shift: Sonnet now marks confident-wrongs as wrong; failure mix rebalances |
+| Abstain (`_abs`) questions in fails | (~30) | **27/157** (17%) | abstain-fix lever still ~17% of fails |
+| Errored | 0 | 2 (0.4%) | clean run; H-77 split handled honestly |
+
+### Path-to-SOTA budget (post-§23, n=500 floor confirmed)
 
 | Lever | Predicted Δ on honest baseline | Cost | Status |
 |---|---:|---:|---|
-| Honest baseline (n=100, k=20, autotemp+surface-conflicts) | — | — | **67%** (established §23) |
-| + abstain-prompt fix | +5 to +7 | ~$0.25 OR (Sonnet judge re-eval) | next experiment |
-| + consolidation on same 100q | +5 to +10 | ~$3-5 OR (Haiku consolidation) | thesis experiment |
-| + per-qtype answer prompts | +2 to +4 | ~$0.25 OR (re-eval) | Tier A |
+| **Honest baseline (n=500, k=20, autotemp+surface-conflicts, Sonnet judge)** | — | — | **68.5% (CONFIRMED — manifest `20260516T224729`)** |
+| + **`--prompt-version v2`** (abstain anchor + per-qtype hints + scratchpad CoT) | +5 to +7 | ~$0.25 OR (n=100 re-eval cache-warm), ~$0.80 (n=500 fresh) | **shipped commit `a361b22`; next experiment** |
+| + consolidation on same 500q | +5 to +10 | ~$28 OR (Haiku consolidation) | thesis experiment (budget refill required) |
+| + per-qtype router (extends v2 with per-qtype answer prompts) | +2 to +4 | ~$0.25 OR (re-eval) | follow-up after v2 lands |
 | + Tier B retrieval polish (embedder swap, k=30) | +1 to +3 | ~$0.50 OR | Tier B |
-| **Achievable on n=100** | | | **~77-87%** |
+| **Achievable on n=500** | | | **~78-90%** |
 
-The 75% defensible-SOTA bar is reachable with just the abstain fix + one Tier A lever. The 80%+ crushing-SOTA bar is reachable with the full stack, no answer-model upgrade.
+The 75% defensible-SOTA bar is reachable with **just the v2 prompt fix** (predicted 73-75.5%). The 80%+ crushing-SOTA bar is reachable with v2 + consolidation, no answer-model upgrade.
 
 ---
 
-*Last updated 2026-05-17, after the n=100 honest-judge experiment (§23) disproved the self-preference inflation hypothesis and established 67% as the cross-family-judged baseline. The 71.4% v0.1.0 number is probably real and reflects easier sample distribution, not self-judge bias. The next decisive experiment is abstain-prompt fix + consolidation on the same n=100 sample.*
+*Last updated 2026-05-17, after the n=500 Sonnet cross-judge baseline (manifest `20260516T224729`) confirmed the §23 finding at full population: **68.5%** is the honest cross-family-judged floor. The n=100 stratified sample (68.0%) was within 0.5 pp of the full population, validating the rapid-discovery protocol. The v2 prompt system (commit `a361b22`) is shipped and ready as the cheapest +5-7 pt lever; the consolidation experiment remains the load-bearing thesis test, blocked on OpenRouter budget refill.*
