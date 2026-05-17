@@ -346,18 +346,45 @@ class ConsolidationEngine:
             *(_bounded_extract(assignment) for assignment in assignments)
         )
 
+        # M-90 / H-61: batch every successful abstraction's embedding
+        # into a single embed() call rather than embedding one text per
+        # cluster inline in the write loop.  For a 30-cluster pass this
+        # collapses 30 sequential RPC round-trips into one batched call.
+        # The sync embedder is run on a worker thread via
+        # `asyncio.to_thread` so it doesn't block the event loop -- the
+        # original implementation called `self._embedder.embed` from
+        # inside the post-gather write loop, which is on-loop work that
+        # serialized everything we just parallelized.
+        ok_assignments: list[ClusterAssignment] = []
+        ok_results: list[AbstractionResult] = []
+        for assignment, result in zip(assignments, results, strict=True):
+            if result is not None:
+                ok_assignments.append(assignment)
+                ok_results.append(result)
+        precomputed_vectors: list[list[float]] = []
+        if ok_results:
+            texts = [r.abstraction for r in ok_results]
+            raw_vectors = await asyncio.to_thread(self._embedder.embed, texts)
+            precomputed_vectors = [_normalize(v) for v in raw_vectors]
+
         created = 0
-        failed = 0
+        failed = sum(1 for r in results if r is None)
         events_consolidated = 0
         conflicts_detected = 0
+        ok_iter = iter(zip(ok_assignments, ok_results, precomputed_vectors, strict=True))
+        # Walk the original ordering so the failure counter matches what
+        # the sync path would produce.
         for assignment, result in zip(assignments, results, strict=True):
             if result is None:
-                failed += 1
                 continue
-            cluster_event_count = len(list(assignment.members))
+            cluster_event_count = len(assignment.members)
+            _, _, vec = next(ok_iter)
             try:
                 cluster_conflicts = self._write_cluster_result(
-                    events, assignment, result
+                    events,
+                    assignment,
+                    result,
+                    precomputed_vector=vec,
                 )
             except (RuntimeError, ValueError) as exc:
                 _LOG.warning(
@@ -387,12 +414,19 @@ class ConsolidationEngine:
         events: Sequence[Event],
         assignment: ClusterAssignment,
         result: AbstractionResult,
+        *,
+        precomputed_vector: Sequence[float] | None = None,
     ) -> int:
         """Embed + (optional) contradiction detect + write a single cluster.
 
         Refactored out of the sync path so the async path can call it
         without duplicating the body. Returns the number of detected
         contradictions (matching `_consolidate_one_cluster`'s return).
+
+        `precomputed_vector`: M-90 / H-61 -- when the caller has already
+        batched the abstraction embeddings (the async path does so to
+        avoid one embed() RPC per cluster), pass the unit-normalized
+        vector here to skip the per-call embed.
         """
         member_indices = _unique_members(assignment)
         cluster_events = [events[i] for i in member_indices]
@@ -401,8 +435,11 @@ class ConsolidationEngine:
             cohesion_hint=_clamp01(assignment.cohesion),
         )
 
-        ab_vec = self._embedder.embed([result.abstraction])[0]
-        ab_unit = _normalize(ab_vec)
+        if precomputed_vector is None:
+            ab_vec = self._embedder.embed([result.abstraction])[0]
+            ab_unit = _normalize(ab_vec)
+        else:
+            ab_unit = list(precomputed_vector)
         conflicts = _dedupe_conflicts(self._detect_conflicts(ab_unit, result.abstraction))
 
         cluster = Cluster(cohesion=_clamp01(assignment.cohesion))
