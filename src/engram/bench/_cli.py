@@ -374,6 +374,19 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     run.add_argument(
+        "--answer-form",
+        default="freeform",
+        choices=("freeform", "structured"),
+        help=(
+            "How the answer is extracted from the chat response. "
+            "'freeform' (default) returns the raw response as-is. "
+            "'structured' appends a JSON-output instruction to the "
+            "answer prompt and extracts just the `final_answer` field; "
+            "blocks CoT-leakage at the output layer. Monotonic: falls "
+            "back to raw response if JSON parse fails."
+        ),
+    )
+    run.add_argument(
         "--context-format",
         default="flat",
         choices=("flat", "grouped"),
@@ -635,6 +648,8 @@ def _resolve_suite_config(args: argparse.Namespace) -> dict[str, Any]:
         cfg["within_session_oversample"] = True
     if args.context_format != "flat":
         cfg["context_format"] = args.context_format
+    if args.answer_form != "freeform":
+        cfg["answer_form"] = args.answer_form
     if args.reranker and args.reranker != "none":
         from engram.retrieve._bge_reranker import BGEReranker
 

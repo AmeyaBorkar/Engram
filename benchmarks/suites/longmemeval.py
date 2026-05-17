@@ -818,6 +818,13 @@ class LongMemEvalSuite:
         # indices, dropping the score/level annotations.  Default
         # "flat" for backward compatibility.
         self._context_format: str = "flat"
+        # Answer-Form Forcing (AFF). When "structured", the answer
+        # prompt is augmented with a JSON output instruction and the
+        # response is parsed to extract just the `final_answer`
+        # field. Targets the CoT-leakage failure mode in v2 where
+        # Kimi echoed hint instructions instead of answering.
+        # "freeform" (default) is the original path.
+        self._answer_form: str = "freeform"
 
     def configure(
         self,
@@ -857,6 +864,7 @@ class LongMemEvalSuite:
         min_sessions_in_topk: int = 0,
         within_session_oversample: bool = False,
         context_format: str = "flat",
+        answer_form: str = "freeform",
     ) -> None:
         """Wire Phase E knobs from the CLI into the suite.
 
@@ -940,6 +948,11 @@ class LongMemEvalSuite:
                 f"context_format must be 'flat' or 'grouped', got {context_format!r}"
             )
         self._context_format = context_format
+        if answer_form not in ("freeform", "structured"):
+            raise ValueError(
+                f"answer_form must be 'freeform' or 'structured', got {answer_form!r}"
+            )
+        self._answer_form = answer_form
 
     def setup(self, provider: Provider) -> None:
         self._provider = provider
@@ -1360,6 +1373,63 @@ class LongMemEvalSuite:
             return _format_memory_grouped(results, storage)
         return _format_memory(results)
 
+    def _aff_suffix(self) -> str:
+        """Answer-Form Forcing JSON suffix for the answer prompt.
+
+        When --answer-form structured, the model is told to output a
+        single JSON object with one key: `final_answer`.  The parser
+        in `_extract_aff_answer` strips the JSON wrapper before
+        scoring.  This blocks CoT-leakage at the output layer: even
+        if the model wants to think out loud, it must commit to a
+        terminal answer inside the JSON, and the rest is discarded.
+        """
+        if self._answer_form != "structured":
+            return ""
+        return (
+            "\n\nIMPORTANT: Output ONLY a single JSON object with one key, "
+            "no preamble or markdown fences:\n"
+            '{"final_answer": "<your concise answer here>"}\n'
+        )
+
+    @staticmethod
+    def _extract_aff_answer(raw: str) -> str:
+        """Pull `final_answer` out of an AFF JSON response.
+
+        Tolerant to common LLM-output deviations:
+          - markdown code fences (```json ... ```)
+          - leading/trailing prose
+          - missing closing brace
+        Falls back to the raw response when parsing fails entirely,
+        so AFF is monotonic (never worse than freeform).
+        """
+        if not raw:
+            return raw
+        text = raw.strip()
+        # Strip markdown fences if present.
+        if text.startswith("```"):
+            first_newline = text.find("\n")
+            if first_newline > -1:
+                text = text[first_newline + 1 :]
+            if text.endswith("```"):
+                text = text[:-3]
+            text = text.strip()
+        # Locate the first { and try to parse a JSON object.
+        first_brace = text.find("{")
+        if first_brace == -1:
+            return raw
+        last_brace = text.rfind("}")
+        if last_brace > first_brace:
+            payload = text[first_brace : last_brace + 1]
+        else:
+            payload = text[first_brace:] + "}"  # tolerate truncation
+        try:
+            data = json.loads(payload)
+        except json.JSONDecodeError:
+            return raw
+        if isinstance(data, dict) and "final_answer" in data:
+            return str(data["final_answer"])
+        return raw
+
     def _answer_with_phase_e(
         self,
         *,
@@ -1404,12 +1474,17 @@ class LongMemEvalSuite:
             if self._cot
             else ""
         )
+        aff_suffix = self._aff_suffix()
 
         def _one_call(prompt_text: str) -> str:
             raw: str = chat.chat([Message(role="user", content=prompt_text)])
-            return _strip_cot(raw) if self._cot else raw
+            if self._cot:
+                raw = _strip_cot(raw)
+            if self._answer_form == "structured":
+                raw = self._extract_aff_answer(raw)
+            return raw
 
-        prompt = base_prompt + cot_suffix
+        prompt = base_prompt + cot_suffix + aff_suffix
         if self._self_consistency_n >= 2:
             samples = tuple(_one_call(prompt) for _ in range(self._self_consistency_n))
             response = _majority_vote(samples)
@@ -1443,7 +1518,7 @@ class LongMemEvalSuite:
                     question=question,
                     question_date=question_date or "(date unknown)",
                     qtype_hint=qtype_hint,
-                ) + cot_suffix
+                ) + cot_suffix + aff_suffix
                 response = _one_call(fresh_prompt)
 
         return response
