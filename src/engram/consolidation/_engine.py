@@ -68,6 +68,7 @@ from engram.providers._protocols import ChatProvider, EmbeddingProvider
 from engram.schemas import (
     Cluster,
     Conflict,
+    ConflictStatus,
     Embedding,
     Event,
     ItemKind,
@@ -214,18 +215,38 @@ class ConsolidationEngine:
         does its work in a single transaction per cluster (the actual
         atomic insert is per-cluster), so partial progress survives
         crashes mid-pass.
+
+        Memory contract (H-55): the engine builds a dense `(N, dim)`
+        matrix of all sampled embeddings and an `(N, N)` cosine matrix
+        inside `cluster_vectors` for the agglomerative path.  For
+        million-event backlogs the right pattern is to call
+        `consolidate(max_events=K)` in a loop with `K` sized to fit in
+        RAM (e.g. 5k-20k); clustering across a chunked subset still
+        produces deterministic, useful summaries because clusters
+        forming inside a single chunk are intra-temporal anyway.  The
+        agglomerative similarity matrix is O(N^2 dim) bytes -- 10k
+        events at fp32 is ~400 MiB.  The HDBSCAN path is roughly
+        O(N log N) and tolerates much larger N.
         """
         started_at = self._clock()
         wall = time.perf_counter()
 
         # 1. Pull unconsolidated events + embeddings.
-        pairs = list(
-            self._storage.iter_unconsolidated_events_with_embeddings(
-                model=self._embedder.model,
-                limit=max_events,
-            )
-        )
-        if not pairs:
+        #
+        # The storage iterator streams in 256-row chunks; we still
+        # materialize the union because clustering needs the full
+        # matrix.  The materialization is bounded by `max_events` (the
+        # caller's contract); for million-event backlogs, see the
+        # docstring's loop-with-cap pattern.
+        events: list[Event] = []
+        vector_rows: list[list[float]] = []
+        for event, vec in self._storage.iter_unconsolidated_events_with_embeddings(
+            model=self._embedder.model,
+            limit=max_events,
+        ):
+            events.append(event)
+            vector_rows.append(vec)
+        if not events:
             return ConsolidationResult(
                 started_at=started_at,
                 duration_ms=(time.perf_counter() - wall) * 1000.0,
@@ -236,8 +257,11 @@ class ConsolidationEngine:
                 events_consolidated=0,
             )
 
-        events = [p[0] for p in pairs]
-        vectors = np.asarray([p[1] for p in pairs], dtype=np.float32)
+        vectors = np.asarray(vector_rows, dtype=np.float32)
+        # Free the Python lists' duplicate references now that the
+        # numpy matrix owns the floats; the storage rows already
+        # released their pointer.
+        del vector_rows
 
         # 2. Cluster.
         assignments = cluster_vectors(vectors, params=self._params.cluster_params)
@@ -295,13 +319,17 @@ class ConsolidationEngine:
         started_at = self._clock()
         wall = time.perf_counter()
 
-        pairs = list(
-            self._storage.iter_unconsolidated_events_with_embeddings(
-                model=self._embedder.model,
-                limit=max_events,
-            )
-        )
-        if not pairs:
+        # Stream the storage iterator's chunks directly into the
+        # working buffers; see `consolidate()` for the memory contract.
+        events: list[Event] = []
+        vector_rows: list[list[float]] = []
+        for event, vec in self._storage.iter_unconsolidated_events_with_embeddings(
+            model=self._embedder.model,
+            limit=max_events,
+        ):
+            events.append(event)
+            vector_rows.append(vec)
+        if not events:
             return ConsolidationResult(
                 started_at=started_at,
                 duration_ms=(time.perf_counter() - wall) * 1000.0,
@@ -312,8 +340,8 @@ class ConsolidationEngine:
                 events_consolidated=0,
             )
 
-        events = [p[0] for p in pairs]
-        vectors = np.asarray([p[1] for p in pairs], dtype=np.float32)
+        vectors = np.asarray(vector_rows, dtype=np.float32)
+        del vector_rows
         assignments = cluster_vectors(vectors, params=self._params.cluster_params)
 
         # Parallel LLM calls bounded by a semaphore. The result list is
@@ -654,6 +682,34 @@ class ConsolidationEngine:
         Promoted items move from `Level.SUMMARY` to
         `Level.ABSTRACTION`; their `cluster_id`, embedding, provenance,
         and decay state stay intact (only the level changes).
+
+        Scope (M-57): cold summaries are silently ignored.
+        `iter_memory_items(level=Level.SUMMARY)` defaults to
+        `include_cold=False`; an item the decay engine has already
+        cooled is not promotion-eligible because the corroboration
+        signal that earned the promotion is no longer active.  Pass
+        `include_cold=True` at the storage layer if you specifically
+        need to reanimate cold summaries (admin tooling).
+
+        Cost (H-62): the implementation is one storage round-trip per
+        candidate -- `get_decay_state` runs for every hot summary,
+        producing an N+1 pattern.  At a million summaries this is the
+        promotion pass's wall-time floor (~hours over a remote SQLite
+        backend).  A bulk-promote SQL (`UPDATE memory_items SET level
+        = 'abstraction' WHERE id IN (SELECT m.id FROM memory_items m
+        JOIN decay_state d ...)`) would collapse it to O(1) but the
+        storage API does not yet expose a `bulk_promote_summaries`
+        seam.  When that ships, replace the loop here.
+
+        Side effect (M-58): promoted summaries keep their `cluster_id`
+        and embedding row, but the vector-index level denormalization
+        is now stale (the row's stored `level` says ABSTRACTION while
+        the index shard still keys it under SUMMARY).  The default
+        retrieve path re-reads `level` from `memory_items` per row, so
+        the staleness is cosmetic; downstream consumers that rely on
+        the index's level shard (none in v0.4.0) would need a
+        post-pass `storage.refresh_level_index()` call -- the seam
+        doesn't exist yet, so this is documented for future-me.
         """
         started = now if now is not None else self._clock()
         wall = time.perf_counter()
@@ -679,7 +735,7 @@ class ConsolidationEngine:
                 continue
             if state.weight < pp.min_weight:
                 continue
-            if _has_recorded_conflicts(item):
+            if self._has_open_conflicts(item):
                 continue
             self._storage.update_memory_item_level(item.id, Level.ABSTRACTION)
             promoted += 1
@@ -689,6 +745,29 @@ class ConsolidationEngine:
             duration_ms=(time.perf_counter() - wall) * 1000.0,
             candidates_examined=candidates_examined,
             promoted=promoted,
+        )
+
+    def _has_open_conflicts(self, item: MemoryItem) -> bool:
+        """Return True if `item` has any persistent Conflict row at
+        status=OPEN.
+
+        H-57: the previous implementation checked
+        `metadata['consolidation']['conflicts']` -- a static snapshot
+        taken when the contradiction detector fired.  No code path
+        clears that metadata after reconcile resolves the conflict, so
+        once an item was flagged it was permanently blocked from
+        promotion even after the reconciler had picked it as the winner
+        and removed the actual conflict.  Consulting the persistent
+        `Conflict` table at status=OPEN means promotion correctly
+        re-opens after reconcile.  We only need to know whether ANY
+        open row exists, so `limit=1` keeps the storage cost bounded.
+        """
+        return bool(
+            self._storage.list_conflicts(
+                status=ConflictStatus.OPEN,
+                memory_item_id=item.id,
+                limit=1,
+            )
         )
 
 
@@ -709,15 +788,6 @@ def _build_metadata(
             "conflicts": conflicts_to_metadata(conflicts),
         }
     }
-
-
-def _has_recorded_conflicts(item: MemoryItem) -> bool:
-    """True if `metadata['consolidation']['conflicts']` is non-empty."""
-    consolidation = item.metadata.get("consolidation") if item.metadata else None
-    if not isinstance(consolidation, dict):
-        return False
-    conflicts = consolidation.get("conflicts")
-    return bool(conflicts)
 
 
 def _unique_members(assignment: ClusterAssignment) -> list[int]:

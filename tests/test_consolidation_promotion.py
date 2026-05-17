@@ -167,36 +167,79 @@ class TestPromotesWhenEligible:
             storage.close()
 
     def test_recorded_conflicts_block_promotion(self, tmp_path: Path) -> None:
+        """H-57: promotion consults the persistent `Conflict` table at
+        status=OPEN, not the stale metadata snapshot.  A summary
+        flagged with an open Conflict row is blocked; once the
+        reconciler resolves the conflict (status -> RESOLVED) the
+        next promotion pass succeeds."""
+        from engram import Conflict
+
         memory, storage = _make(
             tmp_path,
             promotion_params=PromotionParams(enabled=True, min_corroboration=2, min_weight=0.0),
         )
         try:
-            # Plant a summary with a recorded conflict in its metadata.
-            item = _seed_summary(
-                storage,
-                content="conflicted",
-                weight=1.0,
-                metadata={
-                    "consolidation": {
-                        "conflicts": [
-                            {
-                                "candidate_id": "00000000-0000-0000-0000-000000000001",
-                                "similarity": 0.9,
-                                "verdict": "contradict",
-                            }
-                        ]
-                    }
-                },
+            # Plant a summary AND a peer summary; record an OPEN
+            # Conflict row between them. The reconciler isn't run, so
+            # the conflict stays OPEN and the promotion is blocked.
+            item = _seed_summary(storage, content="conflicted", weight=1.0)
+            peer = _seed_summary(storage, content="peer", weight=1.0)
+            storage.record_conflict(
+                Conflict(source_item_id=item.id, target_item_id=peer.id, similarity=0.9)
             )
             for _ in range(3):
                 memory.corroborate(item.id, ItemKind.MEMORY_ITEM)
             result = memory.promote()
             assert result.promoted == 0
-            assert result.candidates_examined == 1
+            assert result.candidates_examined == 2
             after = storage.get_memory_item(item.id)
             assert after is not None
             assert after.level is Level.SUMMARY
+        finally:
+            storage.close()
+
+    def test_resolved_conflicts_do_not_block_promotion(self, tmp_path: Path) -> None:
+        """H-57 follow-up: once a conflict is RESOLVED the persistent
+        check returns no open rows, so promotion proceeds.  The old
+        metadata-snapshot implementation got this wrong -- it kept
+        blocking forever because the snapshot wasn't scrubbed."""
+        from datetime import datetime, timezone
+
+        from engram import Conflict, Resolution
+
+        memory, storage = _make(
+            tmp_path,
+            promotion_params=PromotionParams(enabled=True, min_corroboration=2, min_weight=0.0),
+        )
+        try:
+            item = _seed_summary(storage, content="will-be-cleared", weight=1.0)
+            peer = _seed_summary(storage, content="peer", weight=1.0)
+            conflict = Conflict(
+                source_item_id=item.id, target_item_id=peer.id, similarity=0.9
+            )
+            storage.record_conflict(conflict)
+            # Reconcile in PREFER_RECENT: peer is the second-inserted
+            # row (slightly later created_at), so it wins; the loser
+            # (`item`) gets invalidated but the CONFLICT row flips to
+            # RESOLVED.  An invalidated item is still in
+            # `iter_memory_items(level=SUMMARY)` (the cold/invalidated
+            # filter is `cold_at`, not `invalidated_at`), but its
+            # decay state may still be eligible.
+            storage.resolve_conflict(
+                conflict.id,
+                resolution=Resolution.PREFER_RECENT,
+                resolved_winner_id=peer.id,
+                resolved_at=datetime.now(tz=timezone.utc),
+            )
+            for _ in range(3):
+                memory.corroborate(peer.id, ItemKind.MEMORY_ITEM)
+            result = memory.promote()
+            # `peer` is now promotable because no OPEN conflict
+            # references it anymore.
+            assert result.promoted >= 1
+            after = storage.get_memory_item(peer.id)
+            assert after is not None
+            assert after.level is Level.ABSTRACTION
         finally:
             storage.close()
 
