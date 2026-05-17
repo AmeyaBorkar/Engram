@@ -176,9 +176,10 @@ class _Metrics:
         if self._initialized or not _OTEL_AVAILABLE:
             return
         with self._init_lock:
-            if self._initialized:
-                return
-            self._init_locked()
+            # Double-checked locking: a concurrent caller may have
+            # initialized between our flag read and the lock acquire.
+            if not self._initialized:
+                self._init_locked()
 
     def _init_locked(self) -> None:
         meter = get_meter()

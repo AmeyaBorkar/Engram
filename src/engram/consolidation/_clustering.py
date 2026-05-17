@@ -81,14 +81,15 @@ def _hdbscan_available() -> bool:
     if _HDBSCAN_AVAILABLE is not None:
         return _HDBSCAN_AVAILABLE
     with _HDBSCAN_LOCK:
-        if _HDBSCAN_AVAILABLE is not None:
-            return _HDBSCAN_AVAILABLE
-        try:
-            import hdbscan  # type: ignore[import-untyped]  # noqa: F401
+        # Double-checked locking: a concurrent caller may have populated
+        # the cache between our first read and the lock acquire.
+        if _HDBSCAN_AVAILABLE is None:
+            try:
+                import hdbscan  # type: ignore[import-untyped]  # noqa: F401
 
-            _HDBSCAN_AVAILABLE = True
-        except ImportError:
-            _HDBSCAN_AVAILABLE = False
+                _HDBSCAN_AVAILABLE = True
+            except ImportError:
+                _HDBSCAN_AVAILABLE = False
     return _HDBSCAN_AVAILABLE
 
 

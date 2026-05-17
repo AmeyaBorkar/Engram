@@ -155,7 +155,7 @@ class AnthropicChat:
     ) -> str:
         call_kwargs = self._build_kwargs(messages, overrides=kwargs)
         try:
-            resp = _DEFAULT_RETRY.call(self._client.messages.create, **call_kwargs)
+            resp = _DEFAULT_RETRY.call(self._client.messages.create, **call_kwargs)  # type: ignore[arg-type]
         except Exception as exc:
             raise _redact_error(exc) from exc
         return _join_text_blocks(resp.content, self.model)
@@ -168,7 +168,7 @@ class AnthropicChat:
     ) -> str:
         call_kwargs = self._build_kwargs(messages, overrides=kwargs)
         try:
-            resp = await _DEFAULT_RETRY.acall(self._aclient.messages.create, **call_kwargs)
+            resp = await _DEFAULT_RETRY.acall(self._aclient.messages.create, **call_kwargs)  # type: ignore[arg-type]
         except Exception as exc:
             raise _redact_error(exc) from exc
         return _join_text_blocks(resp.content, self.model)

@@ -115,7 +115,7 @@ class DecayEngine:
         if clock is None:
             self._clock = _utcnow
         elif callable(clock):
-            self._clock = clock  # type: ignore[assignment]
+            self._clock = clock
         else:
             raise TypeError(
                 f"DecayEngine.clock must be a callable returning datetime; "

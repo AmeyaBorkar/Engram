@@ -452,10 +452,11 @@ class SqliteStorage:
         if self._initialized:
             return
         with self._lock:
-            if self._initialized:
-                return
-            apply_migrations(self._connect_unlocked())
-            self._initialized = True
+            # Double-checked locking: another thread may have completed
+            # initialize() between our flag read and the lock acquire.
+            if not self._initialized:
+                apply_migrations(self._connect_unlocked())
+                self._initialized = True
 
     def close(self) -> None:
         # close() can be invoked from any thread, but `sqlite3.Connection`
@@ -487,7 +488,7 @@ class SqliteStorage:
         double-checked-locking pattern) can fetch a connection without
         re-acquiring and deadlocking on a non-reentrant Lock.
         """
-        conn = getattr(self._local, "conn", None)
+        conn: sqlite3.Connection | None = getattr(self._local, "conn", None)
         if conn is not None:
             return conn
         conn = sqlite3.connect(

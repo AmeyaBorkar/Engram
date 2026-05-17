@@ -270,7 +270,7 @@ class EngramAgent:
         """
         import asyncio
 
-        return await asyncio.to_thread(self.chat, user_message, history)
+        return await asyncio.to_thread(self.chat, user_message, history=history)
 
     def record_procedure_outcome(
         self,

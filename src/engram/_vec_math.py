@@ -59,7 +59,8 @@ def normalize(
                 f"raise_on_zero=False if a copy of the input is acceptable"
             )
         return [float(x) for x in vec]
-    return (arr / norm).tolist()
+    out: list[float] = (arr / norm).tolist()
+    return out
 
 
 def dot(a: Sequence[float], b: Sequence[float]) -> float:

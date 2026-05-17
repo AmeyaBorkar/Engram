@@ -748,7 +748,7 @@ class ConsolidationEngine:
             if len(self._tenant_cache) >= _TENANT_CACHE_MAX:
                 self._tenant_cache.pop(next(iter(self._tenant_cache)))
             self._tenant_cache[item_id] = cached
-        return cached == tenant_id
+        return bool(cached == tenant_id)
 
     # --- promotion ---------------------------------------------------------
 

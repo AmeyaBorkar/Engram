@@ -352,7 +352,7 @@ class OpenAIChat:
     ) -> str:
         try:
             resp = _DEFAULT_RETRY.call(
-                self._client.chat.completions.create,
+                self._client.chat.completions.create,  # type: ignore[arg-type]
                 model=self.model,
                 messages=_to_openai_messages(messages),
                 **self._merged_kwargs(kwargs),
@@ -369,7 +369,7 @@ class OpenAIChat:
     ) -> str:
         try:
             resp = await _DEFAULT_RETRY.acall(
-                self._aclient.chat.completions.create,
+                self._aclient.chat.completions.create,  # type: ignore[arg-type]
                 model=self.model,
                 messages=_to_openai_messages(messages),
                 **self._merged_kwargs(kwargs),

@@ -110,7 +110,7 @@ def mmr_select(
     norms = np.linalg.norm(matrix, axis=1, keepdims=True)
     # Avoid division by zero: zero-norm rows stay zero after divide.
     norms_safe = np.where(norms > 0, norms, 1.0)
-    matrix = matrix / norms_safe
+    matrix = (matrix / norms_safe).astype(np.float32)
 
     remaining = np.ones(n, dtype=bool)
     redundancy = np.zeros(n, dtype=np.float32)

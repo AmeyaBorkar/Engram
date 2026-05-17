@@ -851,10 +851,16 @@ def main(argv: list[str] | None = None) -> int:
             # which answer-generation backend was in use — see JOURNEY
             # §24 (had to grovel through provider_hash to identify
             # the opencode-go thinking-mode regime shift).
-            if args.chat and "chat" not in suite_config:
-                suite_config["chat"] = provider.chat
-            if args.embedder and "embedder" not in suite_config:
-                suite_config["embedder"] = provider.embedder
+            # `provider` is the Provider protocol; the real-provider
+            # implementations expose `chat` and `embedder` attrs but the
+            # protocol surface is intentionally narrow.  Use getattr so
+            # the captures are best-effort across implementations.
+            chat_obj = getattr(provider, "chat", None)
+            embedder_obj = getattr(provider, "embedder", None)
+            if args.chat and chat_obj is not None and "chat" not in suite_config:
+                suite_config["chat"] = chat_obj
+            if args.embedder and embedder_obj is not None and "embedder" not in suite_config:
+                suite_config["embedder"] = embedder_obj
             # H-74: plumb --limit via suite_config instead of os.environ.
             if args.limit is not None:
                 suite_config["max_questions"] = args.limit

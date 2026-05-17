@@ -758,7 +758,7 @@ class HierarchicalRetriever:
         counts = _Counter(session_ids)
         keepers: list[_Candidate] = []
         demoted: list[_Candidate] = []
-        seen_per_session: _Counter = _Counter()
+        seen_per_session: _Counter[str | None] = _Counter()
         for c in top:
             sid = self._session_id_for(c)
             seen_per_session[sid] += 1
@@ -941,7 +941,8 @@ class HierarchicalRetriever:
     def _get_created_at_batch(self, candidates: Sequence[_Candidate]) -> dict[UUID, datetime]:
         batch = getattr(self._storage, "get_created_at_batch", None)
         if callable(batch):
-            return batch([(c.item_id, c.item_kind) for c in candidates])
+            result: dict[UUID, datetime] = batch([(c.item_id, c.item_kind) for c in candidates])
+            return result
         # Fallback for storage backends without the batched accessor.
         out: dict[UUID, datetime] = {}
         for c in candidates:
