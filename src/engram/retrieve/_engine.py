@@ -61,7 +61,22 @@ _GENERALIZATION_LEVELS: tuple[Level, ...] = (
 
 @dataclass(frozen=True, slots=True)
 class _Candidate:
-    """One pre-rerank candidate. Stays internal to the engine."""
+    """One pre-rerank candidate. Stays internal to the engine.
+
+    `score` is the ordering signal -- it gets overwritten by the
+    RRF fused score during hybrid fusion, then again by the reranker
+    if one is configured. It's the right thing to sort on but the
+    wrong thing to expose as a probability-shaped "confidence".
+
+    `confidence_score` captures the *dense cosine similarity* the
+    upstream search emitted (or, for synthesized BM25/recent-only
+    candidates with no dense hit, a fallback that clips to 0). It
+    survives RRF and reranker overwrites so `RetrievalResult.confidence`
+    keeps its meaning across hybrid retrieves: "how close was this
+    item's embedding to the query, in [0, 1]?". Without this split, an
+    RRF score of ~0.016 would collapse confidence universally on every
+    hybrid call.
+    """
 
     item_id: UUID
     item_kind: ItemKind
@@ -69,6 +84,7 @@ class _Candidate:
     content: str
     score: float
     supported_by: tuple[UUID, ...]
+    confidence_score: float = 0.0
 
 
 class HierarchicalRetriever:
@@ -205,6 +221,7 @@ class HierarchicalRetriever:
                         content=content,
                         score=score,
                         supported_by=supports,
+                        confidence_score=score,
                     )
                 )
                 continue
@@ -223,6 +240,7 @@ class HierarchicalRetriever:
                         content=content,
                         score=score,
                         supported_by=supports,
+                        confidence_score=score,
                     )
                 )
                 continue
@@ -332,7 +350,12 @@ class HierarchicalRetriever:
 
         fused = reciprocal_rank_fusion(rankings, k=p.rrf_k, weights=weights)
         # Materialize back into `_Candidate` records, pulling content
-        # from whichever stream owns the id.
+        # from whichever stream owns the id. `score` is overwritten with
+        # the fused RRF value (the ordering signal) but
+        # `confidence_score` -- the dense cosine that downstream callers
+        # interpret as a probability-shaped relevance -- is preserved
+        # from the dense hit, or 0.0 for synthesized BM25/recent-only
+        # candidates that the dense stream didn't surface.
         out: list[_Candidate] = []
         for key, fused_score in fused:
             existing = dense_by_key.get(key)
@@ -345,6 +368,7 @@ class HierarchicalRetriever:
                         content=existing.content,
                         score=fused_score,
                         supported_by=existing.supported_by,
+                        confidence_score=existing.confidence_score,
                     )
                 )
                 continue
@@ -354,7 +378,8 @@ class HierarchicalRetriever:
             # Look in BM25 first (it carries content + a numeric score),
             # then fall back to the recent window's content. Either way
             # we synthesize an event-level candidate with the fused
-            # RRF score.
+            # RRF score and zero dense confidence (the dense path didn't
+            # surface this item).
             content: str | None = None
             if item_id in bm25_by_id:
                 content = bm25_by_id[item_id][0]
@@ -370,6 +395,7 @@ class HierarchicalRetriever:
                     content=content,
                     score=fused_score,
                     supported_by=(item_id,),
+                    confidence_score=0.0,
                 )
             )
         return out
@@ -452,6 +478,7 @@ class HierarchicalRetriever:
                 content=content,
                 score=score,
                 supported_by=(event_id,),
+                confidence_score=score,
             )
             for event_id, content, score in hits
         ]
@@ -483,6 +510,7 @@ class HierarchicalRetriever:
                 content=content,
                 score=score,
                 supported_by=(event_id,),
+                confidence_score=score,
             )
             for event_id, content, score in scored[: p.drill_k]
         ]
@@ -523,7 +551,7 @@ class HierarchicalRetriever:
                         item_id=c.item_id,
                         level=c.level,
                         content=c.content,
-                        confidence=_clip01(c.score),
+                        confidence=_clip01(c.confidence_score),
                         score=c.score,
                         supported_by=c.supported_by,
                     ),
@@ -574,7 +602,11 @@ class HierarchicalRetriever:
                 item_id=c.item_id,
                 level=c.level,
                 content=c.content,
-                confidence=_clip01(c.score),
+                # `confidence` is the dense cosine in [0, 1] -- preserved
+                # across RRF / reranker overwrites via `confidence_score`.
+                # `score` is the current ordering signal (post-rerank,
+                # post-RRF, post-recency-boost) and can take any range.
+                confidence=_clip01(c.confidence_score),
                 score=c.score,
                 supported_by=c.supported_by,
             )
