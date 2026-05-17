@@ -151,3 +151,145 @@ class TestMmrSelectFunction:
         # or `d`, NOT `b` (the near-duplicate).
         assert ranked[0] == "a"
         assert "b" != ranked[1]
+
+
+class TestRecencyAppliedAfterMmr:
+    """Audit H-49: the recency boost used to be folded into the
+    rerank scores BEFORE MMR, so MMR's diversity selection treated
+    recency as if it were relevance.  The fix: MMR runs on the raw
+    rerank scores; recency is then folded in as the final sort key.
+    """
+
+    def test_mmr_pool_unchanged_by_recency_lambda(
+        self, storage: SqliteStorage
+    ) -> None:
+        """When MMR's pool covers the entire candidate set, the items
+        that survive must be identical regardless of recency_lambda
+        — recency is applied AFTER MMR has picked the diverse set.
+        Final ORDER can differ (recency reorders the sort), but the
+        SET must be stable.
+        """
+        from datetime import datetime, timedelta, timezone
+
+        from engram.schemas import Embedding, Event, ItemKind
+
+        from tests.test_retrieve_hierarchical import PlantedEmbedder
+
+        embedder = PlantedEmbedder(dim=4)
+        dup_vec = (1.0, 0.0, 0.0, 0.0)
+        out_vec = (0.0, 1.0, 0.0, 0.0)
+        now = datetime.now(tz=timezone.utc)
+        plants = (
+            ("dup one OLD", dup_vec, now - timedelta(days=365)),
+            ("dup two NEW", dup_vec, now),
+            ("outlier C", out_vec, now - timedelta(days=180)),
+        )
+        for content, vec, created in plants:
+            ev = Event(content=content, created_at=created)
+            storage.insert_event(ev)
+            storage.insert_embedding(
+                Embedding(
+                    item_id=ev.id,
+                    item_kind=ItemKind.EVENT,
+                    model=embedder.model,
+                    dim=embedder.dim,
+                    vector=vec,
+                )
+            )
+        embedder.plant("query", (0.95, 0.31, 0.0, 0.0))
+        memory = Memory(storage=storage, embedder=embedder)
+        rr = _Reorderer(
+            {
+                "dup one OLD": 1.0,
+                "dup two NEW": 1.0,
+                "outlier C": 0.95,
+            }
+        )
+
+        baseline = memory.retrieve(
+            "query",
+            k=3,  # full pool — verifies set membership, not order
+            reranker=rr,
+            mmr_lambda=0.4,
+            recency_lambda=0.0,
+            candidate_multiplier=3,
+            reinforce=False,
+        )
+        baseline_ids = {r.item_id for r in baseline}
+
+        boosted = memory.retrieve(
+            "query",
+            k=3,
+            reranker=rr,
+            mmr_lambda=0.4,
+            recency_lambda=2.0,
+            recency_decay_days=30.0,
+            candidate_multiplier=3,
+            reinforce=False,
+        )
+        boosted_ids = {r.item_id for r in boosted}
+        # SET of items MMR selected is stable; recency may reorder
+        # them but must not change membership.
+        assert baseline_ids == boosted_ids
+
+    def test_recency_reorders_after_mmr_picks(
+        self, storage: SqliteStorage
+    ) -> None:
+        """The recency boost is applied after MMR; the final order
+        reflects recency on the MMR-picked candidates.  We compare two
+        runs that differ ONLY in recency_lambda and expect order to
+        differ when one candidate is much newer than another.
+        """
+        from datetime import datetime, timedelta, timezone
+
+        from engram.schemas import Embedding, Event, ItemKind
+
+        from tests.test_retrieve_hierarchical import PlantedEmbedder
+
+        embedder = PlantedEmbedder(dim=4)
+        v = (1.0, 0.0, 0.0, 0.0)
+        now = datetime.now(tz=timezone.utc)
+        plants = (
+            ("old fact", v, now - timedelta(days=365)),
+            ("new fact", v, now),
+        )
+        for content, vec, created in plants:
+            ev = Event(content=content, created_at=created)
+            storage.insert_event(ev)
+            storage.insert_embedding(
+                Embedding(
+                    item_id=ev.id,
+                    item_kind=ItemKind.EVENT,
+                    model=embedder.model,
+                    dim=embedder.dim,
+                    vector=vec,
+                )
+            )
+        embedder.plant("q", v)
+        memory = Memory(storage=storage, embedder=embedder)
+        # Plant rerank scores so OLD is the higher-rerank top-1.
+        rr = _Reorderer({"old fact": 1.0, "new fact": 0.95})
+
+        # No recency: top-1 = old (highest rerank score).
+        no_recency = memory.retrieve(
+            "q",
+            k=2,
+            reranker=rr,
+            mmr_lambda=0.0,
+            recency_lambda=0.0,
+            reinforce=False,
+        )
+        assert [r.content for r in no_recency][0] == "old fact"
+
+        # Aggressive recency on a 30-day half-life: the very-recent
+        # fact gets +2.0 bonus, blowing past the 0.05 rerank gap.
+        with_recency = memory.retrieve(
+            "q",
+            k=2,
+            reranker=rr,
+            mmr_lambda=0.0,
+            recency_lambda=2.0,
+            recency_decay_days=30.0,
+            reinforce=False,
+        )
+        assert [r.content for r in with_recency][0] == "new fact"

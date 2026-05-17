@@ -177,3 +177,112 @@ class TestSurfaceConflicts:
         # Both surface but no duplicates.
         assert len(ids) == len(set(ids)) == 2
         assert {a.id, b.id} == set(ids)
+
+    def test_final_order_is_score_sorted(self, memory: Memory) -> None:
+        """Audit M-34: siblings used to be appended at the tail
+        regardless of score, leaving the final list out of rank order.
+        After the fix, the merged list is re-sorted so a high-scoring
+        sibling sits adjacent to its parent in true rank order."""
+        a, b = _seed_pair(
+            memory,
+            a_text="X is in state alpha",
+            b_text="X is in state beta",
+            same_vector=False,
+        )
+        # Seed a low-similarity decoy that scores BELOW the conflict
+        # sibling so we can detect the re-sort.
+        decoy = MemoryItem(
+            level=Level.SUMMARY,
+            content="unrelated content far away",
+            created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            valid_from=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        )
+        memory.storage.insert_memory_item(decoy)
+        # Plant the decoy with a vector orthogonal to the query vector.
+        embedder = memory.embedder
+        decoy_vec = tuple(embedder.embed([decoy.content])[0])
+        memory.storage.insert_embedding(
+            Embedding(
+                item_id=decoy.id,
+                item_kind=ItemKind.MEMORY_ITEM,
+                model=embedder.model,
+                dim=embedder.dim,
+                vector=decoy_vec,
+            )
+        )
+        results = memory.retrieve(
+            "X is in state alpha",
+            k=10,
+            prefer="general",
+            confidence_threshold=0.0,
+            reinforce=False,
+            surface_conflicts=True,
+        )
+        # Scores must be monotonically non-increasing in the surface
+        # output.
+        scores = [r.score for r in results]
+        assert scores == sorted(scores, reverse=True), scores
+        # Sibling `b` should sit AT or just below `a` (its parent),
+        # not at the bottom of the list past unrelated decoys.
+        ids = [r.item_id for r in results]
+        a_idx = ids.index(a.id)
+        b_idx = ids.index(b.id)
+        assert b_idx == a_idx + 1, (a_idx, b_idx, ids)
+
+    def test_shared_sibling_fetched_once(self, memory: Memory) -> None:
+        """Audit M-33: two results that share the SAME conflict
+        partner used to each trigger a get_memory_item lookup for
+        that partner.  After the dedup fix, the partner is fetched
+        once regardless of how many parents reference it."""
+        a, b = _seed_pair(
+            memory,
+            a_text="X is in state alpha",
+            b_text="X is in state beta",
+            same_vector=True,
+        )
+        # Plant a third item `c` that's also in conflict with `b`
+        # (so two of the K results -> same sibling).
+        c = MemoryItem(
+            level=Level.SUMMARY,
+            content="X is in state alpha (variant)",
+            created_at=datetime(2026, 2, 1, tzinfo=timezone.utc),
+            valid_from=datetime(2026, 2, 1, tzinfo=timezone.utc),
+        )
+        memory.storage.insert_memory_item(c)
+        vec_a = tuple(memory.embedder.embed(["X is in state alpha"])[0])
+        memory.storage.insert_embedding(
+            Embedding(
+                item_id=c.id,
+                item_kind=ItemKind.MEMORY_ITEM,
+                model=memory.embedder.model,
+                dim=memory.embedder.dim,
+                vector=vec_a,
+            )
+        )
+        memory.storage.record_conflict(
+            Conflict(source_item_id=b.id, target_item_id=c.id, similarity=0.9)
+        )
+        # Count get_memory_item calls.
+        real = memory.storage.get_memory_item
+        calls: list[object] = []
+
+        def _spy(item_id: object) -> object:
+            calls.append(item_id)
+            return real(item_id)  # type: ignore[arg-type]
+
+        memory.storage.get_memory_item = _spy  # type: ignore[method-assign,attr-defined]
+        try:
+            memory.retrieve(
+                "X is in state alpha",
+                k=10,
+                prefer="general",
+                confidence_threshold=0.0,
+                reinforce=False,
+                surface_conflicts=True,
+            )
+        finally:
+            memory.storage.get_memory_item = real  # type: ignore[method-assign,attr-defined]
+        # Sibling `b` participates as conflict partner for BOTH `a`
+        # and `c`.  The dedup'd lookup must fetch it exactly once.
+        b_lookups = [cid for cid in calls if cid == b.id]
+        assert len(b_lookups) == 1, b_lookups

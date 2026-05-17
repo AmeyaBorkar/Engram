@@ -61,7 +61,16 @@ _GENERALIZATION_LEVELS: tuple[Level, ...] = (
 
 @dataclass(frozen=True, slots=True)
 class _Candidate:
-    """One pre-rerank candidate. Stays internal to the engine."""
+    """One pre-rerank candidate. Stays internal to the engine.
+
+    `score` is used for ordering and can switch units across stages
+    (raw cosine pre-fuse, RRF score post-fuse, cross-encoder logit
+    post-rerank).  `dense_score` preserves the original dense cosine
+    so the downstream `RetrievalResult.confidence` stays in [0, 1]
+    even after RRF fusion or reranking (audit H-46).  When the
+    candidate did not come through the dense path (BM25 / recent-only
+    hit), `dense_score` is None.
+    """
 
     item_id: UUID
     item_kind: ItemKind
@@ -69,6 +78,7 @@ class _Candidate:
     content: str
     score: float
     supported_by: tuple[UUID, ...]
+    dense_score: float | None = None
 
 
 class HierarchicalRetriever:
@@ -205,6 +215,7 @@ class HierarchicalRetriever:
                         content=content,
                         score=score,
                         supported_by=supports,
+                        dense_score=score,
                     )
                 )
                 continue
@@ -223,6 +234,7 @@ class HierarchicalRetriever:
                         content=content,
                         score=score,
                         supported_by=supports,
+                        dense_score=score,
                     )
                 )
                 continue
@@ -265,17 +277,27 @@ class HierarchicalRetriever:
         rankings.append(dense_ranking)
         weights.append(1.0)
         dense_by_key = {(c.item_kind, c.item_id): c for c in dense}
+        # Audit H-45: when the dense path ran over generalizations, the
+        # dense keys are (MEMORY_ITEM, item_id) but BM25/recent emit
+        # (EVENT, eid).  RRF treats those as disjoint and fuses
+        # nothing.  Build the event→parent-memory_item index up front
+        # so we can ALSO contribute each lexical/recent event hit to
+        # its parent's rank, when that parent is in the dense pool.
+        dense_memory_item_ids: set[UUID] = {
+            c.item_id for c in dense if c.item_kind is ItemKind.MEMORY_ITEM
+        }
+        bm25_pool_size = max(p.k * p.candidate_multiplier, p.k)
 
         # BM25 stream.
         bm25_by_id: dict[UUID, tuple[str, float]] = {}
+        bm25_hits: list[tuple[UUID, str, float]] = []
         if p.bm25_weight > 0:
             bm25_search = getattr(self._storage, "bm25_search_events", None)
             if callable(bm25_search):
-                pool_size = max(p.k * p.candidate_multiplier, p.k)
                 try:
-                    bm25_hits: list[tuple[UUID, str, float]] = bm25_search(
+                    bm25_hits = bm25_search(
                         query,
-                        k=pool_size,
+                        k=bm25_pool_size,
                         k1=p.bm25_k1,
                         b=p.bm25_b,
                         include_cold=p.include_cold,
@@ -297,16 +319,23 @@ class HierarchicalRetriever:
 
         # Recent-window stream.
         recent_by_id: dict[UUID, str] = {}
+        recent_hits: list[tuple[UUID, str]] = []
         if p.recent_window_k > 0:
             recent_fn = getattr(self._storage, "list_recent_events", None)
             if callable(recent_fn):
                 try:
-                    recent_hits: list[tuple[UUID, str]] = recent_fn(
+                    recent_hits = recent_fn(
                         k=p.recent_window_k, include_cold=p.include_cold
                     )
                 except (ValueError, RuntimeError):  # pragma: no cover - defensive
                     recent_hits = []
                 if recent_hits:
+                    # `1.0 - i/n` is the raw recency score; RRF uses
+                    # rank not score so the per-position value here is
+                    # immaterial (audit M-29).  We keep the
+                    # rank-ordered tuples (most recent first) and use
+                    # a stable score so debug logs show the original
+                    # position weight even though RRF discards it.
                     n = len(recent_hits)
                     recent_ranking: list[tuple[tuple[ItemKind, UUID], float]] = [
                         ((ItemKind.EVENT, eid), 1.0 - i / max(n, 1))
@@ -316,13 +345,57 @@ class HierarchicalRetriever:
                     rankings.append(recent_ranking)
                     weights.append(1.0)
 
+        # H-45 remap: if the dense path is over generalizations,
+        # emit a SECOND ranking per non-dense stream that maps each
+        # event to its parent memory_item ids (when the parent is in
+        # the dense pool).  RRF then has overlapping keys to fuse and
+        # the lexical signal actually contributes to the surface.  We
+        # use a single batched lookup over the union of event ids in
+        # BM25 + recent so the parent map costs one round trip even
+        # for a large pool.
+        if dense_memory_item_ids and (bm25_hits or recent_hits):
+            event_ids_to_lookup = {eid for eid, *_ in bm25_hits} | {
+                eid for eid, _ in recent_hits
+            }
+            event_to_parents = self._event_to_dense_parents(
+                event_ids_to_lookup, dense_memory_item_ids
+            )
+            if event_to_parents:
+                if bm25_hits:
+                    remapped_bm25: list[tuple[tuple[ItemKind, UUID], float]] = []
+                    for eid, _content, score in bm25_hits:
+                        for parent_id in event_to_parents.get(eid, ()):
+                            remapped_bm25.append(
+                                ((ItemKind.MEMORY_ITEM, parent_id), score)
+                            )
+                    if remapped_bm25:
+                        rankings.append(remapped_bm25)
+                        weights.append(float(p.bm25_weight))
+                if recent_hits:
+                    remapped_recent: list[tuple[tuple[ItemKind, UUID], float]] = []
+                    n_recent = len(recent_hits)
+                    for i, (eid, _content) in enumerate(recent_hits):
+                        for parent_id in event_to_parents.get(eid, ()):
+                            remapped_recent.append(
+                                (
+                                    (ItemKind.MEMORY_ITEM, parent_id),
+                                    1.0 - i / max(n_recent, 1),
+                                )
+                            )
+                    if remapped_recent:
+                        rankings.append(remapped_recent)
+                        weights.append(1.0)
+
         if len(rankings) == 1:
             # Nothing to fuse with; return the dense ranking unchanged.
             return dense
 
         fused = reciprocal_rank_fusion(rankings, k=p.rrf_k, weights=weights)
         # Materialize back into `_Candidate` records, pulling content
-        # from whichever stream owns the id.
+        # from whichever stream owns the id.  We propagate the
+        # original dense cosine on `dense_score` (audit H-46) so the
+        # final `RetrievalResult.confidence` stays in [0, 1] instead
+        # of collapsing to the ~1/61 RRF magnitude when fusion runs.
         out: list[_Candidate] = []
         for key, fused_score in fused:
             existing = dense_by_key.get(key)
@@ -335,6 +408,11 @@ class HierarchicalRetriever:
                         content=existing.content,
                         score=fused_score,
                         supported_by=existing.supported_by,
+                        dense_score=(
+                            existing.dense_score
+                            if existing.dense_score is not None
+                            else existing.score
+                        ),
                     )
                 )
                 continue
@@ -360,8 +438,40 @@ class HierarchicalRetriever:
                     content=content,
                     score=fused_score,
                     supported_by=(item_id,),
+                    # No dense cosine available for a BM25/recent-only
+                    # hit; downstream `confidence` falls back to score
+                    # for these via `_finalize`.
+                    dense_score=None,
                 )
             )
+        return out
+
+    def _event_to_dense_parents(
+        self,
+        event_ids: set[UUID],
+        dense_memory_item_ids: set[UUID],
+    ) -> dict[UUID, list[UUID]]:
+        """Map each event id -> its parent MemoryItem ids that appear
+        in the dense candidate pool (audit H-45).
+
+        The lookup is done one event at a time because Storage doesn't
+        expose a batched `get_supported_memory_items` accessor.  We
+        keep the cost bounded by the BM25/recent pool size, which is
+        `k * candidate_multiplier` -- usually <= 30 -- so the per-id
+        round-trip is acceptable.  Returns an empty dict when no event
+        has a parent inside `dense_memory_item_ids`.
+        """
+        if not event_ids or not dense_memory_item_ids:
+            return {}
+        out: dict[UUID, list[UUID]] = {}
+        for eid in event_ids:
+            try:
+                parents = self._storage.get_supported_memory_items(eid)
+            except (KeyError, RuntimeError):  # pragma: no cover - defensive
+                continue
+            matched = [p.id for p in parents if p.id in dense_memory_item_ids]
+            if matched:
+                out[eid] = matched
         return out
 
     def _candidates_from_events(
@@ -385,6 +495,7 @@ class HierarchicalRetriever:
                 content=content,
                 score=score,
                 supported_by=(event_id,),
+                dense_score=score,
             )
             for event_id, content, score in hits
         ]
@@ -416,6 +527,7 @@ class HierarchicalRetriever:
                 content=content,
                 score=score,
                 supported_by=(event_id,),
+                dense_score=score,
             )
             for event_id, content, score in scored[: p.drill_k]
         ]
@@ -456,7 +568,9 @@ class HierarchicalRetriever:
                         item_id=c.item_id,
                         level=c.level,
                         content=c.content,
-                        confidence=_clip01(c.score),
+                        confidence=_clip01(
+                            c.dense_score if c.dense_score is not None else c.score
+                        ),
                         score=c.score,
                         supported_by=c.supported_by,
                     ),
@@ -464,17 +578,39 @@ class HierarchicalRetriever:
                 )
                 for c in unique
             ]
-            rerank_scores = reranker.rerank(query, rerank_inputs)
-            if len(rerank_scores) != len(rerank_inputs):
-                raise RuntimeError(
-                    f"reranker {reranker.name!r} returned "
-                    f"{len(rerank_scores)} scores for {len(rerank_inputs)} candidates"
+            try:
+                rerank_scores_raw = reranker.rerank(query, rerank_inputs)
+            except (RuntimeError, ValueError):
+                # Audit H-51: a flaky cross-encoder must not kill the
+                # retrieve.  Fall back to the pre-rerank order.  We log
+                # at WARNING because the operator wants to know — the
+                # surface keeps working, but the precision boost was
+                # lost.
+                _LOG.warning(
+                    "reranker %r failed; falling back to pre-rerank order",
+                    getattr(reranker, "name", reranker.__class__.__name__),
+                    exc_info=True,
                 )
-            # Apply the optional time-decay boost BEFORE the sort so
-            # recency reshapes the final ordering rather than just
-            # tweaking the scores after the fact.
-            if p.recency_lambda > 0:
-                rerank_scores = self._apply_recency_boost(unique, rerank_scores, p)
+                rerank_scores_raw = [ri.prior_score for ri in rerank_inputs]
+            if len(rerank_scores_raw) != len(rerank_inputs):
+                # Audit H-51 part 2: same hostile contract as above,
+                # only this time the reranker returned the wrong COUNT
+                # of scores instead of raising.  Pad / truncate with
+                # the prior score so a single malformed cross-encoder
+                # response doesn't break every concurrent retrieve.
+                _LOG.warning(
+                    "reranker %r returned %d scores for %d candidates; "
+                    "padding with prior_score",
+                    getattr(reranker, "name", reranker.__class__.__name__),
+                    len(rerank_scores_raw),
+                    len(rerank_inputs),
+                )
+                padded = list(rerank_scores_raw) + [
+                    ri.prior_score for ri in rerank_inputs[len(rerank_scores_raw):]
+                ]
+                rerank_scores = padded[: len(rerank_inputs)]
+            else:
+                rerank_scores = list(rerank_scores_raw)
             zipped = sorted(
                 zip(unique, rerank_scores, strict=True),
                 key=lambda pair: (-pair[1], _LEVEL_PRIORITY[pair[0].level], pair[0].item_id.bytes),
@@ -504,6 +640,49 @@ class HierarchicalRetriever:
                     k=min(len(unique), pool_size),
                     lambda_=p.mmr_lambda,
                 )
+                # MMR re-orders `unique`; rebuild `rerank_scores_sorted`
+                # in the post-MMR order so the recency boost (below)
+                # acts on the right per-candidate score.  Pre-fix the
+                # boost only ever applied PRE-MMR, so MMR's diversity
+                # calc saw boosted scores and recency drove diversity
+                # rather than relevance (audit H-49).
+                score_by_id = {
+                    id(c): s for c, s in zipped if id(c) in {id(u) for u in unique}
+                }
+                # `mmr_select` returns the same _Candidate objects, so
+                # identity-based lookup is safe.  Items the MMR did NOT
+                # pick fall out of `unique`; we still need the score
+                # for each surviving candidate in its new position.
+                # Worst-case (unusual MMR impl returning copies) we
+                # fall back to a content+id lookup below.
+                if all(id(c) in score_by_id for c in unique):
+                    rerank_scores_sorted = [score_by_id[id(c)] for c in unique]
+                else:  # pragma: no cover - defensive
+                    by_key = {
+                        (c.item_kind, c.item_id): s for c, s in zipped
+                    }
+                    rerank_scores_sorted = [
+                        by_key.get((c.item_kind, c.item_id), c.score) for c in unique
+                    ]
+            # Audit H-49: recency boost applied AFTER MMR so MMR's
+            # diversity term sees the calibrated rerank scores rather
+            # than scores already inflated by recency.  The sort below
+            # then folds the recency bonus into the final order.
+            if p.recency_lambda > 0 and unique:
+                rerank_scores_sorted = self._apply_recency_boost(
+                    unique, rerank_scores_sorted, p
+                )
+                # Re-sort once the recency bonus has been folded in.
+                paired = sorted(
+                    zip(unique, rerank_scores_sorted, strict=True),
+                    key=lambda pair: (
+                        -pair[1],
+                        _LEVEL_PRIORITY[pair[0].level],
+                        pair[0].item_id.bytes,
+                    ),
+                )
+                unique = [c for c, _ in paired]
+                rerank_scores_sorted = [s for _, s in paired]
 
         if p.min_sessions_in_topk > 0:
             unique = self._enforce_session_diversity(
@@ -519,7 +698,14 @@ class HierarchicalRetriever:
                 item_id=c.item_id,
                 level=c.level,
                 content=c.content,
-                confidence=_clip01(c.score),
+                # Audit H-46: use the original dense cosine when
+                # available so confidence stays in a meaningful [0, 1]
+                # range across RRF / rerank / recency stages.  Fall
+                # back to `score` when the candidate came in via a
+                # lexical-only path with no dense cosine.
+                confidence=_clip01(
+                    c.dense_score if c.dense_score is not None else c.score
+                ),
                 score=c.score,
                 supported_by=c.supported_by,
             )

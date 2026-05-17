@@ -66,6 +66,31 @@ _NUM_WORDS = (
 )
 _TIME_UNITS = r"(?:day|days|week|weeks|month|months|year|years|hour|hours)"
 
+# Audit M-39: the temporal prepositions "since/before/after/until/by"
+# alone are too permissive — "by hand", "after lunch", "before noon"
+# all match indiscriminately and fire the temporal LLM call on
+# clearly-non-temporal questions.  Require the preposition to be
+# followed (within a small window) by an obvious date-shaped token:
+# a digit, a 4-digit year, a month or weekday name, or one of the
+# relative-time nouns ("yesterday", "today", ...).
+_DATE_TOKEN = (
+    r"(?:"
+    r"\d+|"  # digits (one or more)
+    r"yesterday|today|tomorrow|tonight|now|"
+    r"jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|"
+    r"january|february|march|april|june|july|august|september|"
+    r"october|november|december|"
+    r"monday|tuesday|wednesday|thursday|friday|saturday|sunday|"
+    r"this|last|next"
+    r")"
+)
+# The trailing `\w*` covers natural-language suffixes that aren't
+# themselves date-shaped (e.g. "5pm", "15th", "2024-03-15") so the
+# outer `\b` after the alternation group still finds a word boundary.
+_TEMPORAL_PREP = (
+    r"(?:since|before|after|until|by)\s+(?:the\s+)?" + _DATE_TOKEN + r"\w*"
+)
+
 _TEMPORAL_CUES: tuple[re.Pattern[str], ...] = (
     re.compile(
         rf"\b("
@@ -73,7 +98,8 @@ _TEMPORAL_CUES: tuple[re.Pattern[str], ...] = (
         rf"\w+day)|next\s+(week|month|year|\w+day)|"
         rf"{_NUM_WORDS}\s+{_TIME_UNITS}\s+ago|"
         rf"in\s+{_NUM_WORDS}\s+{_TIME_UNITS}|"
-        rf"since\s+|before\s+|after\s+|until\s+|by\s+|when\s+did|"
+        rf"{_TEMPORAL_PREP}|"
+        rf"when\s+did|"
         rf"as\s+of\s+|how\s+long\s+ago|"
         rf"recently|earlier|previously"
         rf")\b",
@@ -147,6 +173,20 @@ def compute_temporal_anchor(
     chat call happens. Otherwise the LLM is asked for a JSON anchor.
     Fails open on every error path -- returning None means "no
     temporal filter."
+
+    Retry semantics (audit M-41): the retry loop covers both the chat
+    call and the JSON parse.  A transient chat-provider exception
+    (rate limit, timeout, connection reset) does NOT short-circuit the
+    retry — it just counts as a failed attempt and we try again until
+    `max_retries + 1` attempts have been exhausted.  Only after the
+    loop runs out do we return None.
+
+    Datetime hygiene (audit M-40): the prompt asks the LLM for
+    ISO-8601 UTC.  When the model emits a NAIVE datetime (no zone
+    info) we log a WARNING and treat it as UTC anyway — the alternative
+    (raising) would surface as a hard retrieve failure on a soft
+    LLM-shape mismatch.  Operators see the warning and can tighten
+    the prompt or update the prompt version.
     """
     if not is_temporal_query(query):
         return None
@@ -155,15 +195,25 @@ def compute_temporal_anchor(
     prompt = render_temporal_prompt(query, now)
     messages: list[Message] = [Message(role="user", content=prompt)]
     last_response = ""
-    for _ in range(max_retries + 1):
+    anchor_obj: TemporalAnchor | None = None
+    for attempt in range(max_retries + 1):
         try:
             last_response = chat.chat(messages)
         except Exception as exc:
+            # Audit M-41: transient errors (rate limit, timeout,
+            # connection reset) used to short-circuit the retry by
+            # returning None immediately.  Now they count as a failed
+            # attempt: we log + continue so the retry budget actually
+            # gets spent.  Only the FINAL attempt's failure returns
+            # None (handled after the loop via the `else` branch).
             _LOG.warning(
-                "temporal anchor: chat raised %s: %s; falling back to None",
-                type(exc).__name__, exc,
+                "temporal anchor: chat raised %s on attempt %d/%d: %s; retrying",
+                type(exc).__name__,
+                attempt + 1,
+                max_retries + 1,
+                exc,
             )
-            return None
+            continue
         try:
             anchor_obj = parse_temporal_response(last_response)
             break
@@ -181,15 +231,22 @@ def compute_temporal_anchor(
             ]
     else:
         return None
-    if anchor_obj.anchor is None:
+    if anchor_obj is None or anchor_obj.anchor is None:
         return None
     try:
         parsed = datetime.fromisoformat(anchor_obj.anchor)
     except ValueError:
         return None
     if parsed.tzinfo is None:
-        # Caller asked for ISO-8601 UTC in the prompt; if the LLM
-        # omitted the zone we treat the value as UTC.
+        # Audit M-40: naive datetimes are documented as wrong (prompt
+        # asks for ISO-8601 UTC).  We coerce to UTC so the surface
+        # keeps working but emit a warning so the operator can fix
+        # the prompt / provider.
+        _LOG.warning(
+            "temporal anchor: LLM returned naive datetime %r; "
+            "treating as UTC (prompt requests ISO-8601 with offset)",
+            anchor_obj.anchor,
+        )
         parsed = parsed.replace(tzinfo=timezone.utc)
     else:
         # Normalize any tz-aware datetime to UTC.  An LLM may emit

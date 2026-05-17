@@ -282,3 +282,154 @@ class TestMemoryRetrieveWithTemporal:
         memory_with_chat.retrieve(
             "yesterday", k=1, reinforce=False, temporal=True
         )
+
+
+# ---------------------------------------------------------------------------
+# Audit regression tests
+# ---------------------------------------------------------------------------
+
+
+class TestTemporalRegexTightening:
+    """Audit M-39: bare prepositions used to over-trigger the temporal
+    codegen call.  After the tightening, a date-shaped follower is
+    required for `since/before/after/until/by` to count as temporal.
+    """
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "fixed it by hand",
+            "before lunch we talked",
+            "after the meeting",
+            "until further notice",
+            "since launch we have grown",
+        ],
+    )
+    def test_bare_preposition_no_longer_temporal(self, text: str) -> None:
+        assert not is_temporal_query(text), text
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "since 2023 the market shifted",
+            "since yesterday",
+            "by next Tuesday",
+            "before January",
+            "until last Monday",
+            "after 5pm",
+            "before the 15th",
+        ],
+    )
+    def test_preposition_with_date_token_still_temporal(self, text: str) -> None:
+        assert is_temporal_query(text), text
+
+
+class TestTemporalRetryExhaustion:
+    """Audit M-41: transient chat errors used to short-circuit the
+    retry loop on first failure.  Now they consume the retry budget
+    and only the final attempt's failure returns None."""
+
+    def test_transient_error_then_success_returns_anchor(self) -> None:
+        attempt = {"n": 0}
+
+        class _FlakyChat:
+            name: str = "flaky"
+            model: str = "flaky"
+
+            def chat(self, messages: object) -> str:
+                attempt["n"] += 1
+                if attempt["n"] < 2:
+                    raise RuntimeError("transient")
+                return json.dumps(
+                    {"anchor": "2024-03-15T00:00:00+00:00", "reasoning": "ok"}
+                )
+
+            async def achat(self, messages: object) -> str:
+                return ""
+
+            def manifest_hash(self) -> str:
+                return "flaky"
+
+        anchor = compute_temporal_anchor(
+            "yesterday",
+            _FlakyChat(),  # type: ignore[arg-type,unused-ignore]
+            now=datetime(2026, 5, 11, tzinfo=timezone.utc),
+            max_retries=2,
+        )
+        assert anchor == datetime(2024, 3, 15, tzinfo=timezone.utc)
+        # Two attempts: first raised, second succeeded.
+        assert attempt["n"] == 2
+
+    def test_all_attempts_fail_returns_none(self) -> None:
+        attempt = {"n": 0}
+
+        class _AlwaysErr:
+            name: str = "err"
+            model: str = "err"
+
+            def chat(self, messages: object) -> str:
+                attempt["n"] += 1
+                raise RuntimeError("never")
+
+            async def achat(self, messages: object) -> str:
+                raise RuntimeError("never")
+
+            def manifest_hash(self) -> str:
+                return "err"
+
+        anchor = compute_temporal_anchor(
+            "yesterday",
+            _AlwaysErr(),  # type: ignore[arg-type,unused-ignore]
+            now=datetime(2026, 5, 11, tzinfo=timezone.utc),
+            max_retries=2,
+        )
+        assert anchor is None
+        # All three attempts were used (max_retries=2 means 3 total).
+        assert attempt["n"] == 3
+
+
+class TestTemporalNaiveDatetimeWarn:
+    """Audit M-40: naive datetimes coerce to UTC but emit a WARNING
+    so an operator can spot the prompt drift."""
+
+    def test_naive_datetime_warns_and_coerces(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        import logging as _logging
+
+        chat = FakeChat(
+            default=json.dumps(
+                {"anchor": "2024-03-15T12:00:00", "reasoning": "naive"}
+            )
+        )
+        with caplog.at_level(_logging.WARNING, logger="engram.retrieve"):
+            anchor = compute_temporal_anchor(
+                "yesterday",
+                chat,
+                now=datetime(2026, 5, 11, tzinfo=timezone.utc),
+            )
+        assert anchor == datetime(2024, 3, 15, 12, 0, tzinfo=timezone.utc)
+        assert any(
+            "naive datetime" in r.getMessage() for r in caplog.records
+        )
+
+    def test_tz_aware_datetime_no_warning(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        import logging as _logging
+
+        chat = FakeChat(
+            default=json.dumps(
+                {"anchor": "2024-03-15T12:00:00+00:00", "reasoning": "ok"}
+            )
+        )
+        with caplog.at_level(_logging.WARNING, logger="engram.retrieve"):
+            anchor = compute_temporal_anchor(
+                "yesterday",
+                chat,
+                now=datetime(2026, 5, 11, tzinfo=timezone.utc),
+            )
+        assert anchor == datetime(2024, 3, 15, 12, 0, tzinfo=timezone.utc)
+        assert not any(
+            "naive datetime" in r.getMessage() for r in caplog.records
+        )

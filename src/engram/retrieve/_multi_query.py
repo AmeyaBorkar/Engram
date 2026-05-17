@@ -54,7 +54,23 @@ def render_multi_query_prompt(query: str, n: int) -> str:
 def expand_queries(query: str, n: int, chat: ChatProvider) -> list[str]:
     """Return `[query, p1, p2, ..., p_{n-1}]` -- the original plus
     `n-1` paraphrases via chat. Best-effort: on chat error or empty
-    response, returns `[query]` so the caller can still retrieve."""
+    response, returns `[query]` so the caller can still retrieve.
+
+    `n` is a SOFT upper bound (audit M-42).  The returned list always
+    starts with the original query and is then padded with up to
+    `n - 1` chat-generated paraphrases, but the actual length depends
+    on what the chat provider emits:
+
+      * Chat exception → returns `[query]` (length 1).
+      * Empty / blank response → returns `[query]` (length 1).
+      * Response with K < n-1 distinct paraphrases → returns
+        `[query, p1, ..., pK]` (length K+1, < n).
+      * Response with K >= n-1 paraphrases → truncates to
+        `[query, p1, ..., p_{n-1}]` (length n).
+
+    Callers that depend on a fixed ranking-count (e.g. fan-out
+    retrieve loops) should treat the result length as variable, not
+    `n`."""
     if n <= 1:
         return [query]
     paraphrase_count = n - 1

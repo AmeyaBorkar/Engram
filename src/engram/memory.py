@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 import math
 import time
 from collections.abc import Callable, Sequence
@@ -85,6 +86,8 @@ _OUTCOME_SIGNAL: dict[Outcome, str] = {
 
 
 from engram._time import utcnow as _utcnow  # noqa: E402
+
+_LOG = logging.getLogger("engram.memory")
 
 
 class Memory:
@@ -736,19 +739,29 @@ class Memory:
         """Expand `results` with the OTHER side of any open conflicts.
 
         For each surfaced memory item, look up open conflicts where it
-        participates as source or target. For each conflict, fetch the
-        OTHER side's memory item and add it to the result list with
-        the same score (so it sits adjacent in the ranked output and
-        the agent sees both versions). Skips items whose conflict
-        partner is invalidated -- the temporal-aware retrieve path
-        already filters those.
+        participates as source or target.  Sibling ids are deduplicated
+        across the result set before any `get_memory_item` lookup
+        (audit M-33), so two results sharing the same conflict partner
+        cost one fetch, not two.  Skips items whose conflict partner is
+        invalidated -- the temporal-aware retrieve path already filters
+        those.
 
-        Deduplicates by (item_id) to avoid double-listing.
+        Siblings carry a placeholder score (`min(parent_score) -
+        small_epsilon`) so they sit just below the parent in the
+        re-sorted output (audit M-34).  Re-using the parent's score
+        verbatim made siblings tie with their parent and surface in
+        bytewise-id order, masking the parent/sibling relationship.
+        Deduplicates by `(item_id)` to avoid double-listing.
         """
         if not results:
             return results
         existing_ids: set[UUID] = {r.item_id for r in results}
-        sibling_results: list[RetrievalResult] = []
+        # First pass: collect (parent, sibling_id) candidates.  We
+        # defer the get_memory_item lookup until we've deduplicated
+        # sibling ids across the whole result set so a shared partner
+        # is fetched once instead of K times.
+        pending: list[tuple[RetrievalResult, UUID]] = []
+        unique_sibling_ids: set[UUID] = set()
         for r in results:
             try:
                 conflicts = self._storage.list_conflicts(
@@ -762,21 +775,45 @@ class Memory:
                 )
                 if sibling_id in existing_ids:
                     continue
-                sibling = self._storage.get_memory_item(sibling_id)
-                if sibling is None or sibling.invalidated_at is not None:
-                    continue
-                existing_ids.add(sibling_id)
-                sibling_results.append(
-                    RetrievalResult(
-                        item_id=sibling.id,
-                        level=sibling.level,
-                        content=sibling.content,
-                        confidence=r.confidence,
-                        score=r.score,
-                        supported_by=(),
-                    )
+                pending.append((r, sibling_id))
+                unique_sibling_ids.add(sibling_id)
+        if not pending:
+            return results
+        # Second pass: one get_memory_item per UNIQUE sibling id
+        # (instead of one per (parent, conflict) pair).
+        sibling_by_id: dict[UUID, MemoryItem] = {}
+        for sid in unique_sibling_ids:
+            sibling = self._storage.get_memory_item(sid)
+            if sibling is None or sibling.invalidated_at is not None:
+                continue
+            sibling_by_id[sid] = sibling
+        # Assign a placeholder sibling score just below the parent's so
+        # the post-append sort keeps parent/sibling adjacent without
+        # tying.  Epsilon must be small enough not to flip rank vs the
+        # next-ranked result and large enough to survive float compare.
+        sibling_results: list[RetrievalResult] = []
+        sort_eps = 1e-9
+        for r, sid in pending:
+            sibling = sibling_by_id.get(sid)
+            if sibling is None or sid in existing_ids:
+                continue
+            existing_ids.add(sid)
+            sibling_results.append(
+                RetrievalResult(
+                    item_id=sibling.id,
+                    level=sibling.level,
+                    content=sibling.content,
+                    confidence=r.confidence,
+                    score=max(r.score - sort_eps, 0.0),
+                    supported_by=(),
                 )
-        return [*results, *sibling_results]
+            )
+        merged = [*results, *sibling_results]
+        # Re-sort so the final list is in true rank order — the old
+        # append-at-tail behavior placed every sibling AFTER every
+        # parent regardless of score (audit M-34).
+        merged.sort(key=lambda x: x.score, reverse=True)
+        return merged
 
     def _decomposed_retrieve(
         self,
@@ -795,47 +832,87 @@ class Memory:
         if self._chat is None:  # pragma: no cover - upstream guard
             raise RuntimeError("decomposed retrieve requires a chat provider")
         queries = decompose_query(query, self._chat)
-        leaf_params = RetrieveParams(
-            k=params.k,
-            prefer=params.prefer,
-            confidence_threshold=params.confidence_threshold,
-            drill_k=params.drill_k,
-            candidate_multiplier=params.candidate_multiplier,
-            include_cold=params.include_cold,
+        # Inherit every caller-tuned knob via `replace` (audit H-47).
+        # The leaf retrieves disable the per-leaf decompose/multi-query/
+        # HyDE flags (they fire above this layer) and turn off
+        # reinforcement (we reinforce ONCE post-fusion below).
+        leaf_params = params.replace(
             reinforce_on_use=False,
-            as_of=params.as_of,
             hyde=False,
             multi_query_n=1,
-            rrf_k=params.rrf_k,
             decompose=False,
         )
         rankings = self._parallel_leaf_retrieves(queries, leaf_params)
-        fused = reciprocal_rank_fusion(rankings, k=params.rrf_k)
-        if reranker is not None and fused:
+        # The reranker is paired per-sub-query so the cross-encoder
+        # sees query/document pairs that actually correspond (audit
+        # M-31).  Concretely: the rank-1 doc in `rankings[i]` is
+        # rerank-scored against `queries[i]`, not the original `query`.
+        # Then we RRF-fuse the per-sub-query rerank rankings.
+        if reranker is not None and any(rankings):
             from engram.retrieve._reranker import RerankCandidate
 
-            slice_size = min(len(fused), params.k * params.candidate_multiplier)
-            cands = [
-                RerankCandidate(result=r, prior_score=r.score)
-                for r in fused[:slice_size]
-            ]
-            rerank_scores = reranker.rerank(query, cands)
-            paired = sorted(
-                zip(fused[:slice_size], rerank_scores, strict=True),
-                key=lambda pair: pair[1],
-                reverse=True,
-            )
-            fused = [
-                RetrievalResult(
-                    item_id=r.item_id,
-                    level=r.level,
-                    content=r.content,
-                    confidence=r.confidence,
-                    score=score,
-                    supported_by=r.supported_by,
+            reranked: list[list[RetrievalResult]] = []
+            for sub_query, ranking in zip(queries, rankings, strict=True):
+                if not ranking:
+                    reranked.append([])
+                    continue
+                slice_size = min(len(ranking), params.k * params.candidate_multiplier)
+                cands = [
+                    RerankCandidate(result=r, prior_score=r.score)
+                    for r in ranking[:slice_size]
+                ]
+                try:
+                    rerank_scores = reranker.rerank(sub_query, cands)
+                except (RuntimeError, ValueError):
+                    # Audit H-51: cross-encoder hiccup must not kill
+                    # the entire decomposed retrieve.  Fall back to the
+                    # pre-rerank ordering for this sub-query.
+                    _LOG.warning(
+                        "decomposed_retrieve: reranker %r failed for sub-query "
+                        "%r; falling back to pre-rerank order",
+                        getattr(reranker, "name", reranker.__class__.__name__),
+                        sub_query,
+                        exc_info=True,
+                    )
+                    reranked.append(list(ranking[:slice_size]))
+                    continue
+                # Pad with prior_score for any candidate the reranker
+                # silently dropped (length mismatch) so we still have
+                # a usable ordering instead of raising.
+                if len(rerank_scores) != len(cands):
+                    _LOG.warning(
+                        "decomposed_retrieve: reranker %r returned %d scores "
+                        "for %d candidates (sub-query=%r); padding with prior_score",
+                        getattr(reranker, "name", reranker.__class__.__name__),
+                        len(rerank_scores),
+                        len(cands),
+                        sub_query,
+                    )
+                    padded = list(rerank_scores) + [
+                        c.prior_score for c in cands[len(rerank_scores):]
+                    ]
+                    rerank_scores = padded[: len(cands)]
+                paired = sorted(
+                    zip(ranking[:slice_size], rerank_scores, strict=True),
+                    key=lambda pair: pair[1],
+                    reverse=True,
                 )
-                for r, score in paired
-            ]
+                reranked.append(
+                    [
+                        RetrievalResult(
+                            item_id=r.item_id,
+                            level=r.level,
+                            content=r.content,
+                            confidence=r.confidence,
+                            score=score,
+                            supported_by=r.supported_by,
+                        )
+                        for r, score in paired
+                    ]
+                )
+            fused = reciprocal_rank_fusion(reranked, k=params.rrf_k)
+        else:
+            fused = reciprocal_rank_fusion(rankings, k=params.rrf_k)
         sliced = fused[: params.k]
         if params.reinforce_on_use:
             for r in sliced:
@@ -922,6 +999,20 @@ class Memory:
         `decompose`, `temporal`, `surface_conflicts`, `reranker`) are
         forwarded to each per-step `retrieve` so the iterative loop
         composes with the rest of the retrieve surface.
+
+        KNOWN LIMITATION (audit M-35): the final sort uses each
+        result's `score` field, which is populated by whichever stage
+        produced it (RRF for multi-query/decompose, cross-encoder for
+        rerank, raw cosine for the base path).  Those scores live on
+        DIFFERENT scales — a 0.5 RRF score is "high" in RRF-land, a 0.5
+        cross-encoder logit is "low" relative to typical BGE outputs in
+        [-8, 8].  When `retrieve_iterative` accumulates results across
+        steps whose `retrieve` flags differ, the merged ranking mixes
+        these incomparable scales and the final order reflects the
+        scale mismatch rather than ground-truth relevance.  Callers
+        who care about ordering should keep the same flag set across
+        the iterative loop (which is the default when the LLM doesn't
+        change between steps).
         """
         # Validate BEFORE the chat=None early return so the error
         # semantics don't depend on whether a chat provider happens to
@@ -933,11 +1024,19 @@ class Memory:
         if max_steps < 1:
             raise ValueError(f"max_steps must be >= 1, got {max_steps}")
         if self._chat is None:
-            return self.retrieve(
+            # Audit M-37: match the multi-step path's reinforcement
+            # semantics.  The multi-step loop calls `retrieve(
+            # reinforce=False)` and reinforces ONCE at the end against
+            # the deduped+sliced surface.  The early-return path was
+            # forwarding `reinforce` straight into `retrieve`, which
+            # reinforced PER-LEAF before any dedup / slice.  Force
+            # `reinforce=False` here and do the reinforcement after the
+            # surface slice so single-step / multi-step agree.
+            results = self.retrieve(
                 query,
                 k=k,
                 as_of=as_of,
-                reinforce=reinforce,
+                reinforce=False,
                 hyde=hyde,
                 multi_query_n=multi_query_n,
                 decompose=decompose,
@@ -945,6 +1044,14 @@ class Memory:
                 surface_conflicts=surface_conflicts,
                 reranker=reranker,
             )
+            if reinforce:
+                for r in results:
+                    with contextlib.suppress(KeyError, RuntimeError, ValueError):
+                        kind = (
+                            ItemKind.EVENT if r.level is Level.EVENT else ItemKind.MEMORY_ITEM
+                        )
+                        self._engine.reinforce(r.item_id, kind)
+            return results
 
         leaf_k = per_step_k if per_step_k is not None else k
         seen_ids: set[UUID] = set()
@@ -1005,26 +1112,20 @@ class Memory:
         if self._chat is None:  # pragma: no cover - upstream guard
             raise RuntimeError("multi-query retrieve requires a chat provider")
         queries = expand_queries(query, params.multi_query_n, self._chat)
-        # Per-query params: turn multi-query off + the reranker off
-        # (we rerank ONCE post-fusion if a reranker is given).
-        leaf_params = RetrieveParams(
-            k=params.k,
-            prefer=params.prefer,
-            confidence_threshold=params.confidence_threshold,
-            drill_k=params.drill_k,
-            candidate_multiplier=params.candidate_multiplier,
-            include_cold=params.include_cold,
-            reinforce_on_use=False,  # reinforce once post-fusion below
-            as_of=params.as_of,
-            hyde=False,  # already applied upstream if requested
+        # Per-query params: inherit every caller knob (audit H-47),
+        # disable multi-query/HyDE/decompose recursion, defer
+        # reinforcement until the post-fusion surface call.
+        leaf_params = params.replace(
+            reinforce_on_use=False,
+            hyde=False,
             multi_query_n=1,
-            rrf_k=params.rrf_k,
+            decompose=False,
         )
-        rankings: list[list[RetrievalResult]] = []
-        for q in queries:
-            rankings.append(
-                self._retriever.retrieve(q, params=leaf_params, reranker=None)
-            )
+        # Fan the per-paraphrase retrieves out across the thread pool
+        # the same way `_decomposed_retrieve` does (audit H-48).  The
+        # serial loop was an oversight: structurally identical fan-out
+        # ran 2-8x slower than the decompose path with no upside.
+        rankings = self._parallel_leaf_retrieves(queries, leaf_params)
         fused = reciprocal_rank_fusion(rankings, k=params.rrf_k)
         # If the caller wants a reranker, apply it ONCE to the fused
         # top-(k*multiplier) for sharpness, then slice to k.
@@ -1036,23 +1137,45 @@ class Memory:
                 RerankCandidate(result=r, prior_score=r.score)
                 for r in fused[:slice_size]
             ]
-            rerank_scores = reranker.rerank(query, cands)
-            paired = sorted(
-                zip(fused[:slice_size], rerank_scores, strict=True),
-                key=lambda pair: pair[1],
-                reverse=True,
-            )
-            fused = [
-                RetrievalResult(
-                    item_id=r.item_id,
-                    level=r.level,
-                    content=r.content,
-                    confidence=r.confidence,
-                    score=score,
-                    supported_by=r.supported_by,
+            try:
+                rerank_scores = reranker.rerank(query, cands)
+            except (RuntimeError, ValueError):
+                _LOG.warning(
+                    "multi_query_retrieve: reranker %r failed; "
+                    "falling back to pre-rerank fused order",
+                    getattr(reranker, "name", reranker.__class__.__name__),
+                    exc_info=True,
                 )
-                for r, score in paired
-            ]
+                rerank_scores = None
+            if rerank_scores is not None:
+                if len(rerank_scores) != len(cands):
+                    _LOG.warning(
+                        "multi_query_retrieve: reranker %r returned %d "
+                        "scores for %d candidates; padding with prior_score",
+                        getattr(reranker, "name", reranker.__class__.__name__),
+                        len(rerank_scores),
+                        len(cands),
+                    )
+                    padded = list(rerank_scores) + [
+                        c.prior_score for c in cands[len(rerank_scores):]
+                    ]
+                    rerank_scores = padded[: len(cands)]
+                paired = sorted(
+                    zip(fused[:slice_size], rerank_scores, strict=True),
+                    key=lambda pair: pair[1],
+                    reverse=True,
+                )
+                fused = [
+                    RetrievalResult(
+                        item_id=r.item_id,
+                        level=r.level,
+                        content=r.content,
+                        confidence=r.confidence,
+                        score=score,
+                        supported_by=r.supported_by,
+                    )
+                    for r, score in paired
+                ]
         sliced = fused[: params.k]
         # Reinforcement-on-use closes the loop once at the surface level.
         if params.reinforce_on_use:

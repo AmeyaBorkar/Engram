@@ -306,7 +306,15 @@ class TestReranker:
         # crash and must return the same number of results.
         assert len(results_rerank) == len(results_no_rerank)
 
-    def test_reranker_returns_wrong_score_count_raises(self, storage: SqliteStorage) -> None:
+    def test_reranker_returns_wrong_score_count_pads_with_prior_score(
+        self, storage: SqliteStorage, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Audit H-51: a length-mismatched cross-encoder response must
+        not kill the retrieve.  The engine logs a warning and pads
+        with `prior_score` so the surface still resolves to a valid
+        ranking."""
+        import logging as _logging
+
         embedder = FakeEmbedder(dim=8)
         memory = Memory(storage=storage, embedder=embedder)
         memory.observe("a")
@@ -318,8 +326,43 @@ class TestReranker:
             def rerank(self, query: str, candidates: object) -> list[float]:  # type: ignore[no-untyped-def]
                 return [1.0]  # wrong length
 
-        with pytest.raises(RuntimeError, match="returned"):
-            memory.retrieve("a", k=2, reranker=BadReranker())  # type: ignore[arg-type]
+        with caplog.at_level(_logging.WARNING, logger="engram.retrieve"):
+            results = memory.retrieve("a", k=2, reranker=BadReranker())  # type: ignore[arg-type]
+        assert len(results) == 2
+        # The warning must surface so an operator can spot the
+        # misbehaving reranker.
+        assert any(
+            "padding with prior_score" in record.getMessage()
+            for record in caplog.records
+        )
+
+    def test_reranker_that_raises_falls_back_to_prior_order(
+        self, storage: SqliteStorage, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Audit H-51: a reranker that raises should not propagate;
+        the retrieve must keep working using the pre-rerank order."""
+        import logging as _logging
+
+        embedder = FakeEmbedder(dim=8)
+        memory = Memory(storage=storage, embedder=embedder)
+        memory.observe("a")
+        memory.observe("b")
+
+        class CrashingReranker:
+            name = "crash"
+
+            def rerank(self, query: str, candidates: object) -> list[float]:  # type: ignore[no-untyped-def]
+                raise RuntimeError("model OOM")
+
+        with caplog.at_level(_logging.WARNING, logger="engram.retrieve"):
+            results = memory.retrieve(
+                "a", k=2, reranker=CrashingReranker()  # type: ignore[arg-type]
+            )
+        assert len(results) == 2
+        assert any(
+            "falling back to pre-rerank order" in record.getMessage()
+            for record in caplog.records
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -387,3 +430,178 @@ class TestValidation:
         memory = Memory(storage=storage, embedder=FakeEmbedder(dim=4))
         with pytest.raises(ValueError, match="drill_k"):
             memory.retrieve("anything", drill_k=-1)
+
+
+# ---------------------------------------------------------------------------
+# Audit regression tests
+# ---------------------------------------------------------------------------
+
+
+class TestConfidencePreservedAcrossFusion:
+    """Audit H-46: when BM25 fusion ran, `_Candidate.score` got
+    overwritten with the RRF score (~1/61).  Downstream
+    `RetrievalResult.confidence = clip01(c.score)` collapsed to ~0
+    for every hit.  After the fix, confidence reflects the original
+    dense cosine even after RRF fusion."""
+
+    def test_confidence_is_dense_cosine_not_rrf(
+        self, storage: SqliteStorage
+    ) -> None:
+        embedder = PlantedEmbedder(dim=4)
+        v = (1.0, 0.0, 0.0, 0.0)
+        # Plant two events with vectors aligned to the query so dense
+        # cosine is high and unambiguous.  Build them directly through
+        # the storage layer so we don't have to fight an already-present
+        # embedding row.
+        events = [
+            _planted_event(
+                storage,
+                embedder,
+                content=f"alpha {i} matches the query alpha",
+                vector=v,
+            )
+            for i in range(2)
+        ]
+        embedder.plant("alpha query", v)
+        memory = Memory(storage=storage, embedder=embedder)
+
+        # Run hybrid retrieve (BM25 fusion on).  Pre-fix: confidence
+        # would be ~0.016 (the RRF score).  Post-fix: confidence is
+        # the dense cosine, which here is 1.0.
+        results = memory.retrieve(
+            "alpha query",
+            k=5,
+            bm25_weight=1.0,
+            prefer="specific",
+            reinforce=False,
+        )
+        assert results, "retrieve returned no results"
+        # Confidence must be a meaningful cosine, not the RRF magnitude.
+        assert {r.item_id for r in results} >= {e.id for e in events}
+        for r in results:
+            if r.item_id in {e.id for e in events}:
+                assert r.confidence > 0.5, (r.content, r.confidence)
+
+
+class TestRerankerLengthMismatchFallback:
+    """Audit H-51 sanity: ensure the reranker error path is wired."""
+
+    def test_reranker_internal_error_does_not_kill_retrieve(
+        self, storage: SqliteStorage, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        import logging as _logging
+
+        embedder = FakeEmbedder(dim=8)
+        memory = Memory(storage=storage, embedder=embedder)
+        memory.observe("x")
+        memory.observe("y")
+
+        class _ValueErrorReranker:
+            name = "value_err"
+
+            def rerank(self, query: str, candidates: object) -> list[float]:  # type: ignore[no-untyped-def]
+                raise ValueError("bad batch")
+
+        with caplog.at_level(_logging.WARNING, logger="engram.retrieve"):
+            results = memory.retrieve(
+                "x", k=2, reranker=_ValueErrorReranker()  # type: ignore[arg-type]
+            )
+        assert len(results) == 2
+
+
+class TestBm25EventKeyRemapToMemoryItemParents:
+    """Audit H-45: when the dense path runs over generalizations, the
+    dense candidates carry (MEMORY_ITEM, item_id) keys while BM25's
+    event hits carry (EVENT, event_id) keys.  RRF treats those as
+    disjoint and fuses nothing.  The fix maps each BM25 event hit to
+    its parent memory_items so the overlap is non-empty.
+
+    We verify the behavior by forcing a scenario where BM25 has a
+    perfect lexical match on an event that supports a low-cosine
+    abstraction.  Pre-fix, BM25 contributes only to the event key
+    (which doesn't even appear in the dense generalization stream),
+    so the abstraction's RRF rank is determined by dense alone.
+    Post-fix, BM25's high rank flows up to the parent abstraction and
+    the abstraction climbs in the final order.
+    """
+
+    def test_bm25_lift_flows_to_parent_memory_item(
+        self, storage: SqliteStorage
+    ) -> None:
+        embedder = PlantedEmbedder(dim=4)
+        # Two abstractions with dense vectors so abs_b is closer to
+        # the query than abs_a.  abs_a's supporting event carries the
+        # exact query phrase as content — only BM25 can see that.
+        # With the H-45 fix, BM25's lift flows from the event up to
+        # abs_a (the parent memory_item), letting abs_a climb past
+        # abs_b in the final order.
+        query_vec = (1.0, 0.0, 0.0, 0.0)
+        # abs_a vector: orthogonal to query → dense cosine ~0
+        a_vec = (0.0, 1.0, 0.0, 0.0)
+        # abs_b vector: aligned with query → dense cosine 1.0
+        b_vec = (1.0, 0.0, 0.0, 0.0)
+        # Supporting event for abs_a carries the query phrase verbatim.
+        ev_a = _planted_event(
+            storage,
+            embedder,
+            content="exact phrase quokka quokka quokka",
+            vector=a_vec,
+        )
+        # abs_b's supporting event has no overlap with the query.
+        ev_b = _planted_event(
+            storage,
+            embedder,
+            content="totally different content",
+            vector=b_vec,
+        )
+        abs_a = _planted_summary(
+            storage,
+            embedder,
+            content="abstraction A — has matching event below",
+            vector=a_vec,
+            supports=[ev_a],
+            level=Level.SUMMARY,
+        )
+        abs_b = _planted_summary(
+            storage,
+            embedder,
+            content="abstraction B — dense match no lexical",
+            vector=b_vec,
+            supports=[ev_b],
+            level=Level.SUMMARY,
+        )
+        embedder.plant("exact phrase quokka quokka quokka", query_vec)
+        memory = Memory(storage=storage, embedder=embedder)
+
+        # With BM25 OFF: dense alone → abs_b ranks first (cosine 1.0)
+        # and abs_a probably doesn't surface (cosine 0).
+        no_bm25 = memory.retrieve(
+            "exact phrase quokka quokka quokka",
+            k=2,
+            bm25_weight=0.0,
+            prefer="general",
+            confidence_threshold=0.0,
+            reinforce=False,
+        )
+        # With BM25 ON: the lexical match on ev_a gets remapped to
+        # abs_a (the parent), and the RRF fusion lifts abs_a into the
+        # results.  Pre-fix, BM25's event-key contribution went
+        # nowhere because the dense ranking was MEMORY_ITEM-keyed.
+        with_bm25 = memory.retrieve(
+            "exact phrase quokka quokka quokka",
+            k=2,
+            bm25_weight=2.0,  # strong BM25 weight
+            prefer="general",
+            confidence_threshold=0.0,
+            reinforce=False,
+        )
+        no_ids = {r.item_id for r in no_bm25}
+        with_ids = {r.item_id for r in with_bm25}
+        # The fix is observable: abs_a surfaces ONLY when BM25 is on.
+        assert abs_a.id not in no_ids or abs_a.id in with_ids
+        # Stronger: abs_a should appear in with_bm25 even if it
+        # didn't in no_bm25.  This proves the remap kicked in.
+        assert abs_a.id in with_ids, (
+            f"H-45 remap failed: abs_a should surface via BM25 lift "
+            f"but did not.  with_ids={with_ids}"
+        )

@@ -242,6 +242,41 @@ class TestRetrieveIterativeBasics:
         with pytest.raises(ValueError, match="max_steps must be"):
             memory_with_chat.retrieve_iterative("q", k=1, max_steps=0)
 
+    def test_no_chat_early_return_matches_multi_step_reinforcement(
+        self, storage: SqliteStorage
+    ) -> None:
+        """Audit M-37: the no-chat early-return path used to forward
+        `reinforce=reinforce` straight into `retrieve`, which called
+        `_engine.reinforce` per leaf result before dedup/slice.  The
+        multi-step path calls `retrieve(reinforce=False)` for every
+        leaf and reinforces ONCE at the surface (after dedup + slice).
+        After the fix the two paths produce the same reinforce-count
+        per surfaced item.
+        """
+        embedder = FakeEmbedder(dim=8)
+        memory = Memory(storage=storage, embedder=embedder)
+        memory.observe("a fact")
+        # Capture reinforcement calls.
+        seen: list[tuple[object, object]] = []
+        real = memory._engine.reinforce
+
+        def _spy(item_id: object, kind: object, **kw: object) -> object:
+            seen.append((item_id, kind))
+            return real(item_id, kind, **kw)  # type: ignore[arg-type]
+
+        memory._engine.reinforce = _spy  # type: ignore[method-assign,assignment]
+        try:
+            results = memory.retrieve_iterative("a fact", k=1, reinforce=True)
+        finally:
+            memory._engine.reinforce = real  # type: ignore[method-assign,assignment]
+        assert results
+        # Each surfaced item must be reinforced exactly once (not
+        # twice — pre-fix the inner retrieve's `reinforce=True` would
+        # have driven a second call).
+        for r in results:
+            count = sum(1 for it, _ in seen if it == r.item_id)
+            assert count == 1, (r.item_id, count)
+
 
 class TestVerdictModel:
     def test_default_refined_query(self) -> None:
