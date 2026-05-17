@@ -32,3 +32,35 @@ def test_loads_metadata_rejects_non_object() -> None:
 
 def test_loads_metadata_accepts_object() -> None:
     assert loads_metadata('{"k": "v"}') == {"k": "v"}
+
+
+# --- dumps_metadata error surface -----------------------------------------
+
+
+def test_dumps_metadata_raises_value_error_for_non_serializable() -> None:
+    """Non-JSON-serializable values surface as ValueError (not TypeError)
+    so callers can catch the storage-boundary error class uniformly."""
+    from engram.storage._serialize import dumps_metadata
+
+    class _Opaque:
+        pass
+
+    with pytest.raises(ValueError, match="not JSON-serializable"):
+        dumps_metadata({"obj": _Opaque()})
+
+
+def test_dumps_metadata_error_names_offending_key() -> None:
+    from engram.storage._serialize import dumps_metadata
+
+    class _Opaque:
+        pass
+
+    with pytest.raises(ValueError, match=r"key 'bad'"):
+        dumps_metadata({"ok": "v", "bad": _Opaque()})
+
+
+def test_dumps_metadata_round_trip() -> None:
+    from engram.storage._serialize import dumps_metadata
+
+    blob = dumps_metadata({"a": 1, "b": [1, 2, 3], "c": {"nested": True}})
+    assert loads_metadata(blob) == {"a": 1, "b": [1, 2, 3], "c": {"nested": True}}

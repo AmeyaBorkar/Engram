@@ -1453,55 +1453,71 @@ class SqliteStorage:
         )
         return self._fetch_memory_item_content(hits)
 
-    def _fetch_event_content(
-        self, hits: Sequence[tuple[UUID, int, float]]
+    # Lookup tables for `_fetch_kind_content` so it never interpolates
+    # untrusted strings into SQL.  The closed ItemKind enum is the safe
+    # boundary; ruff S608 stays honest.
+    _KIND_TABLE: dict[ItemKind, str] = {
+        ItemKind.EVENT: "events",
+        ItemKind.MEMORY_ITEM: "memory_items",
+        ItemKind.PROCEDURE: "procedures",
+    }
+    _KIND_CONTENT_COL: dict[ItemKind, str] = {
+        ItemKind.EVENT: "content",
+        ItemKind.MEMORY_ITEM: "content",
+        # Procedures surface `situation` as the canonical content slot.
+        ItemKind.PROCEDURE: "situation",
+    }
+    # MEMORY_ITEM rows that have been retired by reconciliation
+    # (invalidated_at IS NOT NULL) are kept on disk but filtered out
+    # of the non-as_of search surface.  Other kinds have no such filter.
+    _KIND_EXTRA_WHERE: dict[ItemKind, str] = {
+        ItemKind.EVENT: "",
+        ItemKind.MEMORY_ITEM: " AND invalidated_at IS NULL",
+        ItemKind.PROCEDURE: "",
+    }
+
+    def _fetch_kind_content(
+        self,
+        kind: ItemKind,
+        hits: Sequence[tuple[UUID, int, float]],
     ) -> list[tuple[UUID, str, float]]:
+        """Resolve a list of (id, _, score) hits into (id, content, score).
+
+        Drives the per-kind fetch_* helpers below.  Centralizes the
+        chunked-IN-list loop and the post-fetch ordering preservation
+        so any kind-specific code path stays small.
+        """
         if not hits:
             return []
+        table = self._KIND_TABLE[kind]
+        col = self._KIND_CONTENT_COL[kind]
+        extra = self._KIND_EXTRA_WHERE[kind]
         ids = [u for u, _, _ in hits]
-        # Chunk so a large k * candidate_multiplier doesn't overrun
-        # SQLite's variable limit.
         id_bytes = [u.bytes for u in ids]
         content: dict[bytes, str] = {}
         for chunk in _chunked(id_bytes):
             placeholders = ",".join("?" for _ in chunk)
-            rows = (
-                self._connect()
-                .execute(
-                    f"SELECT id, content FROM events WHERE id IN ({placeholders})",  # noqa: S608
-                    chunk,
-                )
-                .fetchall()
+            sql = (
+                f"SELECT id, {col} FROM {table} "  # noqa: S608
+                f"WHERE id IN ({placeholders}){extra}"
             )
-            content.update({bytes(r["id"]): r["content"] for r in rows})
+            rows = self._connect().execute(sql, chunk).fetchall()
+            content.update({bytes(r["id"]): r[col] for r in rows})
         return [(u, content[u.bytes], score) for u, _, score in hits if u.bytes in content]
+
+    def _fetch_event_content(
+        self, hits: Sequence[tuple[UUID, int, float]]
+    ) -> list[tuple[UUID, str, float]]:
+        return self._fetch_kind_content(ItemKind.EVENT, hits)
 
     def _fetch_memory_item_content(
         self, hits: Sequence[tuple[UUID, int, float]]
     ) -> list[tuple[UUID, str, float]]:
-        if not hits:
-            return []
-        ids = [u for u, _, _ in hits]
-        id_bytes = [u.bytes for u in ids]
-        # Filter invalidated rows here.  The in-memory vector shard keeps
-        # them (so search_memory_item_embeddings_as_of can look them up
-        # historically) and the non-as_of caller drops them at content-
-        # fetch time.  Without this, the non-as_of search variant would
-        # surface items that have already been retired by reconciliation.
-        content: dict[bytes, str] = {}
-        for chunk in _chunked(id_bytes):
-            placeholders = ",".join("?" for _ in chunk)
-            rows = (
-                self._connect()
-                .execute(
-                    "SELECT id, content FROM memory_items "  # noqa: S608
-                    f"WHERE invalidated_at IS NULL AND id IN ({placeholders})",
-                    chunk,
-                )
-                .fetchall()
-            )
-            content.update({bytes(r["id"]): r["content"] for r in rows})
-        return [(u, content[u.bytes], score) for u, _, score in hits if u.bytes in content]
+        # The in-memory vector shard keeps invalidated rows (so
+        # search_memory_item_embeddings_as_of can look them up
+        # historically); _fetch_kind_content's extra WHERE drops them
+        # at content-fetch time for the non-as_of caller.
+        return self._fetch_kind_content(ItemKind.MEMORY_ITEM, hits)
 
     def search_procedure_embeddings(
         self,
@@ -1538,23 +1554,7 @@ class SqliteStorage:
         we return the situation as the `content` so the surface stays
         uniform; callers fetch the full Procedure separately by id.
         """
-        if not hits:
-            return []
-        ids = [u for u, _, _ in hits]
-        id_bytes = [u.bytes for u in ids]
-        content: dict[bytes, str] = {}
-        for chunk in _chunked(id_bytes):
-            placeholders = ",".join("?" for _ in chunk)
-            rows = (
-                self._connect()
-                .execute(
-                    f"SELECT id, situation FROM procedures WHERE id IN ({placeholders})",  # noqa: S608
-                    chunk,
-                )
-                .fetchall()
-            )
-            content.update({bytes(r["id"]): r["situation"] for r in rows})
-        return [(u, content[u.bytes], score) for u, _, score in hits if u.bytes in content]
+        return self._fetch_kind_content(ItemKind.PROCEDURE, hits)
 
     def bm25_search_events(
         self,

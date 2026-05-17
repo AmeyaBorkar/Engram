@@ -31,7 +31,35 @@ def parse_iso(value: str) -> datetime:
 
 
 def dumps_metadata(metadata: dict[str, object]) -> str:
-    return json.dumps(metadata, separators=(",", ":"), sort_keys=True)
+    """Serialize `metadata` to a canonical compact JSON string.
+
+    Raises `ValueError` with a clear message if the dict contains a
+    value `json.dumps` can't encode (objects with `__dict__`, sets,
+    bytes, etc.).  Without this wrapper the storage write would raise
+    a bare `TypeError: Object of type X is not JSON serializable`
+    far from the call site — the typed `ValueError` is easier to
+    catch at the Memory API boundary and tells the caller which
+    key is the offender.
+    """
+    try:
+        return json.dumps(metadata, separators=(",", ":"), sort_keys=True)
+    except TypeError as exc:
+        # json.dumps's error message includes the offending type but
+        # not the key.  Find a problematic key by re-serializing each
+        # value alone; on Python's stdlib json this is O(n) over the
+        # dict, but metadata is small (a few keys).
+        bad_key: str | None = None
+        for k, v in metadata.items():
+            try:
+                json.dumps(v)
+            except TypeError:
+                bad_key = k
+                break
+        if bad_key is not None:
+            raise ValueError(
+                f"metadata value at key {bad_key!r} is not JSON-serializable: {exc}"
+            ) from exc
+        raise ValueError(f"metadata is not JSON-serializable: {exc}") from exc
 
 
 def loads_metadata(value: str) -> dict[str, object]:
