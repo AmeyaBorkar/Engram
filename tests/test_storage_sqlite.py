@@ -397,3 +397,86 @@ def test_path_rejects_uri_with_caps() -> None:
     # The `file:` check is case-insensitive — `FILE:foo` is still a URI.
     with pytest.raises(ValueError, match="may not be a URI"):
         SqliteStorage("FILE:foo.db")
+
+
+# --- delete_memory_item ----------------------------------------------------
+
+
+def test_delete_memory_item_removes_row(storage: SqliteStorage) -> None:
+    item = MemoryItem(level=Level.SUMMARY, content="x")
+    storage.insert_memory_item(item)
+    assert storage.get_memory_item(item.id) is not None
+    storage.delete_memory_item(item.id)
+    assert storage.get_memory_item(item.id) is None
+
+
+def test_delete_memory_item_drops_embedding(storage: SqliteStorage) -> None:
+    item = MemoryItem(level=Level.SUMMARY, content="x")
+    storage.insert_memory_item(item)
+    emb = Embedding(
+        item_id=item.id,
+        item_kind=ItemKind.MEMORY_ITEM,
+        model="m",
+        dim=2,
+        vector=(0.6, 0.8),
+    )
+    storage.insert_embedding(emb)
+    assert storage.count_embeddings() == 1
+    storage.delete_memory_item(item.id)
+    # Embedding for the deleted item is gone; otherwise the vector
+    # index would surface a ghost id.
+    assert storage.count_embeddings() == 0
+
+
+def test_delete_memory_item_cascades_provenance(storage: SqliteStorage) -> None:
+    event = Event(content="seed")
+    storage.insert_event(event)
+    item = MemoryItem(level=Level.SUMMARY, content="from-seed")
+    storage.insert_memory_item(item)
+    storage.link_provenance(item.id, event.id)
+    assert storage.count_provenance_links() == 1
+    storage.delete_memory_item(item.id)
+    assert storage.count_provenance_links() == 0
+    # Event is preserved; only the memory_item and its dependents go.
+    assert storage.get_event(event.id) is not None
+
+
+def test_delete_memory_item_missing_raises(storage: SqliteStorage) -> None:
+    with pytest.raises(KeyError):
+        storage.delete_memory_item(new_id())
+
+
+def test_delete_memory_item_atomic_on_missing_id(storage: SqliteStorage) -> None:
+    # If the memory_item row is missing, the transaction must roll back
+    # all the side-deletes too (otherwise it would still drop unrelated
+    # embeddings that happened to use the same UUID).  Validate by
+    # seeding an unrelated row with the same id; the missing-id raise
+    # must not delete it.
+    missing = new_id()
+    # The unrelated row is an *event* embedding for the same id; if
+    # delete leaked side-effects across kinds, this would be wiped.
+    emb = Embedding(
+        item_id=missing,
+        item_kind=ItemKind.EVENT,
+        model="m",
+        dim=2,
+        vector=(0.6, 0.8),
+    )
+    # Need a real event for the FK-less embeddings row to make sense
+    # of; insert the event then the embedding.
+    event = Event(content="x")
+    storage.insert_event(event)
+    # Use the event's id; we'll try to delete it as a memory_item.
+    bad_id = event.id
+    emb = Embedding(
+        item_id=bad_id,
+        item_kind=ItemKind.EVENT,
+        model="m",
+        dim=2,
+        vector=(0.6, 0.8),
+    )
+    storage.insert_embedding(emb)
+    with pytest.raises(KeyError):
+        storage.delete_memory_item(bad_id)
+    # The event's embedding (different kind) survives.
+    assert storage.get_embedding(bad_id, ItemKind.EVENT, "m") is not None

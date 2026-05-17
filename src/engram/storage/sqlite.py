@@ -769,6 +769,44 @@ class SqliteStorage:
             result[Level(row["level"])] = int(row["n"])
         return result
 
+    def delete_memory_item(self, item_id: UUID) -> None:
+        """Atomically delete a memory item and its dependent rows.
+
+        The schema cascades `provenance_links` on memory_item delete
+        (FK ON DELETE CASCADE on `memory_item_id`), but `embeddings`
+        has no FK — its `item_id` is a logical reference only.  Without
+        an explicit delete of the embeddings row, the in-memory vector
+        shard would surface the deleted item until the next rebuild.
+        Three statements in one transaction so the delete is
+        all-or-nothing.
+        """
+        with self.transaction():
+            conn = self._connect()
+            # 1. Embeddings: no FK on item_id, so explicit delete.  Drop
+            #    every embedding regardless of model; the item is gone.
+            conn.execute(
+                "DELETE FROM embeddings WHERE item_id = ? AND item_kind = ?",
+                (item_id.bytes, ItemKind.MEMORY_ITEM.value),
+            )
+            # 2. Provenance links: FK ON DELETE CASCADE would cover this
+            #    when memory_items row drops, but the cascade can be
+            #    silently disabled by `PRAGMA foreign_keys=OFF` (set
+            #    during certain migrations).  Belt-and-suspenders: drop
+            #    explicitly so the deletion is correct regardless of
+            #    the connection's FK state.
+            conn.execute(
+                "DELETE FROM provenance_links WHERE memory_item_id = ?",
+                (item_id.bytes,),
+            )
+            # 3. The memory item itself.  rowcount==0 means missing.
+            cursor = conn.execute(
+                "DELETE FROM memory_items WHERE id = ?",
+                (item_id.bytes,),
+            )
+            if cursor.rowcount == 0:
+                raise KeyError(f"memory_item {item_id} not found")
+        self._vector_index.mark_dirty(kind=ItemKind.MEMORY_ITEM.value)
+
     # --- temporal validity & invalidation (Stage 8) ------------------------
 
     def invalidate_memory_item(

@@ -105,6 +105,23 @@ class Storage(Protocol):
     def count_memory_items(self) -> int: ...
     def count_memory_items_by_level(self) -> dict[Level, int]: ...
 
+    def delete_memory_item(self, item_id: UUID) -> None:
+        """Hard-delete a memory item and its dependent rows.
+
+        Removes the `memory_items` row, every `embeddings` row that
+        points at it (regardless of model), and every `provenance_links`
+        row that supports or is supported by it.  Runs as a single
+        transaction so the deletion is all-or-nothing — a partial
+        rollback can't leave dangling embeddings whose `item_id` is
+        already gone from `memory_items`.
+
+        Used by the user-state replace path and admin one-off deletes.
+        The cold-sweep / decay pruning path is a separate concern; use
+        `delete_cold_items` for that.
+
+        Raises `KeyError` if the memory item does not exist.
+        """
+
     # --- temporal validity & invalidation (Stage 8) ------------------------
 
     def invalidate_memory_item(
