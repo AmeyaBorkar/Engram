@@ -62,6 +62,18 @@ from engram._vec_math import normalize as _normalize  # noqa: E402
 _LOG = logging.getLogger("engram.reconcile")
 
 
+class ConcurrentResolveError(RuntimeError):
+    """Raised when two reconcilers race on the same conflict (M-183).
+
+    The storage-side `resolve_conflict` (or the in-Reconciler precheck)
+    refuses to flip an already-RESOLVED row a second time. When two
+    workers passed the OPEN status check simultaneously and only one
+    won the UPDATE, the loser surfaces this exception instead of the
+    generic `RuntimeError("already resolved")` so callers can handle
+    the race explicitly (skip / retry / log + continue).
+    """
+
+
 # Trust-comparison epsilon for `PREFER_TRUSTED`. Float trust values can
 # diverge by sub-ulp amounts after JSON round-trip or after weight
 # updates; comparing them with a strict `!=` lets a microscopic

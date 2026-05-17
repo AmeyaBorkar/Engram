@@ -9,6 +9,6 @@ behind it (the same shape as `decay/_engine.py` and
 `consolidation/_engine.py`).
 """
 
-from engram.reconcile._engine import Reconciler
+from engram.reconcile._engine import ConcurrentResolveError, Reconciler
 
-__all__ = ["Reconciler"]
+__all__ = ["ConcurrentResolveError", "Reconciler"]
