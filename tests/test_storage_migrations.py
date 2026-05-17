@@ -58,6 +58,36 @@ def test_reopened_storage_skips_already_applied_migrations(tmp_path: Path) -> No
         s2.close()
 
 
+def test_apply_migrations_rejects_open_transaction(tmp_path: Path) -> None:
+    """`executescript` issues an implicit COMMIT; the runner must reject
+    a caller-open transaction up front instead of silently dropping it.
+    """
+    db = tmp_path / "open-tx.db"
+    conn = sqlite3.connect(db)
+    conn.isolation_level = None
+    try:
+        conn.execute("BEGIN")
+        assert conn.in_transaction
+        with pytest.raises(RuntimeError, match="already in a transaction"):
+            apply_migrations(conn)
+    finally:
+        conn.execute("ROLLBACK")
+        conn.close()
+
+
+def test_applied_versions_rejects_open_transaction(tmp_path: Path) -> None:
+    db = tmp_path / "open-tx-av.db"
+    conn = sqlite3.connect(db)
+    conn.isolation_level = None
+    try:
+        conn.execute("BEGIN")
+        with pytest.raises(RuntimeError, match="already in a transaction"):
+            applied_versions(conn)
+    finally:
+        conn.execute("ROLLBACK")
+        conn.close()
+
+
 def test_missing_version_record_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A migration that fails to record its own version is a runner error."""
     from engram.storage import migrations as mig

@@ -7,6 +7,17 @@ that schema change and version record are atomic.
 
 The runner bootstraps the `schema_migrations` table, reads applied versions,
 and runs pending migrations in order.
+
+Connection preconditions
+------------------------
+
+`apply_migrations` MUST be called on a connection that is NOT already
+inside a transaction.  Each migration file uses `executescript`, which
+issues an implicit `COMMIT;` before running the script's own
+`BEGIN ... COMMIT;` block; if the caller had already opened a
+transaction, that COMMIT would silently end it and any uncommitted
+caller state would be lost.  The runner raises if it detects an open
+transaction.
 """
 
 from __future__ import annotations
@@ -22,7 +33,7 @@ def list_migrations() -> list[tuple[int, str]]:
     """Return `[(version, filename), ...]` sorted by version.
 
     Raises if two migration files share the same numeric prefix
-    (e.g. \`0005_a.sql\` + \`0005_b.sql\`) — the runner would treat one
+    (e.g. ``0005_a.sql`` + ``0005_b.sql``) — the runner would treat one
     as the canonical 'v5' and silently skip the other, which has
     silently lost real DDL in tooling-mistake scenarios.
     """
@@ -50,15 +61,39 @@ def list_migrations() -> list[tuple[int, str]]:
 def applied_versions(conn: sqlite3.Connection) -> set[int]:
     """Return the set of migration versions already applied in `conn`.
 
-    Bootstraps the `schema_migrations` table if absent.
+    Bootstraps the `schema_migrations` table if absent.  Bootstrap +
+    SELECT happen inside a transaction so a second process running this
+    concurrently can't observe a half-created table or a torn read.
     """
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS schema_migrations ("
-        "  version    INTEGER PRIMARY KEY,"
-        "  applied_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP)"
-        ")"
-    )
-    rows = conn.execute("SELECT version FROM schema_migrations").fetchall()
+    # BEGIN IMMEDIATE grabs the writer lock up front so the CREATE+SELECT
+    # is atomic against another caller racing on first-use.  The caller
+    # MUST NOT already be inside a transaction — `BEGIN IMMEDIATE` would
+    # surface a sqlite3.OperationalError ("cannot start a transaction
+    # within a transaction").  We assert that precondition explicitly to
+    # produce a clear error rather than the bare driver one.
+    if conn.in_transaction:
+        raise RuntimeError(
+            "applied_versions() called on a connection that is already "
+            "in a transaction; migrations must run on a connection with "
+            "no open transaction"
+        )
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS schema_migrations ("
+            "  version    INTEGER PRIMARY KEY,"
+            "  applied_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP)"
+            ")"
+        )
+        rows = conn.execute("SELECT version FROM schema_migrations").fetchall()
+    except BaseException:
+        try:
+            conn.execute("ROLLBACK")
+        except sqlite3.Error:
+            pass
+        raise
+    else:
+        conn.execute("COMMIT")
     versions = {int(row[0]) for row in rows}
     # Sanity-check: applied versions must be a contiguous prefix [1..N].
     # A gap (1, 3 without 2) signals manual db surgery or a partial-
@@ -86,7 +121,20 @@ def apply_migrations(conn: sqlite3.Connection) -> list[int]:
     silently.  We wrap the apply loop in a try/finally and restore the
     pre-migration setting so a partial failure can't poison the
     connection's FK enforcement.
+
+    Connection MUST NOT be in a transaction on entry.  `executescript`
+    issues an implicit `COMMIT;` before running, which would silently
+    end any caller-open transaction and lose its uncommitted state.
+    The runner raises rather than let that happen.
     """
+    # Same precondition as applied_versions, asserted again here so the
+    # error message points at the right entry point.
+    if conn.in_transaction:
+        raise RuntimeError(
+            "apply_migrations() called on a connection that is already "
+            "in a transaction; sqlite3.executescript issues an implicit "
+            "COMMIT and would lose the caller's uncommitted state"
+        )
     applied = applied_versions(conn)
     pending = [
         (version, filename) for version, filename in list_migrations() if version not in applied
