@@ -549,15 +549,34 @@ class ConsolidationEngine:
         if not cp.enabled:
             return []
         # Vector recall: pull top-K candidates above threshold.
+        #
+        # H-54: use the `_as_of` variant with `as_of=None` so already-
+        # invalidated items (a previous reconcile may have resolved them
+        # into a successor) do NOT come back as fresh contradiction
+        # candidates.  The non-`_as_of` variant returns rows regardless
+        # of `invalidated_at`, so we'd burn judge calls comparing the
+        # new abstraction against tombstones whose successors are
+        # already in the active surface.
+        #
         # Recall across every consolidated tier so that contradictions
         # against a PREFERENCE / TOPIC / GLOBAL (Phase E levels) are
         # also surfaced -- otherwise "user loves Python" stored as a
         # PREFERENCE is invisible to a new ABSTRACTION saying
         # "user dislikes Python".
-        hits = self._storage.search_memory_item_embeddings(
+        #
+        # M-03 TODO: the judge prompt currently has no temporal-scope
+        # hint, so "Alice lived in Paris" vs "Alice lives in Tokyo"
+        # can be classified as CONTRADICT when the two statements are
+        # actually a consistent timeline ("lived" = past, "lives" =
+        # present).  The prompt fix lands in a follow-up touching
+        # `prompts/judge_v1.txt`; until then callers running on
+        # narrative corpora should expect occasional spurious
+        # contradictions on tense-shifted facts.
+        hits = self._storage.search_memory_item_embeddings_as_of(
             new_vec,
             k=cp.max_candidates,
             model=self._embedder.model,
+            as_of=None,
             levels=(
                 Level.SUMMARY,
                 Level.ABSTRACTION,
