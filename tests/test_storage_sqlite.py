@@ -446,6 +446,50 @@ def test_delete_memory_item_missing_raises(storage: SqliteStorage) -> None:
         storage.delete_memory_item(new_id())
 
 
+# --- BM25 cache concurrency -----------------------------------------------
+
+
+def test_bm25_dirty_flag_is_thread_safe(tmp_path: object) -> None:
+    # Many threads racing on `_mark_bm25_dirty` + `bm25_search_events`
+    # should not crash; the BM25 RLock serializes the dirty flag flip
+    # and the cache rebuild.  We use a disk-backed db so each thread's
+    # connection sees the same schema (the in-memory variant gives
+    # each thread its own private database, so cross-thread reads
+    # fail with "no such table: events").
+    import threading
+    from pathlib import Path as _Path
+
+    p = _Path(str(tmp_path)) / "bm25-race.db"
+    backend = SqliteStorage(p)
+    backend.initialize()
+    try:
+        # Seed on the main thread so reader threads find rows.
+        for i in range(20):
+            backend.insert_event(Event(content=f"event {i} phrase"))
+
+        errors: list[BaseException] = []
+
+        def reader() -> None:
+            try:
+                for _ in range(20):
+                    # Mix readers and explicit dirty flips so the lock
+                    # path is exercised on both check-then-rebuild and
+                    # cache-invalidation sides.
+                    backend.bm25_search_events("phrase", k=5)
+                    backend._mark_bm25_dirty()
+            except BaseException as exc:  # noqa: BLE001
+                errors.append(exc)
+
+        threads = [threading.Thread(target=reader) for _ in range(4)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        assert errors == []
+    finally:
+        backend.close()
+
+
 def test_delete_memory_item_atomic_on_missing_id(storage: SqliteStorage) -> None:
     # If the memory_item row is missing, the transaction must roll back
     # all the side-deletes too (otherwise it would still drop unrelated

@@ -406,6 +406,28 @@ class SqliteStorage:
         # cache so a follow-up include_cold=True silently dropped cold
         # rows from the search.
         self._bm25_include_cold: bool = False
+        # `_bm25_lock` guards the BM25 cache fields above.  Writers
+        # (insert_event / mark_cold / unmark_cold / delete_cold_items)
+        # set the dirty flag from any thread, and readers
+        # (bm25_search_events) check-then-rebuild — without a guard,
+        # two readers racing on the dirty flag could both decide to
+        # rebuild, paying the cost twice and possibly assigning
+        # different `_bm25_events` references (the later-finishing
+        # rebuild wins, but its caller already read a stale value
+        # from the earlier write).  Reentrant so the holding thread
+        # can call other BM25-touching methods inside the critical
+        # section without deadlocking.
+        self._bm25_lock = threading.RLock()
+
+    def _mark_bm25_dirty(self) -> None:
+        """Mark the BM25 cache dirty under the BM25 lock.
+
+        Centralized so every writer goes through the same path; the
+        lock acquisition is cheap and uncontended on the hot
+        single-writer case.
+        """
+        with self._bm25_lock:
+            self._bm25_events_dirty = True
 
     # --- lifecycle ----------------------------------------------------------
 
@@ -588,7 +610,7 @@ class SqliteStorage:
                 event.tenant_id,
             ),
         )
-        self._bm25_events_dirty = True
+        self._mark_bm25_dirty()
 
     def insert_events(self, events: Iterable[Event]) -> int:
         rows = [
@@ -612,7 +634,7 @@ class SqliteStorage:
             "VALUES (?, ?, ?, ?, ?, ?, ?)",
             rows,
         )
-        self._bm25_events_dirty = True
+        self._mark_bm25_dirty()
         return len(rows)
 
     def get_event(self, event_id: UUID) -> Event | None:
@@ -1522,19 +1544,26 @@ class SqliteStorage:
         """
         if k < 1:
             raise ValueError(f"k must be >= 1, got {k}")
-        rebuild = (
-            self._bm25_events is None
-            or self._bm25_events_dirty
-            or self._bm25_k1 != k1
-            or self._bm25_b != b
-            or self._bm25_include_cold != include_cold
-        )
-        if rebuild:
-            self._rebuild_bm25_events(k1=k1, b=b, include_cold=include_cold)
-        assert self._bm25_events is not None
-        if not query.strip() or len(self._bm25_events) == 0:
+        # Snapshot the index + sentinel state under the lock so a
+        # concurrent writer can't flip the dirty flag between our check
+        # and our read.  We rebuild inside the lock (RLock allows the
+        # nested `_rebuild_bm25_events` call) so two readers don't both
+        # decide to rebuild and pay 2x the cost.
+        with self._bm25_lock:
+            rebuild = (
+                self._bm25_events is None
+                or self._bm25_events_dirty
+                or self._bm25_k1 != k1
+                or self._bm25_b != b
+                or self._bm25_include_cold != include_cold
+            )
+            if rebuild:
+                self._rebuild_bm25_events(k1=k1, b=b, include_cold=include_cold)
+            assert self._bm25_events is not None
+            index = self._bm25_events
+        if not query.strip() or len(index) == 0:
             return []
-        hits = self._bm25_events.search(query, k=k)
+        hits = index.search(query, k=k)
         if not hits:
             return []
         # Fetch content for the returned ids in a single SQL round-trip,
@@ -1570,24 +1599,28 @@ class SqliteStorage:
         the dense path: cold events are excluded by default so a
         single-flag retrieve call sees a consistent surface across
         lexical and dense rankings.
+
+        Acquires `_bm25_lock` (RLock).  Callers already inside the
+        lock (e.g. `bm25_search_events`) re-acquire harmlessly.
         """
-        sql = "SELECT id, content FROM events"
-        if not include_cold:
-            sql += " WHERE cold_at IS NULL"
-        # Insertion order = (created_at, id) is not guaranteed without an
-        # explicit ORDER BY, but BM25 doesn't depend on insert order --
-        # the inverted index is a hash, and tie-breaks fall back to
-        # doc_idx (= the natural insertion order from this scan). Any
-        # stable scan is fine.
-        rows = self._connect().execute(sql).fetchall()
-        index: BM25Index[UUID] = BM25Index(k1=k1, b=b)
-        for row in rows:
-            index.add_doc(UUID(bytes=row["id"]), row["content"])
-        self._bm25_events = index
-        self._bm25_k1 = k1
-        self._bm25_b = b
-        self._bm25_include_cold = include_cold
-        self._bm25_events_dirty = False
+        with self._bm25_lock:
+            sql = "SELECT id, content FROM events"
+            if not include_cold:
+                sql += " WHERE cold_at IS NULL"
+            # Insertion order = (created_at, id) is not guaranteed without an
+            # explicit ORDER BY, but BM25 doesn't depend on insert order --
+            # the inverted index is a hash, and tie-breaks fall back to
+            # doc_idx (= the natural insertion order from this scan). Any
+            # stable scan is fine.
+            rows = self._connect().execute(sql).fetchall()
+            index: BM25Index[UUID] = BM25Index(k1=k1, b=b)
+            for row in rows:
+                index.add_doc(UUID(bytes=row["id"]), row["content"])
+            self._bm25_events = index
+            self._bm25_k1 = k1
+            self._bm25_b = b
+            self._bm25_include_cold = include_cold
+            self._bm25_events_dirty = False
 
     def get_embeddings_batch(
         self,
@@ -1779,7 +1812,7 @@ class SqliteStorage:
             raise KeyError(f"{kind.value} {item_id} not found")
         self._vector_index.mark_dirty(kind=kind.value)
         if kind is ItemKind.EVENT:
-            self._bm25_events_dirty = True
+            self._mark_bm25_dirty()
 
     def unmark_cold(self, item_id: UUID, kind: ItemKind) -> None:
         sql = _UNMARK_COLD_SQL[kind]
@@ -1788,7 +1821,7 @@ class SqliteStorage:
             raise KeyError(f"{kind.value} {item_id} not found")
         self._vector_index.mark_dirty(kind=kind.value)
         if kind is ItemKind.EVENT:
-            self._bm25_events_dirty = True
+            self._mark_bm25_dirty()
 
     def count_cold(self, kind: ItemKind) -> int:
         sql = _COUNT_COLD_SQL[kind]
@@ -1833,7 +1866,7 @@ class SqliteStorage:
             # hits with no error to the caller.  Invalidate so the next
             # search rebuilds against the surviving corpus.
             if kind is ItemKind.EVENT:
-                self._bm25_events_dirty = True
+                self._mark_bm25_dirty()
         return deleted
 
     def decay_totals(self, kind: ItemKind) -> dict[str, int]:
