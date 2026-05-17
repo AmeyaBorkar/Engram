@@ -75,6 +75,34 @@ class BM25Index(Generic[DocId]):
     Lucene's. `k1 in [1.2, 2.0]` and `b in [0.5, 0.9]` are the sane
     ranges; lower `b` reduces length normalization (favors longer
     docs), higher `k1` lets repeated terms keep accumulating mass.
+
+    TODO (M-87): incremental update path. Today every corpus
+    modification (event insert, cold-mark, unmark, delete) invalidates
+    the index and forces a full rebuild on the next search. For long-
+    running deployments with continuous writes this is wasteful. A
+    sketch of the incremental path:
+
+      1. Track pending inserts in a delta-list on the storage adapter
+         (already done via `_bm25_events_dirty`).
+      2. On `search`, if the delta is small (`< 10%` of corpus),
+         apply per-doc incremental updates to the frozen arrays
+         instead of rebuilding from scratch. Inserts append rows;
+         deletes mark a doc-idx as masked.
+      3. Periodically (or above the 10% threshold) trigger a full
+         rebuild to compact the masked rows out.
+
+    Out of scope for the audit batch -- the LongMemEval workload
+    rebuilds per-question anyway so this is invisible there. The
+    real beneficiaries are streaming production callers, not bench.
+
+    TODO (M-88): content cache. The storage adapter's
+    `bm25_search_events` re-fetches event content from SQL after the
+    BM25 index already returned `(doc_id, score)` pairs -- the index
+    has the tokenized representation in memory but not the raw text.
+    If we kept a parallel `_id_to_content` map inside `BM25Index`
+    the SQL round-trip would disappear. Trade-off: the map doubles
+    the index memory footprint, which matters at 100k events. Pending
+    a profile that says the SQL fetch is actually the bottleneck.
     """
 
     def __init__(self, *, k1: float = 1.5, b: float = 0.75) -> None:
