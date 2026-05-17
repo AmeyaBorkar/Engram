@@ -114,7 +114,10 @@ def verify_answer(
     """
     prompt = render_verify_prompt(question=question, context=context, answer=answer)
     messages: list[Message] = [Message(role="user", content=prompt)]
-    last_response = ""
+    # `last_response` is local to the loop; the audit's M-196 noted the
+    # earlier outer-scope `= ""` was dead.  We don't need it outside the
+    # loop because every parse branch either returns or appends and
+    # continues.
     for _ in range(max_retries + 1):
         last_response = chat.chat(messages)
         try:
