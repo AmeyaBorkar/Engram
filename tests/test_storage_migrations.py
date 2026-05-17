@@ -88,6 +88,25 @@ def test_applied_versions_rejects_open_transaction(tmp_path: Path) -> None:
         conn.close()
 
 
+def test_hot_partial_indexes_present(tmp_path: Path) -> None:
+    """Migration 0011 adds partial indexes on `cold_at IS NULL` for the
+    three decay-state tables; the HOT decay tick depends on them.
+    """
+    with SqliteStorage(tmp_path / "indexes.db") as storage:
+        conn = storage._connect()
+        names = {
+            row[0] for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='index'"
+            )
+        }
+        for expected in (
+            "idx_events_cold_at_null",
+            "idx_memory_items_cold_at_null",
+            "idx_procedures_cold_at_null",
+        ):
+            assert expected in names, f"missing partial index {expected}"
+
+
 def test_missing_version_record_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A migration that fails to record its own version is a runner error."""
     from engram.storage import migrations as mig

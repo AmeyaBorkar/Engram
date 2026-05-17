@@ -261,12 +261,17 @@ _GET_DECAY_STATE_SQL: dict[ItemKind, str] = {
     kind: f"SELECT {_DECAY_COLS} FROM {table} WHERE id = ?"  # noqa: S608
     for kind, table in _DECAY_TABLES.items()
 }
+# The protocol docstring promises "Order is unspecified" for
+# `iter_decay_states`; dropping the explicit `ORDER BY id` lets the
+# planner use the partial index `WHERE cold_at IS NULL` for the HOT
+# variant directly instead of doing a sort step on the index output.
+# Scan order is now table-implicit (typically PK).
 _ITER_DECAY_STATES_HOT_SQL: dict[ItemKind, str] = {
-    kind: f"SELECT {_DECAY_COLS} FROM {table} WHERE cold_at IS NULL ORDER BY id"  # noqa: S608
+    kind: f"SELECT {_DECAY_COLS} FROM {table} WHERE cold_at IS NULL"  # noqa: S608
     for kind, table in _DECAY_TABLES.items()
 }
 _ITER_DECAY_STATES_ALL_SQL: dict[ItemKind, str] = {
-    kind: f"SELECT {_DECAY_COLS} FROM {table} ORDER BY id"  # noqa: S608
+    kind: f"SELECT {_DECAY_COLS} FROM {table}"  # noqa: S608
     for kind, table in _DECAY_TABLES.items()
 }
 def _build_update_decay_sql(kind: ItemKind, table: str) -> str:
