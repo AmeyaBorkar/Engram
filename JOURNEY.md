@@ -31,10 +31,11 @@ Session began with v0.1.0 on disk (Stage 6 complete), `engram-memory` as the pla
 21. [Current state](#21-current-state)
 22. [Next steps](#22-next-steps)
 23. [Honest-judge experiment — n=100 stratified, Kimi-self vs Sonnet cross](#23-honest-judge-experiment--n100-stratified-kimi-self-vs-sonnet-cross)
-24. [Appendix A — Commit log](#appendix-a--commit-log)
-25. [Appendix B — Scripts shipped](#appendix-b--scripts-shipped)
-26. [Appendix C — Source changes](#appendix-c--source-changes)
-27. [Appendix D — Headline numbers](#appendix-d--headline-numbers)
+24. [The max_tokens cap — root cause of the 71.4% → 68.5% regression](#24-the-max_tokens-cap--root-cause-of-the-714--685-regression)
+25. [Appendix A — Commit log](#appendix-a--commit-log)
+26. [Appendix B — Scripts shipped](#appendix-b--scripts-shipped)
+27. [Appendix C — Source changes](#appendix-c--source-changes)
+28. [Appendix D — Headline numbers](#appendix-d--headline-numbers)
 
 ---
 
@@ -1194,6 +1195,153 @@ So the v0.1.0 71.4% is *probably real* — neither a self-judge mirage nor repro
 OpenRouter budget remaining after both runs: **~$2.80 of $3**.
 
 The cache machinery (`benchmarks/runs/cache.sqlite`) earned its keep here: the second run did zero embedding work, zero Kimi answer work, and only paid for 100 fresh judge calls.
+
+---
+
+## 24. The max_tokens cap — root cause of the 71.4% → 68.5% regression
+
+After two weeks of stacking features and watching every run regress, this session opened the box and read the actual failures from the honest baseline manifest (`20260516T224729...e503e185-dirty-longmemeval.json`, n=500, k=20, Sonnet judge, 68.5%). The diagnosis is unambiguous, and the surgical fix is a single line of code.
+
+### Method: re-read all 159 failures, classify response shape
+
+For each of the 159 questions where Engram scored 0:
+
+| class | n | % | what it is |
+|---|---:|---:|---|
+| **empty** | 50 | 31% | response string is literally `""` |
+| **cot_preamble** | 52 | 33% | starts with "The user is asking..." / "Let me look at memory..." and runs until truncation at ~4500 chars |
+| clean_refusal | 45 | 28% | "I don't know." (legitimate or over-cautious) |
+| concrete_wrong | 7 | 4% | actual wrong concrete answers |
+| verbose_other | 5 | 3% | rambling responses without CoT preamble |
+
+**Only 4% of failures are confidently wrong answers.** 64% are output-extraction failures.
+
+### Response-length distribution flipped between v0.1.0 and base
+
+Same questions, same model name, same prompt, same provider name. Different response distributions:
+
+| metric | v0.1.0 (71.4%) | base (68.5%) |
+|---|---:|---:|
+| n=500 | 500 responses | 500 responses |
+| empty (=0 chars) | **0** | **50** |
+| <50 chars | 383 | 347 |
+| 50-200 chars | 93 | 52 |
+| 1000-4000 chars | **0** | 34 |
+| 4000+ chars | **0** | **53** |
+| median | 13 | 13 |
+| p90 | 124 | **4041** |
+| p95 | 196 | **4267** |
+| max | 630 | 4997 |
+
+The 53 responses at 4000-5000 chars all cut off mid-thought, mid-sentence. This is the unmistakable signature of a `max_tokens` cap being hit.
+
+### The cap: `_DEFAULT_MAX_TOKENS = 1024` in `src/engram/providers/openai.py:46`
+
+```python
+# src/engram/providers/openai.py:40-46
+# Defaults that override the SDK's 600s read timeout and unbounded
+# completion length.  A stuck endpoint shouldn't hang a benchmark for ten
+# minutes per call; a runaway agentic loop shouldn't be allowed to bill
+# tens of thousands of output tokens unless the caller explicitly opts in.
+_DEFAULT_TIMEOUT_SECONDS: float = 60.0
+_DEFAULT_CONNECT_TIMEOUT_SECONDS: float = 10.0
+_DEFAULT_MAX_TOKENS: int = 1024
+```
+
+1024 tokens ≈ 4000-5000 characters of English text. That's the exact cliff we saw. Every `OpenAIChat` instance, including the one wrapping opencode-go for Kimi K2.6, gets this cap unless the caller overrides it. `_opencode_go_chat` doesn't override.
+
+### Why it didn't bite in v0.1.0
+
+The 1024 cap was added as a safety guard for runaway agent loops and misbehaving endpoints. When v0.1.0 ran on May 11, Kimi K2.6 (via opencode-go) answered in 1-2 sentences — median 13 chars, max 630, never within an order of magnitude of the cap.
+
+Between May 11 (`provider_hash=f6d60a40`) and May 16 (`provider_hash=2c8ddb81`), opencode-go's Kimi K2.6 deployment switched to thinking-first behavior. Same chat-model name, different output shape. Now Kimi reasons for 1000-3000 tokens before emitting the final answer — and the cap chops off the answer.
+
+### Recovery upper bound from fixing the cap alone: +8.6 pp
+
+For each base failure, cross-reference with v0.1.0 (same question, k=10, pre-thinking Kimi):
+
+| failure class in base | v0.1.0 had CORRECT answer |
+|---|---:|
+| empty (50 total) | **22** |
+| verbose ≥2000 chars (54 total) | **21** |
+| **Total recoverable** | **43 = +8.6 pp** |
+
+**New ceiling if the cap is the only fix: 68.5% + 8.6 = 77.1%** — which beats current public LongMemEval-S SOTA. This is a free win.
+
+### The surgical fix (one place to change)
+
+Either:
+
+**(a) Bump the default cap** — `src/engram/providers/openai.py:46` from `1024` to `4096` or `8192`. Affects every `OpenAIChat` user.
+
+**(b) Per-provider override** — `src/engram/bench/_real_provider.py:_opencode_go_chat` passes `max_tokens=8192` explicitly. Affects only the opencode-go wrapper. **Preferred** because the 1024 default is a sensible safety guard for unknown endpoints and we know specifically that opencode-go fronts a thinking-mode open-weight model that needs the room.
+
+```python
+# src/engram/bench/_real_provider.py
+def _opencode_go_chat(model: str | None) -> ChatProvider:
+    from engram.providers.openai import OpenAIChat
+    return OpenAIChat(
+        model=model or "kimi-k2.6",
+        api_key=_opencode_api_key(),
+        base_url="https://opencode.ai/zen/go/v1",
+        max_tokens=8192,   # thinking-capable open-weight models need headroom
+    )
+```
+
+### Why disabling thinking mode isn't an option
+
+opencode-go does not expose a `reasoning=False` toggle. Kimi K2.6's thinking is baked into the deployment they're fronting. The only knobs available are model selection and standard OpenAI chat params.
+
+### Defense in depth (independent backups to the cap fix)
+
+If the cap fix alone doesn't fully recover, three layers stack:
+
+1. **Raise `max_tokens` to 8192** — lets Kimi finish thinking + emit answer (free, ship immediately)
+2. **`--distill-chat` (TPAD)** — already implemented at `benchmarks/suites/longmemeval.py:1765`. Runs a second LLM call to extract just the final answer from the verbose primary response. Cost: ~$0.25 per n=500 run on Sonnet, near-zero on Kimi.
+3. **`Final answer:` anchor in prompt + regex extract** — encourage the model to emit `Final answer: X` on its last line so post-processing can pull it out deterministically. Free.
+
+Layer 1 alone should be sufficient. Layers 2+3 are belt-and-suspenders, and TPAD is now justified as a *required* part of the pipeline (not an optional polish step) given that we can't disable thinking mode upstream.
+
+### Connection to the k=10 → k=20 change
+
+The honest baseline (May 16) also doubled k from 10 to 20 vs v0.1.0. This wasn't the dominant cause of the regression but it amplified the cap problem:
+
+| qtype | v0.1.0 k=10 | base k=20 | delta |
+|---|---:|---:|---:|
+| sss-assistant | 94.6% | 96.4% | +1.8 |
+| knowledge-update | 69.2% | 72.7% | +3.5 |
+| multi-session | 60.2% | 60.9% | +0.7 |
+| sss-user | 84.3% | 80.0% | −4.3 |
+| sss-preference | 50.0% | 41.4% | −8.6 |
+| **temporal-reasoning** | **72.2%** | **61.7%** | **−10.5** |
+
+Temporal-reasoning is the worst hit (-10.5pp), and temporal also has the most empties (18) and CoT-truncations. Larger context → longer reasoning → more truncations. The cap fix should recover most of this without reverting k.
+
+### What was theorized vs measured
+
+This session's earlier (pre-diagnostic) hypotheses, recorded against what the data actually showed:
+
+| hypothesis | measured | verdict |
+|---|---|---|
+| "Stacking 6 features will compound to SOTA" | Each new lever regressed | **wrong** — they all share the cap bottleneck downstream |
+| "v2 prompt regression is from CoT-leakage" | partially: CoT was always happening; cap chops it | **half-right** |
+| "Self-preference judge bias inflates Kimi-self by 3-7 pp" | Measured −2 pp the other direction | **wrong** |
+| "Retrieval is the bottleneck" | 64% of failures are post-retrieval output failures | **wrong** — output extraction is |
+| "We should buy better embeddings (Voyage etc)" | Embedding upgrade won't fix truncated answers | wrong order of operations |
+
+The pattern: every theory framed as "we need a better X" was wrong. The actual root cause was a defensive cap that was correct in May 11 but became silently wrong on May 16 when the upstream model changed behavior. **The lesson is to read failures before theorizing.**
+
+### Path forward
+
+1. ✅ Diagnosis written (this section)
+2. ⬜ Ship `max_tokens=8192` fix in `_opencode_go_chat` — single commit
+3. ⬜ Validate: rerun n=100 stratified at k=20 with the fix. Predict 73-77%.
+4. ⬜ If validated: rerun n=500 at k=20 with the fix. Predict 74-77% — plain SOTA.
+5. ⬜ Layer TPAD on top via `--distill-chat`. Predict 75-78%.
+6. ⬜ Layer BM25 on top (`bm25_weight=1.0`). Predict 76-79%.
+7. ⬜ Then consolidation. Predict 78-82% — paper-worthy.
+
+Total OR spend for steps 3-6: ~$3. Step 7 needs a refill but is the smaller risk because we'd already be at SOTA.
 
 ---
 

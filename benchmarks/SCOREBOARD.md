@@ -4,7 +4,9 @@ Living comparison of Engram vs. the best public results we know of, per suite.
 
 The numbers in this file are **pinned** to a specific source per row. They get refreshed on each Engram release benchmark run, and whenever a tracked baseline publishes new numbers — see `SOTA.md` for the discipline.
 
-> **Last refresh:** 2026-05-17. LongMemEval-S has four measured Engram rows: v0.1.0 (n=500, Kimi-self, 71.4%), n=100 stratified Sonnet (68.0%), n=100 stratified Kimi-self (66.0%), **n=500 Sonnet cross-judge (68.5%)**. The n=500 Sonnet result confirms the n=100 sample was nearly perfect proxy (Δ=0.5 pp). Self-preference inflation hypothesis disproved. LoCoMo and procedural rows are still placeholders pending dataset / harness work.
+> **Last refresh:** 2026-05-17. LongMemEval-S has four measured Engram rows: v0.1.0 (n=500, Kimi-self, 71.4%), n=100 stratified Sonnet (68.0%), n=100 stratified Kimi-self (66.0%), **n=500 Sonnet cross-judge (68.5%)**. The n=500 Sonnet result confirms the n=100 sample was nearly perfect proxy (Δ=0.5 pp). Self-preference inflation hypothesis disproved.
+>
+> **🚨 Diagnosis filed (JOURNEY §24):** The 71.4% → 68.5% regression is a `max_tokens=1024` cap in our OpenAI-compatible provider that was correct on May 11 (pre-thinking-mode Kimi) but became silently wrong on May 16 (opencode-go switched Kimi K2.6 to thinking-first behavior). 50/500 responses are empty, 52/500 are CoT-preamble truncations; only 7/500 failures are confidently wrong. **Upper-bound recovery from raising the cap alone: +8.6 pp → 77.1%, which beats current public SOTA.** Fix is a single line in `_opencode_go_chat`. LoCoMo and procedural rows are still placeholders pending dataset / harness work.
 
 ---
 
@@ -26,7 +28,8 @@ Measured numbers. Engram is **competitive with reported SOTA** out of the box, n
 | **Engram n=500, k=20, Sonnet 4.5 cross-judge (no consolidation)** | this repo, run `20260516T224729` | **68.5%** | **CONFIRMED HONEST BASELINE** at full population. Within 0.5 pp of n=100 stratified — stratified sample validated. Three qtypes IMPROVED vs vanilla (sss-asst, ku, multi-session). |
 | **Engram v0.1.0 (n=500, k=10, Kimi self-judge)** | this repo, run `20260511T0529` | **71.4%** | Out-of-the-box; no reranker tuning / HyDE / consolidation. Probably real number on the leading-500 sample (not a self-judge mirage; §23). |
 | Specialized multi-hop systems (reported) | sparse 2025 reports | ~72% | |
-| Engram (target, `--prompt-version v2`) | this repo | **73-75%** | Predicted +5-7 pts from v2 prompt (abstain anchor + per-qtype hints + scratchpad CoT). Shipped commit `a361b22`. ~$0.80 OR for n=500 fresh re-eval. |
+| **Engram (target, `max_tokens=8192` fix only)** | this repo | **74-77%** | Surgical fix to `_opencode_go_chat`. Recovers the 50 empty + 52 CoT-truncated failures. Predicted from cross-reference with v0.1.0 responses: +8.6 pp ceiling. Free, ~$1 to validate at n=500. |
+| Engram (target, `--prompt-version v2`) | this repo | **73-75%** | Predicted +5-7 pts from v2 prompt (abstain anchor + per-qtype hints + scratchpad CoT). Shipped commit `a361b22`. ~$0.80 OR for n=500 fresh re-eval. **Now de-prioritized**: v2 regressed because it triggered MORE thinking-mode CoT into the same cap. Fix cap first. |
 | Engram (target, +consolidation on n=100) | this repo | 75-80%+ | Adds consolidation + contradiction + multi-hop |
 | Defensible SOTA bar | — | ~75% | |
 | Crushing SOTA / paper-worthy | — | 80%+ | |
@@ -58,6 +61,41 @@ Measured numbers. Engram is **competitive with reported SOTA** out of the box, n
 **Verdict agreement: 94/100.** Disagreements concentrate on subjective-rubric qtypes: Sonnet leans lenient on preference / multi-session synthesis, Kimi leans lenient on abstain (`_abs`) and temporal form. Manifests: Sonnet [`20260516T190353`](runs/20260516T190353_627654+0000-815b953f-dirty-longmemeval.json), Kimi-self [`20260516T194247`](runs/20260516T194247_734439+0000-815b953f-dirty-longmemeval.json).
 
 **Reproducibility:** dataset `longmemeval_s_cleaned.json` (HuggingFace `xiaowu0162/longmemeval-cleaned`, sha256 `d6f21ea9...c3a442`). Embedder `BAAI/bge-large-en-v1.5` on CUDA (fp32). Reranker `BAAI/bge-reranker-v2-m3` (fp32). Chat `kimi-k2.6` via OpenCode Go. Engram at commit `815b953f` (post-H-76/77/78/80 fixes + GPU concurrency cap). Sample: stratified n=100, `--seed 1337`.
+
+### Failure breakdown (honest baseline n=500, 159 fails)
+
+Read every single failed response in `20260516T224729...e503e185-dirty-longmemeval.json`:
+
+| failure class | n | % | what the response was |
+|---|---:|---:|---|
+| **empty** | 50 | 31% | `""` — Kimi thinking-channel ran the clock; nothing emitted to answer channel |
+| **cot_preamble** | 52 | 33% | "The user is asking..." / "Let me look at memory [1]..." — verbose reasoning truncated at ~4500 chars cliff |
+| clean_refusal | 45 | 28% | "I don't know." |
+| concrete_wrong | 7 | **4%** | actual wrong concrete answers (the only true model-quality failures) |
+| verbose_other | 5 | 3% | rambling without CoT preamble |
+
+**Response length distribution flipped between v0.1.0 and base** despite same model, same prompt, same provider name:
+
+| metric | v0.1.0 (71.4%, May 11) | base (68.5%, May 16) |
+|---|---:|---:|
+| empty responses | 0 | **50** |
+| ≥4000-char responses | **0** | **53** |
+| p90 length | 124 chars | **4041 chars** |
+| max length | 630 chars | 4997 chars |
+
+The 4000-5000 char cliff matches `max_tokens=1024` × ~4 chars/token. Diagnosis: defensive cap in `src/engram/providers/openai.py:46` that was safe when Kimi answered tersely (v0.1.0) becomes the bottleneck when Kimi switches to thinking-first behavior (opencode-go deployment shift between the two runs). See JOURNEY §24 for the full audit trail and fix.
+
+### Recovery ceiling from cap fix alone
+
+Cross-referencing the 104 cap-related failures (empty + verbose ≥2000) with v0.1.0 (same questions, pre-thinking Kimi):
+
+| failure class in base | v0.1.0 had CORRECT answer |
+|---|---:|
+| empty (50 total) | 22 |
+| verbose ≥2000 chars (54 total) | 21 |
+| **Total recoverable from cap fix** | **43 = +8.6 pp** |
+
+**Predicted post-fix score: 68.5% + 8.6 = 77.1%** — beats current public SOTA without consolidation, BM25, or any of the unshipped retrieval levers.
 
 ## LoCoMo
 

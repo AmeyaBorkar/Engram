@@ -115,6 +115,13 @@ def _opencode_go_chat(model: str | None) -> ChatProvider:
     MiniMax M2.x, MiMo V2.x, Qwen 3.x). No Claude or GPT here.
     Default model is `kimi-k2.6` because it's the strongest general
     open-weight model on the plan at the time of writing.
+
+    `max_tokens=8192` because Kimi K2.6 (and other thinking-capable
+    open-weight models on this endpoint) reason for 1000-3000 tokens
+    before emitting the final answer. The OpenAIChat default of 1024
+    is a safety guard for unknown endpoints, but here it would cut
+    the model off mid-reasoning before any answer is emitted -- see
+    JOURNEY §24 for the diagnostic trail.
     """
     from engram.providers.openai import OpenAIChat
 
@@ -122,6 +129,7 @@ def _opencode_go_chat(model: str | None) -> ChatProvider:
         model=model or "kimi-k2.6",
         api_key=_opencode_api_key(),
         base_url="https://opencode.ai/zen/go/v1",
+        max_tokens=8192,
     )
 
 
