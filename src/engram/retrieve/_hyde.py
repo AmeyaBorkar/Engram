@@ -18,14 +18,25 @@ Cost: one extra chat call per retrieve. The provider's `Cache`
 wrapper deduplicates identical queries, so a follow-up retrieval on
 the same query is free. The reranker pipeline downstream can still
 re-rank against the original query so we don't lose intent signal.
+
+Failure modes: every chat exception falls back to the raw query.
+The fallback is logged at WARNING so an operator who's seeing a
+recall regression can grep for `engram.retrieve.hyde_failed` and
+see why HyDE is silently inert. Bare `except Exception` is
+intentional -- the provider can raise anything from a timeout to a
+JSON parse error to a rate-limit; HyDE is a precision boost and not
+load-bearing.
 """
 
 from __future__ import annotations
 
+import logging
 from importlib import resources
 
 from engram.providers._message import Message
 from engram.providers._protocols import ChatProvider
+
+_LOG = logging.getLogger("engram.retrieve")
 
 HYDE_PROMPT_NAME = "hyde"
 HYDE_PROMPT_VERSION = "v1"
@@ -52,7 +63,13 @@ def hyde_transform(query: str, chat: ChatProvider) -> str:
     prompt = render_hyde_prompt(query)
     try:
         response = chat.chat([Message(role="user", content=prompt)])
-    except Exception:
+    except Exception as exc:
+        _LOG.warning(
+            "hyde_transform fell back to raw query: chat raised %s: %s",
+            type(exc).__name__,
+            exc,
+            extra={"event": "engram.retrieve.hyde_failed"},
+        )
         return query
     cleaned = response.strip()
     if not cleaned:

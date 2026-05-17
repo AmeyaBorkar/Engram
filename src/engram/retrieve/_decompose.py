@@ -18,10 +18,18 @@ paraphrases, decompose splits.
 
 from __future__ import annotations
 
+import logging
 from importlib import resources
 
 from engram.providers._message import Message
 from engram.providers._protocols import ChatProvider
+
+_LOG = logging.getLogger("engram.retrieve")
+
+# `decompose_query` returns at most this many sub-queries (excluding
+# the original). Matches the contract in `prompts/decompose_v1.txt`.
+# If the LLM emits more lines, we trim to the cap.
+_DECOMPOSE_MAX_SUBQUERIES = 5
 
 DECOMPOSE_PROMPT_NAME = "decompose"
 DECOMPOSE_PROMPT_VERSION = "v1"
@@ -47,16 +55,25 @@ def decompose_query(query: str, chat: ChatProvider) -> list[str]:
 
     The returned list always starts with the original query so the
     decomposed retrieve never gives up signal from the literal user
-    phrasing.
+    phrasing. The list is capped at `1 + _DECOMPOSE_MAX_SUBQUERIES`
+    elements -- the prompt contract is "emit at most 5 sub-queries"
+    so any over-fill from a non-compliant LLM is trimmed here rather
+    than leaking into N extra retrieves.
     """
     prompt = render_decompose_prompt(query)
     try:
         response = chat.chat([Message(role="user", content=prompt)])
-    except Exception:
+    except Exception as exc:
+        _LOG.warning(
+            "decompose_query fell back to [query]: chat raised %s: %s",
+            type(exc).__name__,
+            exc,
+            extra={"event": "engram.retrieve.decompose_failed"},
+        )
         return [query]
     lines = [_strip_marker(line.strip()) for line in response.splitlines()]
     cleaned = [line for line in lines if line and line != query]
-    return [query, *cleaned]
+    return [query, *cleaned[:_DECOMPOSE_MAX_SUBQUERIES]]
 
 
 def _strip_marker(line: str) -> str:

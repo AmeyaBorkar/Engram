@@ -22,6 +22,7 @@ Memory.retrieve threads them together when `RetrieveParams.multi_query_n
 
 from __future__ import annotations
 
+import logging
 from collections import defaultdict
 from collections.abc import Sequence
 from importlib import resources
@@ -29,6 +30,8 @@ from importlib import resources
 from engram.providers._message import Message
 from engram.providers._protocols import ChatProvider
 from engram.schemas import RetrievalResult
+
+_LOG = logging.getLogger("engram.retrieve")
 
 MULTI_QUERY_PROMPT_NAME = "multi_query"
 MULTI_QUERY_PROMPT_VERSION = "v1"
@@ -50,14 +53,27 @@ def render_multi_query_prompt(query: str, n: int) -> str:
 def expand_queries(query: str, n: int, chat: ChatProvider) -> list[str]:
     """Return `[query, p1, p2, ..., p_{n-1}]` -- the original plus
     `n-1` paraphrases via chat. Best-effort: on chat error or empty
-    response, returns `[query]` so the caller can still retrieve."""
+    response, returns `[query]` so the caller can still retrieve.
+
+    `n` is a SOFT upper bound on the returned list size: when the
+    chat returns fewer paraphrases than requested (or empty / dup
+    lines), the result list is shorter than `n`. The caller's RRF
+    fusion handles any list size, so the under-fill is not load-
+    bearing -- the lower bound (the original query) always survives.
+    """
     if n <= 1:
         return [query]
     paraphrase_count = n - 1
     prompt = render_multi_query_prompt(query, paraphrase_count)
     try:
         response = chat.chat([Message(role="user", content=prompt)])
-    except Exception:
+    except Exception as exc:
+        _LOG.warning(
+            "expand_queries fell back to [query]: chat raised %s: %s",
+            type(exc).__name__,
+            exc,
+            extra={"event": "engram.retrieve.multi_query_failed"},
+        )
         return [query]
     lines = [line.strip() for line in response.splitlines() if line.strip()]
     # Drop blanks / leading numbering ("1." / "1)" / "- ").

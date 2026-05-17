@@ -19,6 +19,7 @@ retrieval system's.
 from __future__ import annotations
 
 import json
+import logging
 import re
 from importlib import resources
 
@@ -28,6 +29,8 @@ from engram.consolidation._abstraction import AbstractionParseError
 from engram.providers._message import Message
 from engram.providers._protocols import ChatProvider
 from engram.schemas import RetrievalResult
+
+_LOG = logging.getLogger("engram.retrieve")
 
 REACT_PROMPT_NAME = "react"
 REACT_PROMPT_VERSION = "v1"
@@ -83,16 +86,33 @@ def react_judge(
 ) -> ReactVerdict:
     """Run the judge for one step.
 
-    On any parse failure across retries, returns `(sufficient=True,
-    refined_query="")` so the caller exits the loop gracefully. The
-    fallback bias is "stop iterating" -- a malfunctioning judge
+    On any parse failure OR chat exception across retries, returns
+    `(sufficient=True, refined_query="")` so the caller exits the loop
+    gracefully. The fallback bias is "stop iterating" -- a
+    malfunctioning judge (whether it errors out or just emits garbage)
     shouldn't drive infinite retrieval.
+
+    Chat exceptions are logged at WARNING; operators investigating a
+    silently-degraded iterative retrieve can grep for
+    `engram.retrieve.react_judge_failed`.
     """
     prompt = render_react_prompt(question, memories)
     messages: list[Message] = [Message(role="user", content=prompt)]
     last_response = ""
     for _ in range(max_retries + 1):
-        last_response = chat.chat(messages)
+        try:
+            last_response = chat.chat(messages)
+        except Exception as exc:
+            _LOG.warning(
+                "react_judge: chat raised %s; treating as 'sufficient' "
+                "to stop iterating",
+                type(exc).__name__,
+                extra={
+                    "event": "engram.retrieve.react_judge_failed",
+                    "exc_message": str(exc),
+                },
+            )
+            return ReactVerdict(sufficient=True, refined_query="")
         try:
             return parse_react_response(last_response)
         except AbstractionParseError:

@@ -47,10 +47,36 @@ class TestIsTemporalQuery:
             "describe their work",
             "",
             "facts unrelated to time",
+            # Non-temporal prepositional phrases that the audit
+            # called out as false-positives in the old regex
+            # (`since|before|after|until|by` matched indiscriminately).
+            "I did it by hand",
+            "stand by",
+            "look before you leap",
+            "they walked after the meeting concluded with a hug",
+            "you have to fight until victory",
+            "since then I have been busy",
         ],
     )
     def test_doesnt_false_positive(self, text: str) -> None:
         assert not is_temporal_query(text), text
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            # Prepositional cues SHOULD still fire on date-shaped or
+            # temporal-noun followers.
+            "since March 2024",
+            "before 2023",
+            "after yesterday",
+            "until next week",
+            "by next Tuesday",
+            "by friday",
+            "before the morning",
+        ],
+    )
+    def test_prepositional_temporal_still_caught(self, text: str) -> None:
+        assert is_temporal_query(text), text
 
 
 # ---------------------------------------------------------------------------
@@ -181,6 +207,88 @@ class TestComputeAnchor:
             now=datetime(2026, 5, 11, tzinfo=timezone.utc),
         )
         assert anchor is None
+
+    def test_transient_chat_error_retries_until_budget(self) -> None:
+        """A chat exception is now retryable: the loop continues to
+        the next attempt rather than bailing immediately. A successful
+        retry produces an anchor (M-41 fix)."""
+
+        call_count = 0
+
+        class _Flaky:
+            name: str = "flaky"
+            model: str = "flaky"
+
+            def chat(self, messages: object) -> str:
+                nonlocal call_count
+                call_count += 1
+                if call_count == 1:
+                    raise RuntimeError("transient")
+                return json.dumps(
+                    {"anchor": "2024-03-15T00:00:00+00:00", "reasoning": ""}
+                )
+
+            async def achat(self, messages: object) -> str:
+                return ""
+
+            def manifest_hash(self) -> str:
+                return "flaky"
+
+        anchor = compute_temporal_anchor(
+            "where was I in March 2024?",
+            _Flaky(),  # type: ignore[arg-type,unused-ignore]
+            now=datetime(2026, 5, 11, tzinfo=timezone.utc),
+            max_retries=1,
+        )
+        assert call_count == 2
+        assert anchor == datetime(2024, 3, 15, tzinfo=timezone.utc)
+
+    def test_persistent_chat_error_exhausts_budget_then_returns_none(self) -> None:
+        call_count = 0
+
+        class _AlwaysFails:
+            name: str = "fail"
+            model: str = "fail"
+
+            def chat(self, messages: object) -> str:
+                nonlocal call_count
+                call_count += 1
+                raise RuntimeError("persistent")
+
+            async def achat(self, messages: object) -> str:
+                raise RuntimeError("persistent")
+
+            def manifest_hash(self) -> str:
+                return "fail"
+
+        anchor = compute_temporal_anchor(
+            "yesterday",
+            _AlwaysFails(),  # type: ignore[arg-type,unused-ignore]
+            now=datetime(2026, 5, 11, tzinfo=timezone.utc),
+            max_retries=2,
+        )
+        assert anchor is None
+        # max_retries=2 means up to 3 attempts.
+        assert call_count == 3
+
+    def test_non_utc_anchor_normalized_to_utc(self) -> None:
+        """An anchor with a non-UTC offset is converted to UTC so
+        downstream comparisons (validity windows, as_of) all live in
+        a single timezone (M-40 fix)."""
+        chat = FakeChat(
+            default=json.dumps(
+                {"anchor": "2024-03-15T10:00:00+05:30", "reasoning": ""}
+            )
+        )
+        anchor = compute_temporal_anchor(
+            "where was I in March 2024?",
+            chat,
+            now=datetime(2026, 5, 11, tzinfo=timezone.utc),
+        )
+        assert anchor is not None
+        assert anchor.tzinfo == timezone.utc
+        # +05:30 of 10:00 == 04:30 UTC.
+        assert anchor == datetime(2024, 3, 15, 4, 30, tzinfo=timezone.utc)
 
 
 # ---------------------------------------------------------------------------
