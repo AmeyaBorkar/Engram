@@ -96,3 +96,40 @@ class TestDefaultBatchSize:
 
     def test_none_default(self) -> None:
         assert BGEReranker._default_batch_size(None) == 16
+
+
+class TestLazyLoad:
+    """`BGEReranker(...)` does NOT load the model in `__init__`.
+    The first `rerank()` call triggers `_ensure_loaded`.
+    """
+
+    def test_construct_does_not_load(self) -> None:
+        rr = BGEReranker(model=DEFAULT_MODEL, device="cpu")
+        # No download / no model in memory yet.
+        assert rr._model is None  # type: ignore[reportPrivateUsage]
+        # Name still works (cheap, no model needed).
+        assert rr.name.startswith("bge-reranker:")
+        # Default batch size resolved at construction.
+        assert rr._batch_size > 0  # type: ignore[reportPrivateUsage]
+
+    def test_empty_candidates_skips_load(self) -> None:
+        """An empty candidate list short-circuits inside `rerank`
+        before `_ensure_loaded` is called."""
+        rr = BGEReranker(model=DEFAULT_MODEL, device="cpu")
+        scores = rr.rerank("anything", [])
+        assert scores == []
+        # Still not loaded.
+        assert rr._model is None  # type: ignore[reportPrivateUsage]
+
+
+class TestAsyncWrapper:
+    """`arerank` exists and offloads to a thread pool."""
+
+    def test_arerank_method_exists(self) -> None:
+        rr = BGEReranker(model=DEFAULT_MODEL, device="cpu")
+        # Method should be present and callable (we don't actually
+        # invoke it -- that would require loading the model).
+        assert callable(rr.arerank)
+        import inspect
+
+        assert inspect.iscoroutinefunction(rr.arerank)

@@ -41,6 +41,26 @@ class Reranker(Protocol):
 
     Implementations score candidates against the query text. The
     returned scores must be finite floats; ordering is descending.
+
+    Score scale: implementations are free to emit any finite-float
+    range. The dense bi-encoder cosine path produces scores in
+    `[0, 1]`; cross-encoder rerankers (BGE, Cohere Rerank) typically
+    emit logits in roughly `[-10, +10]`. The engine treats reranker
+    scores as ordering-only and does NOT mix them into
+    `RetrievalResult.confidence` (which stays in [0, 1], sourced from
+    the dense cosine via `_Candidate.confidence_score`).
+
+    Per-leaf rerank semantics (multi-query / decompose):
+      When `Memory._multi_query_retrieve` or `_decomposed_retrieve`
+      fans into N leaf retrieves, the cross-encoder rerank fires
+      ONCE -- against the original user query, over the RRF-fused
+      candidate pool. The reranker does NOT run per-leaf-query;
+      doing so would re-rank against paraphrases/sub-queries that
+      diverge from user intent, defeating the precision boost the
+      reranker is supposed to provide. The current behavior is
+      intentional and matches the multi-query+rerank pattern in the
+      HyDE paper (rerank against original, embed against
+      hypothetical).
     """
 
     name: str

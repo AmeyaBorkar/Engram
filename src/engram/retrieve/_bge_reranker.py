@@ -18,20 +18,40 @@ halves the model VRAM footprint (BGE-reranker-v2-m3: ~2.3 GB fp32 ->
 1.5 B-param embedder (stella) without OOM.
 
 Lazy import: `sentence-transformers` only imports inside the BGE
-adapter's `__init__`. Users who don't install the `[reranker]` extra
-can still `import engram.retrieve` -- they just can't construct a
-`BGEReranker` instance.
+adapter's `_ensure_loaded`. Users who don't install the `[reranker]`
+extra can still `import engram.retrieve` AND construct a
+`BGEReranker` instance -- the model only loads on the first `rerank`
+call. Lets a caller wire up `Memory(retrieve_params=...,
+reranker=BGEReranker(...))` without paying the 1-2 GB VRAM cost
+until the first real retrieve.
+
+Score scale: BGE-reranker-v2-m3 emits raw cross-encoder logits,
+typically in the range [-10, +10]. These are NOT in the [0, 1] band
+the dense cosine path produces, so `RetrievalResult.confidence`
+(which is documented as [0, 1]) must NOT be derived from a reranker
+score. The engine instead preserves the dense cosine via
+`_Candidate.confidence_score`; the reranker score lives only in the
+ordering signal `RetrievalResult.score`. See `_engine._finalize` for
+the split.
+
+Thread safety: `CrossEncoder.predict` calls into PyTorch, which is
+NOT thread-safe for shared models on a single device. Two threads
+each calling `rerank` on the same `BGEReranker` instance race on the
+model's internal buffers. Use a process-pool executor for parallel
+rerank work, OR construct one `BGEReranker` per worker thread, OR
+serialize calls via a per-instance lock at the caller layer. The
+`arerank` async wrapper offloads the work to the default thread pool
+which is the typical "one model, many requests" path; it relies on
+the caller ensuring at most one outstanding call per instance.
 """
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any, Literal
+from typing import Any, Literal
 
 from engram.retrieve._reranker import RerankCandidate
-
-if TYPE_CHECKING:  # pragma: no cover - import-only for typing
-    pass
 
 DEFAULT_MODEL = "BAAI/bge-reranker-v2-m3"
 
@@ -63,6 +83,12 @@ class BGEReranker:
       dtype: `"auto"` (default) loads fp16 on CUDA, fp32 elsewhere.
         Force `"float32"` if you need bitwise reproducibility against
         a previously-recorded baseline.
+
+    Lazy loading: the underlying HuggingFace model is NOT downloaded
+    or loaded into memory in `__init__`. The first `rerank()` call
+    triggers `_ensure_loaded()`. Construction is cheap (a few
+    microseconds) so callers can hold a `BGEReranker` reference in
+    config without paying the VRAM/RAM cost up front.
     """
 
     def __init__(
@@ -74,6 +100,30 @@ class BGEReranker:
         batch_size: int | None = None,
         dtype: DType = "auto",
     ) -> None:
+        self._model_name = model
+        self._max_length = max_length
+        self._device = device
+        self._dtype: DType = dtype
+        self._batch_size = (
+            batch_size if batch_size is not None else self._default_batch_size(device)
+        )
+        # `_model` stays None until the first `rerank()` call. The
+        # heavy import + model download happens in `_ensure_loaded`.
+        self._model: Any | None = None
+        self._resolved_dtype: str | None = None
+
+    def _ensure_loaded(self) -> None:
+        """Load the cross-encoder if it isn't already loaded.
+
+        Called by `rerank()` lazily. Safe to call repeatedly -- the
+        `_model is None` check makes it a no-op after the first
+        successful load. NOT thread-safe: two simultaneous first
+        calls from different threads will both trigger the load. The
+        caller (`HierarchicalRetriever._finalize`) is single-threaded
+        per retrieve, so the race is only theoretical.
+        """
+        if self._model is not None:
+            return
         try:
             from sentence_transformers import CrossEncoder
         except ImportError as exc:  # pragma: no cover - tested via skip
@@ -81,19 +131,15 @@ class BGEReranker:
                 "BGEReranker requires the `[reranker]` extra "
                 "(pip install engram-memory[reranker])"
             ) from exc
-
-        self._model_name = model
-        self._max_length = max_length
-        self._device = device
-        self._batch_size = (
-            batch_size if batch_size is not None else self._default_batch_size(device)
+        model = CrossEncoder(
+            self._model_name, max_length=self._max_length, device=self._device
         )
-        self._model: Any = CrossEncoder(model, max_length=max_length, device=device)
-        resolved_dtype = _resolve_dtype(dtype, device or "cpu")
-        self._dtype = resolved_dtype
+        resolved_dtype = _resolve_dtype(self._dtype, self._device or "cpu")
         if resolved_dtype == "float16":
             # CrossEncoder exposes the underlying HF model at .model.
-            self._model.model.half()
+            model.model.half()
+        self._model = model
+        self._resolved_dtype = resolved_dtype
 
     @staticmethod
     def _default_batch_size(device: str | None) -> int:
@@ -114,6 +160,8 @@ class BGEReranker:
     ) -> list[float]:
         if not candidates:
             return []
+        self._ensure_loaded()
+        assert self._model is not None
         pairs = [(query, cand.result.content) for cand in candidates]
         scores = self._model.predict(
             pairs,
@@ -122,6 +170,22 @@ class BGEReranker:
             convert_to_numpy=True,
         )
         return [float(s) for s in scores]
+
+    async def arerank(
+        self,
+        query: str,
+        candidates: Sequence[RerankCandidate],
+    ) -> list[float]:
+        """Async wrapper that runs `rerank` in the default thread pool.
+
+        Lets an `await memory.aretrieve(...)` path keep the event loop
+        free during the cross-encoder forward pass. NOT a parallelism
+        primitive: see the module docstring about thread safety. The
+        caller must ensure at most one outstanding `arerank` per
+        `BGEReranker` instance (run multiple instances if you want
+        parallelism, or batch-size-stack inside one call).
+        """
+        return await asyncio.to_thread(self.rerank, query, candidates)
 
 
 __all__ = ["DEFAULT_MODEL", "BGEReranker"]
