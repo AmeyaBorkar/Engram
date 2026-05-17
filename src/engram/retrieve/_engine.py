@@ -561,39 +561,76 @@ class HierarchicalRetriever:
             ]
             rerank_scores = reranker.rerank(query, rerank_inputs)
             if len(rerank_scores) != len(rerank_inputs):
-                raise RuntimeError(
-                    f"reranker {reranker.name!r} returned "
-                    f"{len(rerank_scores)} scores for {len(rerank_inputs)} candidates"
+                _LOG.warning(
+                    "reranker %r returned %d scores for %d candidates; "
+                    "falling back to prior ordering",
+                    reranker.name,
+                    len(rerank_scores),
+                    len(rerank_inputs),
                 )
-            # Apply the optional time-decay boost BEFORE the sort so
-            # recency reshapes the final ordering rather than just
-            # tweaking the scores after the fact.
-            if p.recency_lambda > 0:
-                rerank_scores = self._apply_recency_boost(unique, rerank_scores, p)
-            zipped = sorted(
-                zip(unique, rerank_scores, strict=True),
-                key=lambda pair: (-pair[1], _LEVEL_PRIORITY[pair[0].level], pair[0].item_id.bytes),
-            )
-            unique = [c for c, _ in zipped]
-            rerank_scores_sorted = [score for _, score in zipped]
-            # MMR diversity rerank, applied AFTER the cross-encoder so
-            # it works on calibrated relevance scores. Fetches the
-            # stored embeddings for the rerank pool so we can compute
-            # pairwise cosine similarities cheaply.
-            if p.mmr_lambda > 0 and len(unique) > 1:
-                doc_vecs = self._fetch_candidate_vectors(unique)
-                pool_size = (
-                    p.mmr_pool_size
-                    if p.mmr_pool_size > 0
-                    else p.k * max(p.candidate_multiplier, 1)
+                # Fall back to the pre-rerank ordering (already sorted
+                # by `c.score` above). Skip the recency boost + MMR
+                # passes -- both expect a well-formed per-candidate
+                # score vector and we don't have one.
+                rerank_scores = [c.score for c in unique]
+            else:
+                # Sort by RAW reranker score first; MMR diversity
+                # selects against un-boosted relevance so the diversity
+                # term and the relevance term occupy the same scale.
+                # Recency boost is applied AFTER MMR for the final
+                # ordering -- if we boosted first, MMR would diversify
+                # on the boosted scores and the recency signal would
+                # leak into the diversity decision.
+                zipped = sorted(
+                    zip(unique, rerank_scores, strict=True),
+                    key=lambda pair: (
+                        -pair[1],
+                        _LEVEL_PRIORITY[pair[0].level],
+                        pair[0].item_id.bytes,
+                    ),
                 )
-                unique = mmr_select(
-                    unique,
-                    rerank_scores_sorted,
-                    doc_vecs,
-                    k=min(len(unique), pool_size),
-                    lambda_=p.mmr_lambda,
-                )
+                unique = [c for c, _ in zipped]
+                rerank_scores_sorted = [score for _, score in zipped]
+                if p.mmr_lambda > 0 and len(unique) > 1:
+                    doc_vecs = self._fetch_candidate_vectors(unique)
+                    raw_pool = (
+                        p.mmr_pool_size
+                        if p.mmr_pool_size > 0
+                        else p.k * max(p.candidate_multiplier, 1)
+                    )
+                    # Floor at `p.k` so MMR returns enough candidates
+                    # for the final `[:p.k]` slice to fill. A caller
+                    # setting `mmr_pool_size < k` would otherwise see a
+                    # short result list -- not what they asked for.
+                    pool_size = max(raw_pool, p.k)
+                    unique = mmr_select(
+                        unique,
+                        rerank_scores_sorted,
+                        doc_vecs,
+                        k=min(len(unique), pool_size),
+                        lambda_=p.mmr_lambda,
+                    )
+                    # Re-extract the rerank scores for the now-pruned
+                    # candidate list so the recency boost below sees a
+                    # length-aligned input.
+                    score_by_key = dict(zipped)
+                    rerank_scores_sorted = [score_by_key[c] for c in unique]
+                # Apply the recency boost LAST so it reshapes the final
+                # ordering without contaminating MMR's diversity
+                # decisions.
+                if p.recency_lambda > 0:
+                    rerank_scores_sorted = self._apply_recency_boost(
+                        unique, rerank_scores_sorted, p
+                    )
+                    boosted = sorted(
+                        zip(unique, rerank_scores_sorted, strict=True),
+                        key=lambda pair: (
+                            -pair[1],
+                            _LEVEL_PRIORITY[pair[0].level],
+                            pair[0].item_id.bytes,
+                        ),
+                    )
+                    unique = [c for c, _ in boosted]
 
         sliced = unique[: p.k]
 

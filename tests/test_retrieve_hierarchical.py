@@ -306,7 +306,14 @@ class TestReranker:
         # crash and must return the same number of results.
         assert len(results_rerank) == len(results_no_rerank)
 
-    def test_reranker_returns_wrong_score_count_raises(self, storage: SqliteStorage) -> None:
+    def test_reranker_returns_wrong_score_count_falls_back(
+        self, storage: SqliteStorage, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A broken reranker (returned a wrong-length score vector)
+        must not break the entire retrieve. The engine logs a warning
+        and falls back to the pre-rerank ordering."""
+        import logging
+
         embedder = FakeEmbedder(dim=8)
         memory = Memory(storage=storage, embedder=embedder)
         memory.observe("a")
@@ -316,10 +323,17 @@ class TestReranker:
             name = "bad"
 
             def rerank(self, query: str, candidates: object) -> list[float]:  # type: ignore[no-untyped-def]
-                return [1.0]  # wrong length
+                return [1.0]  # wrong length -- 1 score for >= 1 candidates
 
-        with pytest.raises(RuntimeError, match="returned"):
-            memory.retrieve("a", k=2, reranker=BadReranker())  # type: ignore[arg-type]
+        with caplog.at_level(logging.WARNING, logger="engram.retrieve"):
+            results = memory.retrieve("a", k=2, reranker=BadReranker())  # type: ignore[arg-type]
+        # Retrieve succeeded; results are sensible.
+        assert isinstance(results, list)
+        # A warning was logged describing the fallback.
+        assert any(
+            "returned" in rec.getMessage() and "bad" in rec.getMessage()
+            for rec in caplog.records
+        )
 
 
 # ---------------------------------------------------------------------------
