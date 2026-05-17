@@ -244,22 +244,34 @@ class HierarchicalRetriever:
           * Dense: always present, contributes at weight 1.0.
           * BM25: when `p.bm25_weight > 0`, runs against the storage's
             BM25 index over event content. Contributes scaled by
-            `bm25_weight` (rounded to nearest int, minimum 1 if > 0).
+            `bm25_weight` directly (the weight multiplies the RRF mass,
+            so `0.5` is half a ranking, `1.5` is one-and-a-half -- no
+            rounding, no integer collapse).
           * Recent-window: when `p.recent_window_k > 0`, pulls the
             top-N most-recent events by `created_at` desc and ranks
             them in that order (most recent = rank 1). Contributes
-            once.
+            at weight 1.0.
+
+        BM25 returns event IDs; the dense stream may be at any level
+        (EVENT, SUMMARY, ABSTRACTION, ...). To make RRF actually fuse
+        rather than concatenate two disjoint id sets, BM25 event hits
+        are remapped to their parent `MEMORY_ITEM` keys via
+        `get_supported_memory_items`. An event with multiple parents
+        contributes its rank to each; an event with no parents stays
+        keyed by `(EVENT, eid)` so the event-only path still works.
 
         Storage backends without the optional methods are no-op
         fall-throughs for the stream that requires them; non-SQLite
         backends keep working.
         """
         rankings: list[list[tuple[tuple[ItemKind, UUID], float]]] = []
+        weights: list[float] = []
         # Dense ranking is always present.
         dense_ranking: list[tuple[tuple[ItemKind, UUID], float]] = [
             ((c.item_kind, c.item_id), c.score) for c in dense
         ]
         rankings.append(dense_ranking)
+        weights.append(1.0)
         dense_by_key = {(c.item_kind, c.item_id): c for c in dense}
 
         # BM25 stream.
@@ -279,16 +291,17 @@ class HierarchicalRetriever:
                 except (ValueError, RuntimeError):  # pragma: no cover - defensive
                     bm25_hits = []
                 if bm25_hits:
-                    bm25_ranking: list[tuple[tuple[ItemKind, UUID], float]] = [
-                        ((ItemKind.EVENT, eid), score) for eid, _, score in bm25_hits
-                    ]
                     bm25_by_id = {eid: (content, score) for eid, content, score in bm25_hits}
-                    # Weight via repeated inclusion: weight=1 includes
-                    # once, weight=2 twice, fractional values round to
-                    # nearest int with a minimum of 1.
-                    n_bm25 = max(round(p.bm25_weight), 1)
-                    for _ in range(n_bm25):
-                        rankings.append(bm25_ranking)
+                    # Remap BM25 event hits to their parent memory-item
+                    # keys so RRF actually overlaps with the dense
+                    # stream (which is keyed by memory_item id when the
+                    # dense path retrieved abstractions). Events with no
+                    # parent stay keyed by (EVENT, eid).
+                    bm25_ranking = self._bm25_remap_to_dense_keys(
+                        bm25_hits, dense_by_key
+                    )
+                    rankings.append(bm25_ranking)
+                    weights.append(float(p.bm25_weight))
 
         # Recent-window stream.
         recent_by_id: dict[UUID, str] = {}
@@ -302,19 +315,22 @@ class HierarchicalRetriever:
                 except (ValueError, RuntimeError):  # pragma: no cover - defensive
                     recent_hits = []
                 if recent_hits:
-                    n = len(recent_hits)
+                    # The score field is dead -- RRF uses rank, not the
+                    # numeric score -- but we keep a placeholder for the
+                    # tuple shape rather than rewriting the ranking type.
                     recent_ranking: list[tuple[tuple[ItemKind, UUID], float]] = [
-                        ((ItemKind.EVENT, eid), 1.0 - i / max(n, 1))
-                        for i, (eid, _) in enumerate(recent_hits)
+                        ((ItemKind.EVENT, eid), 0.0)
+                        for eid, _ in recent_hits
                     ]
                     recent_by_id = {eid: content for eid, content in recent_hits}
                     rankings.append(recent_ranking)
+                    weights.append(1.0)
 
         if len(rankings) == 1:
             # Nothing to fuse with; return the dense ranking unchanged.
             return dense
 
-        fused = reciprocal_rank_fusion(rankings, k=p.rrf_k)
+        fused = reciprocal_rank_fusion(rankings, k=p.rrf_k, weights=weights)
         # Materialize back into `_Candidate` records, pulling content
         # from whichever stream owns the id.
         out: list[_Candidate] = []
@@ -356,6 +372,63 @@ class HierarchicalRetriever:
                     supported_by=(item_id,),
                 )
             )
+        return out
+
+    def _bm25_remap_to_dense_keys(
+        self,
+        bm25_hits: Sequence[tuple[UUID, str, float]],
+        dense_by_key: dict[tuple[ItemKind, UUID], _Candidate],
+    ) -> list[tuple[tuple[ItemKind, UUID], float]]:
+        """Remap BM25 event hits to keys that overlap with the dense
+        stream so RRF actually fuses.
+
+        Three cases per BM25 hit, in priority order:
+
+          1. `(EVENT, eid)` is already in `dense_by_key` -- the dense
+             path is event-keyed (`prefer == "specific"` or empty
+             generalizations layer); keep the event key unchanged.
+          2. The event has at least one parent memory_item that's in
+             `dense_by_key` -- emit one (MEMORY_ITEM, mid) ranking entry
+             per such parent so the BM25 mass reinforces the dense hit.
+          3. Otherwise keep the (EVENT, eid) key and let RRF surface it
+             as a standalone event-level candidate.
+
+        Multi-parent events emit multiple entries at the same rank --
+        that intentionally lets a literal-token-matching event boost
+        every memory_item it supports.
+        """
+        # Fast-path: if no dense candidate is at the memory_item layer,
+        # there's nothing to remap to -- skip the per-event lookup.
+        dense_has_memory_item = any(
+            kind is ItemKind.MEMORY_ITEM for kind, _ in dense_by_key
+        )
+        if not dense_has_memory_item:
+            return [((ItemKind.EVENT, eid), score) for eid, _, score in bm25_hits]
+        get_supported = getattr(self._storage, "get_supported_memory_items", None)
+        out: list[tuple[tuple[ItemKind, UUID], float]] = []
+        for eid, _content, score in bm25_hits:
+            if (ItemKind.EVENT, eid) in dense_by_key:
+                out.append(((ItemKind.EVENT, eid), score))
+                continue
+            parents: list[UUID] = []
+            if callable(get_supported):
+                try:
+                    parents = [m.id for m in get_supported(eid)]
+                except (ValueError, RuntimeError, KeyError):  # pragma: no cover
+                    parents = []
+            matched = [
+                pid for pid in parents
+                if (ItemKind.MEMORY_ITEM, pid) in dense_by_key
+            ]
+            if matched:
+                # Emit one entry per matched parent at the same rank
+                # position. RRF dedup (per-ranking `seen` set) only fires
+                # on identical keys, so distinct parents each receive the
+                # rank-equivalent mass.
+                for pid in matched:
+                    out.append(((ItemKind.MEMORY_ITEM, pid), score))
+            else:
+                out.append(((ItemKind.EVENT, eid), score))
         return out
 
     def _candidates_from_events(

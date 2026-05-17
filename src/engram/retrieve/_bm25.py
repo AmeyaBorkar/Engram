@@ -32,7 +32,7 @@ from __future__ import annotations
 import math
 import re
 from collections import Counter
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from typing import Generic, Hashable, TypeVar
 
@@ -199,10 +199,11 @@ def reciprocal_rank_fusion(
     rankings: list[list[tuple[DocId, float]]],
     *,
     k: int = 60,
+    weights: Sequence[float] | None = None,
 ) -> list[tuple[DocId, float]]:
     """Fuse multiple ranked lists via Reciprocal Rank Fusion.
 
-    `RRF(d) = sum_r 1 / (k + rank_r(d))` over the rankings that
+    `RRF(d) = sum_r w_r / (k + rank_r(d))` over the rankings that
     contain `d`. The `k = 60` smoothing constant is the standard
     value from the RRF paper. The output is `(doc_id, fused_score)`
     sorted by fused score descending.
@@ -210,11 +211,38 @@ def reciprocal_rank_fusion(
     Designed to take any two ranked lists (dense, bm25, multi-query)
     and produce a single ordering. Score sign is preserved (higher is
     better) so downstream rerankers can keep their assumptions.
+
+    `weights`, when given, must have the same length as `rankings`;
+    each weight scales that ranking's RRF contribution multiplicatively.
+    `None` (the default) is equivalent to `[1.0] * len(rankings)`.
+    Non-integer weights are honored exactly -- a `0.5` weight halves the
+    ranking's RRF mass without the truncation-to-int the earlier
+    repeat-the-ranking trick imposed. Negative weights raise.
+
+    Within a single ranking, duplicate `doc_id`s contribute only the
+    rank of their first appearance -- later duplicates would multiply
+    the ranking's mass on the same doc without adding signal, so we
+    drop them via a per-ranking `seen` set.
     """
     if k < 1:
         raise ValueError(f"k must be >= 1, got {k}")
+    if weights is not None:
+        if len(weights) != len(rankings):
+            raise ValueError(
+                f"weights length ({len(weights)}) must match rankings "
+                f"length ({len(rankings)})"
+            )
+        if any(w < 0 for w in weights):
+            raise ValueError(f"weights must be >= 0, got {list(weights)}")
     fused: dict[DocId, float] = {}
-    for ranking in rankings:
+    for idx, ranking in enumerate(rankings):
+        w = float(weights[idx]) if weights is not None else 1.0
+        if w == 0.0:
+            continue
+        seen: set[DocId] = set()
         for rank, (doc_id, _score) in enumerate(ranking, start=1):
-            fused[doc_id] = fused.get(doc_id, 0.0) + 1.0 / (k + rank)
+            if doc_id in seen:
+                continue
+            seen.add(doc_id)
+            fused[doc_id] = fused.get(doc_id, 0.0) + w / (k + rank)
     return sorted(fused.items(), key=lambda pair: pair[1], reverse=True)
