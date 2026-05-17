@@ -84,6 +84,17 @@ PROMPT_VERSIONS: dict[str, str] = {
     "judge": "v1",
 }
 
+# Prompt-variant routing. JOURNEY section 24+ documents the n=500 v2 evaluation
+# (commit 0166c0b5): v2's bundled abstain + per-qtype + scratchpad CoT
+# REGRESSED by -3.7 pp because the scratchpad caused CoT-leakage / empty
+# responses on multi-session and preference. The v2a / v2b / v2c variants
+# below bisect the v2 design space:
+#   - v2a: abstain only, softened (no "always anchor" hard rule), no qtype hints, no CoT.
+#   - v2b: per-qtype FORMAT hints only (no abstain, no scratchpad CoT).
+#   - v2c: v2a + v2b combined (abstain + format hints, no scratchpad CoT).
+# Each variant gets its own template file and (for v2b / v2c) its own qtype
+# hint dict. v1 path unchanged.
+
 # v2 answer-prompt qtype hints. Activated only when `prompt_version="v2"`.
 # Each hint is appended to the v2 prompt template via the {qtype_hint} slot.
 # Designed to address specific Sonnet-vs-Kimi judge disagreements seen in
@@ -136,6 +147,53 @@ _V2_QTYPE_HINTS: dict[str, str] = {
         "stating both with the updated one clearly marked as current is "
         "acceptable; stating only the latest value is also acceptable."
     ),
+}
+
+# v2b qtype hints: FORMAT-ONLY (no "show your work" / scratchpad / CoT).
+# The v2 evaluation showed the scratchpad instructions caused Kimi K2.6 to
+# echo the hint text into the answer and sometimes produce empty responses
+# entirely. v2b keeps the per-qtype routing but strips the work-show
+# instructions; the model is told the expected answer FORM only.
+_V2B_QTYPE_HINTS: dict[str, str] = {
+    "single-session-user": (
+        "Expected answer form: the specific fact in 1-5 words."
+    ),
+    "single-session-assistant": (
+        "Expected answer form: the assistant's recommendation, faithfully "
+        "paraphrased in 1-2 sentences."
+    ),
+    "single-session-preference": (
+        "Expected answer form: a single sentence starting with "
+        "'The user would prefer ...' synthesizing the user's preference."
+    ),
+    "multi-session": (
+        "Expected answer form: a single concrete value (number, "
+        "duration, name). No reasoning shown."
+    ),
+    "temporal-reasoning": (
+        "Expected answer form: a single concrete date or duration. "
+        "No reasoning shown. Off-by-one days are tolerated."
+    ),
+    "knowledge-update": (
+        "Expected answer form: the most recent value for the fact. "
+        "1-5 words."
+    ),
+}
+
+# Map prompt_version -> (template_filename_version, qtype_hints_dict).
+# Centralizing this here keeps _answer_with_phase_e simple and gives the
+# CLI / test code one place to look for available variants.
+# - v1:  original prompt, no qtype hints.
+# - v2:  bundled abstain + per-qtype + scratchpad CoT (the n=500 regression).
+# - v2a: abstain anchoring only, softened.  No qtype hints.
+# - v2b: per-qtype format hints only.  No abstain anchoring, no scratchpad.
+# - v2c: abstain (softened) + per-qtype format hints, no scratchpad.
+_PROMPT_VARIANTS: dict[str, tuple[str, dict[str, str]]] = {
+    "v1": ("v1", {}),
+    "v2": ("v2", _V2_QTYPE_HINTS),
+    "v2a": ("v2a", {}),
+    "v2b": ("v2b", _V2B_QTYPE_HINTS),
+    "v2c": ("v2c", _V2B_QTYPE_HINTS),
 }
 
 # Question-type-specific hints for the judge, taken verbatim from the
@@ -774,9 +832,10 @@ class LongMemEvalSuite:
         if gpu_concurrency < 1:
             raise ValueError(f"gpu_concurrency must be >= 1, got {gpu_concurrency}")
         self._gpu_concurrency = gpu_concurrency
-        if prompt_version not in ("v1", "v2"):
+        if prompt_version not in _PROMPT_VARIANTS:
             raise ValueError(
-                f"prompt_version must be 'v1' or 'v2', got {prompt_version!r}"
+                f"prompt_version must be one of {sorted(_PROMPT_VARIANTS)}, "
+                f"got {prompt_version!r}"
             )
         self._prompt_version = prompt_version
         self._bm25_weight = bm25_weight
@@ -1225,12 +1284,9 @@ class LongMemEvalSuite:
           * `verify`: re-run the verifier; on unsupported, re-retrieve
             and re-answer up to `verify_max_retries` times.
         """
-        qtype_hint = (
-            _V2_QTYPE_HINTS.get(qtype, "")
-            if self._prompt_version == "v2"
-            else ""
-        )
-        base_prompt = _read_prompt("answer", version=self._prompt_version).format(
+        template_version, qtype_hint_map = _PROMPT_VARIANTS[self._prompt_version]
+        qtype_hint = qtype_hint_map.get(qtype, "")
+        base_prompt = _read_prompt("answer", version=template_version).format(
             memory=memory_text,
             question=question,
             question_date=question_date or "(date unknown)",
@@ -1274,7 +1330,7 @@ class LongMemEvalSuite:
                 fresh = memory.retrieve(question, k=self._k, reinforce=False)
                 current_memory_text = _format_memory(fresh)
                 fresh_prompt = _read_prompt(
-                    "answer", version=self._prompt_version
+                    "answer", version=template_version
                 ).format(
                     memory=current_memory_text,
                     question=question,

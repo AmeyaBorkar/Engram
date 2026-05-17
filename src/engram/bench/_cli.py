@@ -220,15 +220,16 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument(
         "--prompt-version",
         default="v1",
-        choices=("v1", "v2"),
+        choices=("v1", "v2", "v2a", "v2b", "v2c"),
         help=(
-            "Answer-prompt template version (longmemeval only). v1 is "
-            "the original prompt. v2 adds explicit abstain anchoring "
-            "(state related context before saying IDK) and per-qtype "
-            "hints (preference synthesis, multi-session aggregation "
-            "scratchpad, temporal date-math scratchpad, latest-value "
-            "for knowledge-update). Targets the failure patterns in "
-            "JOURNEY section 23. Predicted lift +5-7 pts. Default v1."
+            "Answer-prompt template version (longmemeval only). "
+            "v1 = original. "
+            "v2 = bundled abstain + per-qtype + scratchpad (n=500 regression). "
+            "v2a = abstain anchoring only, softened (no qtype hints, no CoT). "
+            "v2b = per-qtype format hints only (no abstain, no CoT). "
+            "v2c = v2a + v2b combined. "
+            "Default v1. See JOURNEY section 23 and the v2 follow-up for the "
+            "design rationale per variant."
         ),
     )
     run.add_argument(

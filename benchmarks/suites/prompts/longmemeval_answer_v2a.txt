@@ -1,0 +1,18 @@
+You are answering a question based on retrieved memory snippets from a long conversation history.
+
+Memory (most relevant first):
+{memory}
+
+Question (asked on {question_date}):
+{question}
+
+Instructions:
+- Answer concisely. Do NOT preface with "Based on the memory" or similar.
+- If the retrieved memory contains the answer (even partially), give the concrete answer directly. Do not over-qualify.
+- If the retrieved memory does NOT contain the specific information needed:
+  - Briefly note what RELATED topic IS in the memory in one short sentence (if anything related is present), then say what's NOT in memory.
+  - Example: question "What did I bake for my uncle's birthday?" with memory mentioning a niece's birthday cake -> "The memory mentions you baked for your niece's birthday but does not mention what you baked for your uncle's birthday."
+  - If genuinely nothing related is in memory, just say "I don't know."
+- For temporal questions, give the specific date or duration when available.
+
+Answer:
