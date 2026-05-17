@@ -30,7 +30,7 @@ from engram.integrations._verify import verify_answer
 from engram.memory import Memory
 from engram.providers._message import Message
 from engram.providers._protocols import ChatProvider
-from engram.schemas import Outcome
+from engram.schemas import Event, Outcome
 
 
 @dataclass(frozen=True)
@@ -233,9 +233,18 @@ class EngramAgent:
 
         observed_event_ids: list[UUID] = []
         if self._auto_observe:
-            user_event = self._memory.observe(user_message)
+            # Source-tag user vs assistant events.  An untagged LLM reply
+            # would feed back into the corpus next turn indistinguishable
+            # from authentic user input — self-amplifying drift on
+            # hallucinations.  The downstream retrieve / consolidation
+            # paths can filter or weight by source (audit H-07).
+            user_event = self._memory.observe(
+                Event(content=user_message, source="user")
+            )
             observed_event_ids.append(user_event.id)
-            reply_event = self._memory.observe(reply)
+            reply_event = self._memory.observe(
+                Event(content=reply, source="assistant")
+            )
             observed_event_ids.append(reply_event.id)
 
         return EngramAgentTurn(
