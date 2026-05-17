@@ -457,8 +457,22 @@ class TestReconcileWinnerInvariants:
         source_trust: float,
         target_trust: float,
     ) -> None:
-        """Unless trust ties, PREFER_TRUSTED picks the higher-trust side."""
-        assume(source_trust != target_trust)
+        """Unless trust ties, PREFER_TRUSTED picks the higher-trust side.
+
+        Audit M-64 changed the trust comparison from strict `!=` to
+        `math.isclose(rel_tol=1e-9, abs_tol=1e-12)` so sub-ulp float
+        noise post-JSON-round-trip falls back to PREFER_RECENT instead
+        of picking arbitrarily on numerical drift. The property test
+        respects the new contract by demanding the two values diverge
+        beyond that tolerance.
+        """
+        import math
+
+        assume(
+            not math.isclose(
+                source_trust, target_trust, rel_tol=1e-9, abs_tol=1e-12
+            )
+        )
         target_dt = source_dt + delta
         source, target, conflict = _seed_reconcile_pair(
             storage,

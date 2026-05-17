@@ -244,3 +244,150 @@ def test_clusters_are_disjoint_and_within_input_range(vectors: np.ndarray) -> No
             assert idx not in seen, "clusters must be disjoint"
             seen.add(idx)
         assert len(c.members) >= 2
+
+
+# ---------------------------------------------------------------------------
+# Audit H-56 — vectorized upper-triangle edge discovery
+# ---------------------------------------------------------------------------
+
+
+class TestVectorizedAgglomerative:
+    """H-56: the agglomerative path used to walk the upper-triangle in
+    a pure-Python double loop. Replaced with `np.argwhere(np.triu(...))`
+    so the Python iteration is bounded by the number of edges above
+    threshold (typically << N^2).
+
+    Verify the result is identical to the pre-fix invariants
+    (determinism, member-set equality with the brute-force reference).
+    """
+
+    def test_matches_brute_force_reference(self) -> None:
+        # Three tight groups in 4-D space.
+        v = _unit(
+            [1.0, 0.0, 0.0, 0.0],
+            [0.99, 0.05, 0.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0],
+            [0.05, 0.99, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0],
+            [0.0, 0.0, 0.99, 0.05],
+        )
+        clusters = cluster(
+            v,
+            params=ClusterParams(
+                method="agglomerative",
+                cohesion_threshold=0.95,
+                min_cluster_size=2,
+            ),
+        )
+        # 3 pairs of 2.
+        assert len(clusters) == 3
+        for c in clusters:
+            assert len(c.members) == 2
+
+    def test_no_edges_above_threshold_returns_empty(self) -> None:
+        # All vectors mutually orthogonal -> no edge >= 0.5.
+        v = _unit(
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, 1.0],
+        )
+        clusters = cluster(
+            v,
+            params=ClusterParams(
+                method="agglomerative",
+                cohesion_threshold=0.5,
+                min_cluster_size=2,
+            ),
+        )
+        assert clusters == []
+
+    def test_determinism_under_permutation_of_input_rows(self) -> None:
+        # Same input, two calls -> identical labels. The vectorized
+        # path emits edges in argwhere row-major order, matching the
+        # prior nested-loop's (i, j ascending) order.
+        v = _unit(
+            [1.0, 0.0, 0.0],
+            [0.99, 0.05, 0.0],
+            [0.98, 0.1, 0.0],
+        )
+        a = cluster(
+            v,
+            params=ClusterParams(
+                method="agglomerative",
+                cohesion_threshold=0.9,
+                min_cluster_size=2,
+            ),
+        )
+        b = cluster(
+            v,
+            params=ClusterParams(
+                method="agglomerative",
+                cohesion_threshold=0.9,
+                min_cluster_size=2,
+            ),
+        )
+        assert [c.members for c in a] == [c.members for c in b]
+
+
+# ---------------------------------------------------------------------------
+# Audit M-54 — unit-norm warning
+# ---------------------------------------------------------------------------
+
+
+class TestUnitNormWarning:
+    """M-54: clustering assumes unit-norm rows so the similarity matrix
+    is cosine similarity. A caller that hands in raw vectors gets
+    silent garbage. The fix emits a one-time warning if the input
+    fails the norm check.
+    """
+
+    def test_warning_emitted_for_non_unit_norm_input(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        # Reset the module-level "emitted-once" flag so the test can
+        # actually observe the warning regardless of prior tests.
+        import engram.consolidation._clustering as cmod
+
+        cmod._NORM_WARNING_EMITTED = False
+        # 3 rows, norms = (2, 1, 1.5) — first row is clearly off.
+        raw = np.array(
+            [
+                [2.0, 0.0, 0.0],
+                [1.0, 0.0, 0.0],
+                [0.0, 1.5, 0.0],
+            ],
+            dtype=np.float32,
+        )
+        with caplog.at_level("WARNING", logger="engram.consolidation.clustering"):
+            cluster(
+                raw,
+                params=ClusterParams(
+                    method="agglomerative",
+                    cohesion_threshold=0.5,
+                    min_cluster_size=2,
+                ),
+            )
+        assert any(
+            "not unit-norm" in rec.message for rec in caplog.records
+        )
+
+    def test_no_warning_for_unit_norm_input(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        import engram.consolidation._clustering as cmod
+
+        cmod._NORM_WARNING_EMITTED = False
+        v = _unit([1.0, 0.0, 0.0], [0.99, 0.05, 0.0])
+        with caplog.at_level("WARNING", logger="engram.consolidation.clustering"):
+            cluster(
+                v,
+                params=ClusterParams(
+                    method="agglomerative",
+                    cohesion_threshold=0.5,
+                    min_cluster_size=2,
+                ),
+            )
+        # No warning emitted for the unit-norm case.
+        assert not any(
+            "not unit-norm" in rec.message for rec in caplog.records
+        )

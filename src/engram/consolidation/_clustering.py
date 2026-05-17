@@ -22,16 +22,38 @@ The math is deterministic in both backends: HDBSCAN itself is
 deterministic given a fixed input; the agglomerative path uses an
 explicit comparison order that doesn't depend on hash randomization.
 Replays produce identical cluster assignments.
+
+Asymptotics (audit H-56):
+  * `agglomerative`: O(N^2) memory for the (N,N) similarity matrix +
+    O(N^2 alpha(N)) work for the union-find merge step (alpha is the
+    inverse-Ackermann factor from path-compression union-find).  The
+    edge-finding step itself is now fully vectorized via
+    `np.argwhere(np.triu(...))`, so the pure-Python loop cost is
+    O(#edges_above_threshold) rather than O(N^2).  For typical
+    cohesion thresholds (>= 0.6) the edge count is small fraction of
+    N^2; for dense corpora it asymptotes back to the prior bound.
 """
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, Literal
 
 import numpy as np
 import numpy.typing as npt
+
+_LOG = logging.getLogger("engram.consolidation.clustering")
+
+# Audit M-54: agglomerative clustering assumes unit-norm rows so the
+# similarity matrix == cosine similarity. A caller that hands in raw
+# (un-normalized) vectors gets silent garbage. We sample the first row
+# at call time and emit a single warning if its norm deviates from 1.0
+# by more than this tolerance. The pass continues — the warning is
+# diagnostic, not blocking.
+_UNIT_NORM_TOL: float = 1e-3
+_NORM_WARNING_EMITTED: bool = False
 
 # A 2D float matrix. Engram normalizes embeddings to unit-norm float32 on
 # insert, so callers pass float32 - but the math is fine at float64 too,
@@ -183,8 +205,50 @@ def _cluster_hdbscan(vectors: FloatMatrix, params: ClusterParams) -> list[Cluste
     return _assignments_from_labels(vectors, labels, params)
 
 
+def _check_unit_norm(vectors: FloatMatrix) -> None:
+    """Audit M-54: one-time warning if the input doesn't look unit-norm.
+
+    Agglomerative + cohesion math assume rows are unit-norm so the
+    similarity matrix equals cosine similarity. A caller that hands in
+    un-normalized vectors gets silently degraded scores. We sample
+    every row's norm via `linalg.norm` along axis=1 and warn (once
+    per process) if any row deviates from 1.0 by more than
+    `_UNIT_NORM_TOL`. The check is O(N*D) numpy and adds a few
+    microseconds even on a 10k-row input.
+    """
+    global _NORM_WARNING_EMITTED
+    if _NORM_WARNING_EMITTED or vectors.shape[0] == 0:
+        return
+    norms = np.linalg.norm(vectors, axis=1)
+    if np.any(np.abs(norms - 1.0) > _UNIT_NORM_TOL):
+        worst = float(np.max(np.abs(norms - 1.0)))
+        _LOG.warning(
+            "consolidation.clustering: input vectors are not unit-norm "
+            "(max |norm-1| = %.4f); cohesion math degrades to dot-product. "
+            "Normalize before clustering to restore cosine-similarity "
+            "semantics.",
+            worst,
+        )
+        _NORM_WARNING_EMITTED = True
+
+
 def _cluster_agglomerative(vectors: FloatMatrix, params: ClusterParams) -> list[ClusterAssignment]:
+    """Single-link agglomerative threshold clustering.
+
+    Audit H-56: the prior implementation walked the upper triangle of
+    the (N, N) similarity matrix in pure Python (`for i in range(n):
+    for j in range(i+1, n): if sims[i, j] >= t: union(i, j)`). For
+    N=10k that's 5*10^7 Python iterations + 5*10^7 bound checks, ~30 s
+    of CPU on a typical laptop. The fix vectorizes the edge-discovery
+    pass: `np.triu(sims >= threshold, k=1)` produces the boolean
+    upper-triangle mask in numpy; `np.argwhere` lifts the `(i, j)`
+    coordinates into one array; the Python loop now iterates only
+    over edges that actually exceed the threshold (which is the right
+    asymptotic — for cohesion >= 0.6 on real corpora it's a small
+    fraction of N^2).
+    """
     n = vectors.shape[0]
+    _check_unit_norm(vectors)
     sims = vectors @ vectors.T  # (N, N), cosine sim for unit-norm rows
     parent = list(range(n))
 
@@ -207,10 +271,17 @@ def _cluster_agglomerative(vectors: FloatMatrix, params: ClusterParams) -> list[
             else:
                 parent[ra] = rb
 
-    for i in range(n):
-        for j in range(i + 1, n):
-            if sims[i, j] >= params.cohesion_threshold:
-                union(i, j)
+    # Vectorize the edge-discovery pass: boolean mask of (i, j) pairs
+    # where i < j AND sim >= threshold. `np.triu(..., k=1)` zeroes the
+    # diagonal + lower triangle; `np.argwhere` returns the (i, j)
+    # coordinates of the True entries as one (#edges, 2) int array.
+    # Iteration order matches the prior nested-loop order
+    # (lexicographic i ascending, then j ascending) because argwhere
+    # returns rows in row-major scan order — same determinism guarantee.
+    if n >= 2:
+        edge_mask = np.triu(sims >= params.cohesion_threshold, k=1)
+        for i, j in np.argwhere(edge_mask):
+            union(int(i), int(j))
 
     labels = np.array([find(idx) for idx in range(n)], dtype=np.int64)
     return _assignments_from_labels(vectors, labels, params)

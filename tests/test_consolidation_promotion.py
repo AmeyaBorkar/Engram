@@ -166,37 +166,83 @@ class TestPromotesWhenEligible:
         finally:
             storage.close()
 
-    def test_recorded_conflicts_block_promotion(self, tmp_path: Path) -> None:
+    def test_open_conflicts_block_promotion(self, tmp_path: Path) -> None:
+        """Audit H-57: an OPEN row in the conflicts table — not a
+        metadata snapshot — is what blocks promotion. A resolved
+        conflict no longer blocks (covered by the sibling test).
+        """
+        from engram.schemas import Conflict
+
         memory, storage = _make(
             tmp_path,
-            promotion_params=PromotionParams(enabled=True, min_corroboration=2, min_weight=0.0),
+            promotion_params=PromotionParams(
+                enabled=True, min_corroboration=2, min_weight=0.0
+            ),
         )
         try:
-            # Plant a summary with a recorded conflict in its metadata.
-            item = _seed_summary(
-                storage,
-                content="conflicted",
-                weight=1.0,
-                metadata={
-                    "consolidation": {
-                        "conflicts": [
-                            {
-                                "candidate_id": "00000000-0000-0000-0000-000000000001",
-                                "similarity": 0.9,
-                                "verdict": "contradict",
-                            }
-                        ]
-                    }
-                },
+            item = _seed_summary(storage, content="conflicted", weight=1.0)
+            sibling = _seed_summary(storage, content="other", weight=1.0)
+            # Plant an OPEN conflict naming the candidate.
+            storage.record_conflict(
+                Conflict(
+                    source_item_id=item.id,
+                    target_item_id=sibling.id,
+                    similarity=0.95,
+                )
             )
             for _ in range(3):
                 memory.corroborate(item.id, ItemKind.MEMORY_ITEM)
             result = memory.promote()
             assert result.promoted == 0
-            assert result.candidates_examined == 1
+            assert result.candidates_examined == 2
             after = storage.get_memory_item(item.id)
             assert after is not None
             assert after.level is Level.SUMMARY
+        finally:
+            storage.close()
+
+    def test_resolved_conflicts_do_not_block_promotion(
+        self, tmp_path: Path
+    ) -> None:
+        """Audit H-57: once the reconciler flips OPEN -> RESOLVED, the
+        item is eligible for promotion again. The old metadata-snapshot
+        gate never cleared so a once-contradicted summary could never
+        be promoted; the new gate consults the persistent conflict
+        table's status.
+        """
+        from engram.schemas import Conflict, Resolution
+
+        memory, storage = _make(
+            tmp_path,
+            promotion_params=PromotionParams(
+                enabled=True, min_corroboration=2, min_weight=0.0
+            ),
+        )
+        try:
+            item = _seed_summary(storage, content="reconciled", weight=1.0)
+            sibling = _seed_summary(storage, content="other", weight=1.0)
+            conflict = Conflict(
+                source_item_id=item.id,
+                target_item_id=sibling.id,
+                similarity=0.95,
+            )
+            storage.record_conflict(conflict)
+            # Resolve via KEEP_BOTH so the conflict row flips to RESOLVED.
+            storage.resolve_conflict(
+                conflict.id,
+                resolution=Resolution.KEEP_BOTH,
+                resolved_winner_id=None,
+                resolved_at=_now(),
+            )
+            for _ in range(3):
+                memory.corroborate(item.id, ItemKind.MEMORY_ITEM)
+            result = memory.promote()
+            # Both summaries clear the bar (no open conflicts after
+            # the resolve).  The corroborated one promotes.
+            assert result.promoted == 1
+            after = storage.get_memory_item(item.id)
+            assert after is not None
+            assert after.level is Level.ABSTRACTION
         finally:
             storage.close()
 
