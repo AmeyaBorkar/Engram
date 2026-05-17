@@ -252,3 +252,161 @@ def test_openai_embedder_redacts_api_key_from_error_message() -> None:
     with pytest.raises(RuntimeError) as excinfo:
         e.embed(["x"])
     assert leaked not in str(excinfo.value)
+
+
+# ---------------------------------------------------------------------------
+# M-93: chunked embedding (default chunk_size=2048)
+# ---------------------------------------------------------------------------
+
+
+def test_openai_embedder_chunks_large_input() -> None:
+    """With default chunk_size=2048, an input of 5000 texts triggers 3 calls."""
+    client = MagicMock()
+    # Each call gets a `_make_embed_response` with as many vectors as
+    # the chunk it received.  The side_effect callable counts the
+    # chunk sizes so we can verify the slicing.
+    chunk_sizes: list[int] = []
+
+    def _create(**kwargs):
+        n = len(kwargs["input"])
+        chunk_sizes.append(n)
+        return _make_embed_response([[0.0] * 1536 for _ in range(n)])
+
+    client.embeddings.create.side_effect = _create
+    e = OpenAIEmbedder(client=client, async_client=AsyncMock(), chunk_size=2048)
+    texts = [f"t{i}" for i in range(5000)]
+    out = e.embed(texts)
+    assert len(out) == 5000
+    assert chunk_sizes == [2048, 2048, 904]
+
+
+def test_openai_embedder_chunk_size_zero_disables_chunking() -> None:
+    client = MagicMock()
+    chunk_sizes: list[int] = []
+
+    def _create(**kwargs):
+        n = len(kwargs["input"])
+        chunk_sizes.append(n)
+        return _make_embed_response([[0.0]] * n)
+
+    client.embeddings.create.side_effect = _create
+    e = OpenAIEmbedder(client=client, async_client=AsyncMock(), chunk_size=0)
+    texts = [f"t{i}" for i in range(2500)]
+    e.embed(texts)
+    # Single call with all 2500 inputs (legacy behaviour).
+    assert chunk_sizes == [2500]
+
+
+def test_openai_embedder_chunk_size_rejects_negative() -> None:
+    with pytest.raises(ValueError, match="chunk_size"):
+        OpenAIEmbedder(client=MagicMock(), async_client=AsyncMock(), chunk_size=-1)
+
+
+def test_openai_embedder_aembed_chunks_too() -> None:
+    aclient = AsyncMock()
+    chunk_sizes: list[int] = []
+
+    async def _create(**kwargs):
+        n = len(kwargs["input"])
+        chunk_sizes.append(n)
+        return _make_embed_response([[0.0]] * n)
+
+    aclient.embeddings.create.side_effect = _create
+    e = OpenAIEmbedder(client=MagicMock(), async_client=aclient, chunk_size=100)
+    out = asyncio.run(e.aembed([f"t{i}" for i in range(250)]))
+    assert len(out) == 250
+    assert chunk_sizes == [100, 100, 50]
+
+
+# ---------------------------------------------------------------------------
+# M-173: per-call kwargs override constructor defaults
+# ---------------------------------------------------------------------------
+
+
+def test_openai_chat_per_call_kwargs_override_constructor_kwargs() -> None:
+    client = MagicMock()
+    client.chat.completions.create.return_value = _make_chat_response("ok")
+    c = OpenAIChat(
+        client=client,
+        async_client=AsyncMock(),
+        completion_kwargs={"temperature": 0.0, "max_tokens": 100},
+    )
+    c.chat([Message(role="user", content="x")], kwargs={"temperature": 0.9})
+    kw = client.chat.completions.create.call_args.kwargs
+    # Per-call wins; the constructor-default temperature is shadowed.
+    assert kw["temperature"] == 0.9
+    # Unrelated constructor defaults flow through unchanged.
+    assert kw["max_tokens"] == 100
+
+
+def test_openai_chat_per_call_kwargs_do_not_mutate_constructor_state() -> None:
+    """Per-call merge must not leak into the next call's kwargs."""
+    client = MagicMock()
+    client.chat.completions.create.return_value = _make_chat_response("ok")
+    c = OpenAIChat(
+        client=client,
+        async_client=AsyncMock(),
+        completion_kwargs={"temperature": 0.0},
+    )
+    c.chat([Message(role="user", content="x")], kwargs={"temperature": 0.9})
+    # Second call without override should fall back to constructor default.
+    c.chat([Message(role="user", content="y")])
+    kw = client.chat.completions.create.call_args.kwargs
+    assert kw["temperature"] == 0.0
+
+
+def test_openai_chat_achat_per_call_kwargs() -> None:
+    aclient = AsyncMock()
+    aclient.chat.completions.create.return_value = _make_chat_response("async-ok")
+    c = OpenAIChat(
+        client=MagicMock(),
+        async_client=aclient,
+        completion_kwargs={"temperature": 0.0},
+    )
+    asyncio.run(c.achat([Message(role="user", content="x")], kwargs={"temperature": 0.5}))
+    kw = aclient.chat.completions.create.call_args.kwargs
+    assert kw["temperature"] == 0.5
+
+
+# ---------------------------------------------------------------------------
+# M-94: close() / aclose() context manager protocol
+# ---------------------------------------------------------------------------
+
+
+def test_openai_embedder_close_calls_sdk_close() -> None:
+    client = MagicMock()
+    aclient = MagicMock()  # MagicMock — close() returns a regular value
+    e = OpenAIEmbedder(client=client, async_client=aclient)
+    e.close()
+    assert client.close.call_count == 1
+    assert aclient.close.call_count == 1
+
+
+def test_openai_chat_close_calls_sdk_close() -> None:
+    client = MagicMock()
+    aclient = MagicMock()
+    c = OpenAIChat(client=client, async_client=aclient)
+    c.close()
+    assert client.close.call_count == 1
+    assert aclient.close.call_count == 1
+
+
+def test_openai_chat_context_manager() -> None:
+    client = MagicMock()
+    aclient = MagicMock()
+    with OpenAIChat(client=client, async_client=aclient) as c:
+        c.chat  # access an attribute to confirm __enter__ returns the instance
+    assert client.close.call_count == 1
+
+
+def test_openai_embedder_async_context_manager() -> None:
+    client = MagicMock()
+    aclient = MagicMock()
+    aclient.aclose = AsyncMock()
+
+    async def go() -> None:
+        async with OpenAIEmbedder(client=client, async_client=aclient) as e:
+            assert e is not None
+
+    asyncio.run(go())
+    assert aclient.aclose.call_count == 1

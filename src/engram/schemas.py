@@ -3,6 +3,14 @@
 These are the Pydantic v2 models that flow through every layer: storage,
 consolidation, retrieval. They are deliberately small — most behavior lives
 in the modules that operate on them, not on the models themselves.
+
+`SCHEMA_VERSION` is the contract version of every persistent shape in this
+module — bump it on any breaking change so downstream callers (storage
+migrations, cache files, bench manifests) can detect a mismatch.  The
+non-frozen models stay non-frozen because storage owns the row and
+re-validates after a refresh; `extra="forbid"` is set on every model so
+a typo in a field name surfaces at the boundary instead of silently
+dropping data.
 """
 
 from __future__ import annotations
@@ -15,6 +23,11 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from engram.ids import new_id
+
+# Bump on any breaking change to a persistent model shape.  Read by
+# storage / cache / manifest layers that compare against their own
+# on-disk version stamp; mismatch is a hard fail in those layers.
+SCHEMA_VERSION: str = "1"
 
 # Schema-level upper bounds to keep ingestion bounded.  Generous enough not
 # to break legitimate use (a long observation, a deep abstraction, a
@@ -140,7 +153,7 @@ from engram._time import utcnow as _utcnow  # noqa: E402  # re-export for legacy
 class Event(BaseModel):
     """A raw observation. Lands first; is never modified."""
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     id: UUID = Field(default_factory=new_id)
     content: str = Field(max_length=_MAX_CONTENT_LEN)
@@ -190,9 +203,21 @@ class MemoryItem(BaseModel):
         retrieves but surface again with `as_of=` before invalidation.
       * `source_trust`: in `[0, 1]`; denormalized from the `Source` that
         introduced the item, used by `Resolution.PREFER_TRUSTED`.
+
+    `tenant_id` is the multi-tenant isolation key.  v0.2.x persists the
+    column but does NOT enforce tenant scoping on the read side — every
+    retrieve / search call ignores `tenant_id` and returns rows from
+    any tenant.  Read-side enforcement (a `tenant_id=` kwarg threaded
+    through every query) is on the v0.4 roadmap.  Callers that need
+    isolation today should run separate `SqliteStorage` files per
+    tenant; the field is here so the wire shape is forward-compatible.
     """
 
-    model_config = ConfigDict(frozen=False)
+    # frozen=True so model instances are immutable after construction.
+    # Storage and decay engine paths that "mutate" an item use
+    # `model_copy(update={...})` to produce a fresh instance — they do
+    # NOT assign to attributes.
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     id: UUID = Field(default_factory=new_id)
     level: Level
@@ -209,13 +234,39 @@ class MemoryItem(BaseModel):
     source_trust: float | None = Field(default=None, ge=0.0, le=1.0)
     tenant_id: str | None = None
 
+    @model_validator(mode="before")
+    @classmethod
+    def _default_valid_from(cls, data: Any) -> Any:
+        # Defaulting `valid_from` -> `created_at` happens BEFORE field
+        # construction so a frozen instance never has to mutate itself
+        # in `mode="after"`.  Accept the dict-shaped input pydantic
+        # gives us; do not touch any other shape (already-validated
+        # instances flow through pydantic's revalidation path with
+        # non-dict input — leave them alone).
+        if not isinstance(data, dict):
+            return data
+        if data.get("valid_from") is None:
+            created = data.get("created_at")
+            if created is None:
+                # Synthesize the same default the field factory would
+                # produce.  Keeps `valid_from == created_at` even when
+                # both are omitted by the caller.
+                created = _utcnow()
+                data["created_at"] = created
+            data["valid_from"] = created
+        return data
+
     @model_validator(mode="after")
     def _check_temporal_invariants(self) -> MemoryItem:
-        # valid_from defaults to created_at when callers omit it.
-        # frozen=False + default validate_assignment=False means direct
-        # assignment is safe here (no re-validation loop).
+        # Bounds checks only — no mutation, so the model can stay
+        # frozen.  Pydantic guarantees `valid_from` is set by the
+        # `mode="before"` validator above.
         if self.valid_from is None:
-            self.valid_from = self.created_at
+            # Defensive: a corner-case `model_construct(...)` bypassing
+            # validators could land us here.  Re-raise as ValueError
+            # so the failure mode is the same as any other invariant
+            # violation.
+            raise ValueError("valid_from must be set by construction")
         if self.valid_until is not None and self.valid_until < self.valid_from:
             raise ValueError(
                 f"valid_until {self.valid_until.isoformat()} precedes "
@@ -240,13 +291,13 @@ class Procedure(BaseModel):
     retrieval targets the situation; storage keeps a single embedding
     per procedure regardless of how `action` evolves.
 
-    The model is mutable (frozen=False) because `outcome` can transition
-    -- a procedure may start as `UNKNOWN`, get observed as `SUCCESS`,
-    and later be marked `FAILURE` after the user notices it stopped
-    working. Decay state lives alongside in the storage row.
+    The model is frozen — storage owns mutation.  Callers that change
+    `outcome` go through `Storage.update_procedure_outcome`, which
+    updates the row in place and returns a fresh `Procedure` instance
+    on re-read.  In-memory instances are immutable snapshots.
     """
 
-    model_config = ConfigDict(frozen=False)
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     id: UUID = Field(default_factory=new_id)
     situation: str = Field(max_length=_MAX_CONTENT_LEN)
@@ -279,7 +330,7 @@ class ProcedureMatch(BaseModel):
 class Embedding(BaseModel):
     """A dense vector representation of an event or memory item."""
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     id: UUID = Field(default_factory=new_id)
     item_id: UUID
@@ -331,12 +382,14 @@ class Conflict(BaseModel):
     (sets `invalidated_at` + `invalidated_by` on the losing memory
     item), and flips the conflict to status=RESOLVED.
 
-    Mutability: `frozen=False` because status, resolution,
-    resolved_winner_id, and resolved_at flip during reconciliation. The
-    storage row is the source of truth; in-memory copies are snapshots.
+    Mutability: frozen — storage is the source of truth.  When the
+    reconciler resolves a conflict it calls
+    `Storage.resolve_conflict(...)` which writes the row and returns a
+    fresh `Conflict` snapshot; in-memory instances are immutable so a
+    callee can't accidentally drift from the database.
     """
 
-    model_config = ConfigDict(frozen=False)
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     id: UUID = Field(default_factory=new_id)
     source_item_id: UUID
@@ -394,7 +447,7 @@ class ProvenanceLink(BaseModel):
     that invariant is enforced by storage CHECKs once Stage 5 ships.
     """
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     id: UUID = Field(default_factory=new_id)
     memory_item_id: UUID
@@ -442,7 +495,7 @@ class DecayState(BaseModel):
     diverge from the database.
     """
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     item_id: UUID
     item_kind: ItemKind

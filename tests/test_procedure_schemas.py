@@ -48,12 +48,23 @@ def test_procedure_weight_bounds() -> None:
         Procedure(situation="x", action="y", weight=1.01)
 
 
-def test_procedure_is_mutable_for_outcome_transitions() -> None:
-    # frozen=False; outcome must be assignable after construction so the
-    # outcome-feedback loop can flip UNKNOWN -> SUCCESS / FAILURE.
+def test_procedure_is_frozen() -> None:
+    # H-71: Procedure is now frozen; storage owns mutation.  Callers
+    # that want to change `outcome` go through
+    # `Storage.update_procedure_outcome` (which writes the row in place
+    # and returns a fresh `Procedure` snapshot on re-read).  Direct
+    # attribute assignment must raise.
     p = Procedure(situation="x", action="y")
-    p.outcome = Outcome.SUCCESS
-    assert p.outcome is Outcome.SUCCESS
+    with pytest.raises(ValidationError):
+        p.outcome = Outcome.SUCCESS  # type: ignore[misc]
+
+
+def test_procedure_outcome_transition_via_model_copy() -> None:
+    p = Procedure(situation="x", action="y")
+    flipped = p.model_copy(update={"outcome": Outcome.SUCCESS})
+    assert flipped.outcome is Outcome.SUCCESS
+    # Original is unchanged — frozen contract.
+    assert p.outcome is Outcome.UNKNOWN
 
 
 def test_procedure_metadata_preserves_arbitrary_keys() -> None:

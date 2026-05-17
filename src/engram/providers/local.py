@@ -291,6 +291,16 @@ class LocalEmbedder:
         # Every slot is filled by construction.
         return [r for r in results if r is not None]
 
+    def _is_symmetric(self) -> bool:
+        """True if the model has no asymmetric query prompt.
+
+        Symmetric models (bge-*, mxbai-*, anything not in
+        `_QUERY_ENCODE_KWARGS`) produce identical vectors whether the
+        text was encoded as a query or as a document; the document-side
+        cache slot can serve as a query-side hit.
+        """
+        return not self._query_kwargs
+
     def embed_query(self, query: str) -> list[float]:
         """Encode a single query, applying asymmetric prompts when the
         model needs them.
@@ -299,11 +309,27 @@ class LocalEmbedder:
         regular encode -- the result is bit-identical to `embed([q])[0]`,
         so the hierarchy retriever can safely prefer this method when
         present without changing behavior on symmetric models.
+
+        On symmetric models we also consult the document-side cache as
+        a fallback (M-174): the same text encoded as a query and as a
+        document gives the same vector, so a cache hit on either kind
+        is valid.  Asymmetric models keep the strict split — query and
+        doc vectors differ in that case so cross-kind hits would
+        corrupt retrieval.
         """
         if self._cache is not None:
             cached = self._cache.get(self._cache_key(query, kind="query"))
             if cached is not None:
                 return cached
+            # M-174: for symmetric models, a doc-side hit is just as
+            # valid as a query-side hit (same vector).  Saves a GPU
+            # encode when the same text was previously embedded as a
+            # document (e.g. ingested as part of the haystack).
+            if self._is_symmetric():
+                doc_hit = self._cache.get(self._cache_key(query, kind="doc"))
+                if doc_hit is not None:
+                    self._cache.set(self._cache_key(query, kind="query"), doc_hit)
+                    return doc_hit
         extra = dict(self._query_kwargs) if self._query_kwargs else None
         vec = self._encode([query], extra=extra)[0]
         if self._cache is not None:
@@ -328,6 +354,44 @@ class LocalEmbedder:
         `.hit_rate`, `.hits`, `.misses` to track behavior.
         """
         return self._cache
+
+    def unload(self) -> None:
+        """Drop the SentenceTransformer model + LRU cache.
+
+        Frees the GPU memory the model holds (1-2 GB for a tier-A
+        embedder in fp16, 16 GB for NV-Embed) and the LRU's vector
+        list.  After `unload()` any call to `embed` / `aembed` /
+        `embed_query` raises `AttributeError` — the adapter is meant to
+        be discarded after unload, not reused.  Re-running the bench
+        with the same model id requires constructing a fresh
+        LocalEmbedder so the model + cache live in deterministic
+        scope.
+        """
+        # Run on a best-effort basis: caller may have unloaded already
+        # (idempotent).  `del self._st` then `torch.cuda.empty_cache()`
+        # is the documented way to actually release VRAM — without the
+        # cache flush PyTorch retains the allocator's free blocks and
+        # `nvidia-smi` still reports the model size as in use.
+        try:
+            del self._st
+        except AttributeError:  # pragma: no cover - second unload()
+            pass
+        if self._cache is not None:
+            self._cache.clear()
+            self._cache = None
+        try:
+            import torch  # noqa: PLC0415  # optional dep
+
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        except Exception:  # pragma: no cover - torch may be absent or already shut down
+            pass
+
+    def __enter__(self) -> "LocalEmbedder":
+        return self
+
+    def __exit__(self, *_exc: Any) -> None:
+        self.unload()
 
     def manifest_hash(self) -> str:
         norm = "norm" if self._normalize else "raw"

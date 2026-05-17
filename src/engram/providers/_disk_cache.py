@@ -26,12 +26,16 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import sqlite3
+import struct
 import threading
 import warnings
 from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+import numpy as np
 
 from engram.providers._message import Message
 
@@ -51,6 +55,39 @@ CREATE TABLE IF NOT EXISTS embed (
 );
 """
 
+# Magic prefix that distinguishes the packed-binary embed format from the
+# legacy JSON-text format.  Eight bytes so the chance of a legit
+# UTF-8-encoded JSON list starting with this prefix is negligible —
+# `b"EGRMVEC1"` is not valid JSON, and an embed_get() that sees this
+# prefix decodes via numpy `frombuffer` instead of `json.loads`.
+_EMBED_BINARY_MAGIC: bytes = b"EGRMVEC1"
+# Chunk size for `WHERE key IN (?,?,...)` lookups.  SQLite's default
+# parameter limit is 999 / 32766 depending on build; 500 stays
+# comfortably under either while amortizing the round-trip cost.
+_EMBED_GET_MANY_CHUNK: int = 500
+
+
+# Module-level handle registry — `with_disk_cache(provider, path=...)` is
+# called once per chat provider and once per embedder, and both calls
+# point at the same path.  Without de-duplication the bench opens two
+# sqlite connections + two WAL files against the same file, races on
+# schema creation, and counts hits twice in `.stats`.  The registry
+# memoizes by the resolved absolute path so any path-spelling
+# difference (`./cache.db` vs `cache.db`) collapses to a single handle.
+_HANDLE_LOCK = threading.Lock()
+_HANDLES: dict[str, DiskCache] = {}
+
+
+def _resolve_cache_path(path: str | Path) -> Path:
+    """Normalize a user path to an absolute, resolved `Path`.
+
+    Centralized so the registry key, the traversal guard, and the
+    sqlite open all use the exact same string.  `Path.resolve(strict=False)`
+    on Windows handles drive letter case folding and `~` expansion via
+    `Path.expanduser` first.
+    """
+    return Path(path).expanduser().resolve()
+
 
 class DiskCache:
     """SQLite-backed (key -> value) cache for provider responses.
@@ -59,10 +96,40 @@ class DiskCache:
     json blob for embed vectors). Entries are never evicted -- the
     bench corpus is bounded, and the user can rm the file when they
     want to start fresh.
+
+    `allowed_root` optionally pins the cache file's resolved location
+    under a specific directory tree.  When set, any attempt to open a
+    cache outside that subtree raises `ValueError` — protects bench
+    harnesses that accept a cache path from user input from being
+    coerced into writing somewhere unexpected.  The env override
+    `ENGRAM_DISK_CACHE_ROOT` applies the same constraint globally
+    (caller-provided `allowed_root=` wins when both are present).
     """
 
-    def __init__(self, path: str | Path) -> None:
-        self._path = str(path)
+    def __init__(
+        self,
+        path: str | Path,
+        *,
+        allowed_root: str | Path | None = None,
+    ) -> None:
+        resolved = _resolve_cache_path(path)
+        env_root = os.environ.get("ENGRAM_DISK_CACHE_ROOT")
+        root: Path | None
+        if allowed_root is not None:
+            root = _resolve_cache_path(allowed_root)
+        elif env_root:
+            root = _resolve_cache_path(env_root)
+        else:
+            root = None
+        if root is not None:
+            try:
+                resolved.relative_to(root)
+            except ValueError as exc:
+                raise ValueError(
+                    f"DiskCache path {str(resolved)!r} is not under "
+                    f"allowed_root {str(root)!r}"
+                ) from exc
+        self._path = str(resolved)
         self._lock = threading.Lock()
         self._conn = sqlite3.connect(
             self._path,
@@ -93,21 +160,31 @@ class DiskCache:
         self._embed_hits = 0
         self._embed_misses = 0
 
+    @property
+    def path(self) -> str:
+        return self._path
+
     # --- chat ---------------------------------------------------------------
 
     def chat_key(self, provider: str, model: str, messages: Sequence[Message]) -> str:
-        payload = json.dumps(
-            {
-                "provider": provider,
-                "model": model,
-                "messages": [
-                    {"role": m.role, "content": m.content} for m in messages
-                ],
-            },
-            ensure_ascii=False,
-            sort_keys=True,
-        )
-        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+        """SHA-256 over (provider, model, messages) without materializing JSON.
+
+        Streams each message through `hashlib.update(...)` so a long
+        haystack message doesn't allocate a full JSON blob in memory
+        before hashing.  Components are length-prefixed so a `provider`
+        value that ends with the same bytes a `model` value starts with
+        cannot collide.
+        """
+        h = hashlib.sha256()
+        _hash_lp(h, provider.encode("utf-8"))
+        _hash_lp(h, model.encode("utf-8"))
+        # Count of messages as 8-byte big-endian so an empty trailing
+        # message can't be confused with the absence of a message.
+        h.update(struct.pack(">Q", len(messages)))
+        for m in messages:
+            _hash_lp(h, m.role.encode("utf-8"))
+            _hash_lp(h, m.content.encode("utf-8"))
+        return h.hexdigest()
 
     def chat_get(self, key: str) -> str | None:
         with self._lock:
@@ -134,8 +211,20 @@ class DiskCache:
     # --- embed --------------------------------------------------------------
 
     def embed_key(self, provider: str, model: str, text: str) -> str:
-        payload = f"{provider}\x00{model}\x00{text}"
-        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+        """SHA-256 over (provider, model, text), length-prefixed per component.
+
+        The previous `\\x00`-delimited concatenation collided whenever
+        any input contained a literal NUL byte (rare for OpenAI prompts,
+        possible for local pipelines that pre-tokenize through binary
+        wire formats).  Length-prefixing each component eliminates the
+        collision class entirely — `("ab", "c", "d")` cannot hash
+        to the same value as `("a", "bc", "d")`.
+        """
+        h = hashlib.sha256()
+        _hash_lp(h, provider.encode("utf-8"))
+        _hash_lp(h, model.encode("utf-8"))
+        _hash_lp(h, text.encode("utf-8"))
+        return h.hexdigest()
 
     def embed_get(self, key: str) -> list[float] | None:
         with self._lock:
@@ -145,27 +234,55 @@ class DiskCache:
             if row is None:
                 self._embed_misses += 1
                 return None
-            # Treat any deserialization failure as a cache miss.  A
-            # truncated / corrupt blob (post-crash, manual file tampering,
-            # sqlite page corruption) used to propagate UnicodeDecodeError
-            # / JSONDecodeError uncaught and brick the whole bench;
-            # instead we drop the row, log nothing (caller will re-embed),
-            # and bump the miss counter.
-            try:
-                decoded = json.loads(row["value"].decode("utf-8"))
-            except (UnicodeDecodeError, json.JSONDecodeError):
-                self._embed_misses += 1
-                return None
-            if not isinstance(decoded, list) or not all(
-                isinstance(x, (int, float)) for x in decoded
-            ):
+            decoded = _decode_embed_blob(row["value"])
+            if decoded is None:
+                # Treat any deserialization failure as a cache miss.  A
+                # truncated / corrupt blob (post-crash, manual file
+                # tampering, sqlite page corruption) used to propagate
+                # UnicodeDecodeError / JSONDecodeError uncaught and brick
+                # the whole bench; instead we drop the row, log nothing
+                # (caller will re-embed), and bump the miss counter.
                 self._embed_misses += 1
                 return None
             self._embed_hits += 1
-        return [float(x) for x in decoded]
+        return decoded
+
+    def embed_get_many(self, keys: Sequence[str]) -> dict[str, list[float]]:
+        """Batch variant of `embed_get`.
+
+        Returns only the keys actually present in the cache.  Splits
+        large key lists into chunks of 500 to stay under SQLite's
+        per-statement parameter cap.  Hits bump the embed-hit counter
+        once per matched key; misses are *not* counted here because
+        the caller is partitioning into hit/miss sets and only the
+        eventual miss-then-fill code path should count a true miss.
+        """
+        if not keys:
+            return {}
+        out: dict[str, list[float]] = {}
+        seen: set[str] = set()
+        with self._lock:
+            for i in range(0, len(keys), _EMBED_GET_MANY_CHUNK):
+                chunk = list(keys[i : i + _EMBED_GET_MANY_CHUNK])
+                placeholders = ",".join("?" * len(chunk))
+                rows = self._conn.execute(
+                    f"SELECT key, value FROM embed WHERE key IN ({placeholders})",
+                    chunk,
+                ).fetchall()
+                for row in rows:
+                    k = str(row["key"])
+                    if k in seen:
+                        continue
+                    decoded = _decode_embed_blob(row["value"])
+                    if decoded is None:
+                        continue
+                    out[k] = decoded
+                    seen.add(k)
+            self._embed_hits += len(out)
+        return out
 
     def embed_set(self, key: str, vector: Sequence[float]) -> None:
-        blob = json.dumps(list(vector)).encode("utf-8")
+        blob = _encode_embed_blob(vector)
         with self._lock:
             self._conn.execute(
                 "INSERT OR REPLACE INTO embed (key, value) VALUES (?, ?)",
@@ -186,6 +303,90 @@ class DiskCache:
     def close(self) -> None:
         with self._lock:
             self._conn.close()
+        # Drop from the registry so a fresh open after close returns a
+        # new connection instead of handing back the closed one.
+        with _HANDLE_LOCK:
+            for k, v in list(_HANDLES.items()):
+                if v is self:
+                    del _HANDLES[k]
+
+
+def _hash_lp(h: "hashlib._Hash", data: bytes) -> None:
+    """Update `h` with a length-prefixed byte string.
+
+    Eight-byte big-endian length followed by the bytes.  Centralized so
+    `chat_key` and `embed_key` agree on the format.
+    """
+    h.update(struct.pack(">Q", len(data)))
+    h.update(data)
+
+
+def _encode_embed_blob(vector: Sequence[float]) -> bytes:
+    """Pack a vector as `magic | little-endian float64[*]`.
+
+    Roughly 4x smaller than the JSON-text format (each float8 is 8
+    bytes vs ~17 characters of `"-0.123456789,"`) and 5-10x faster to
+    serialize / deserialize at corpus scale.  `embed_get` falls back
+    to the legacy JSON parser when the magic prefix is absent so
+    pre-existing cache files keep working.
+    """
+    arr = np.asarray(vector, dtype="<f8")
+    return _EMBED_BINARY_MAGIC + arr.tobytes()
+
+
+def _decode_embed_blob(value: Any) -> list[float] | None:
+    """Decode a stored embed blob; return None on any deserialization issue.
+
+    Handles three shapes:
+      * `magic | float64 bytes` — the current packed-binary format
+        produced by `_encode_embed_blob`.
+      * raw JSON text (legacy) — caches written by an older Engram
+        version.  Auto-detected by the absence of the magic prefix.
+      * anything else — returns None (caller treats as a cache miss).
+    """
+    if value is None:
+        return None
+    blob: bytes
+    if isinstance(value, (bytes, bytearray, memoryview)):
+        blob = bytes(value)
+    elif isinstance(value, str):
+        # Legacy text-encoded JSON path; SQLite stored the JSON
+        # directly when the column was TEXT.
+        try:
+            decoded = json.loads(value)
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            return None
+        return _coerce_vector_list(decoded)
+    else:
+        return None
+
+    if blob.startswith(_EMBED_BINARY_MAGIC):
+        payload = blob[len(_EMBED_BINARY_MAGIC) :]
+        if len(payload) % 8 != 0:
+            return None
+        try:
+            arr = np.frombuffer(payload, dtype="<f8")
+        except ValueError:
+            return None
+        return [float(x) for x in arr]
+    # Legacy JSON-text-as-bytes path (the pre-packed-binary format
+    # written by Engram <= 0.2.1).  Decode and validate.
+    try:
+        decoded = json.loads(blob.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    return _coerce_vector_list(decoded)
+
+
+def _coerce_vector_list(decoded: Any) -> list[float] | None:
+    if not isinstance(decoded, list):
+        return None
+    out: list[float] = []
+    for x in decoded:
+        if isinstance(x, bool) or not isinstance(x, (int, float)):
+            return None
+        out.append(float(x))
+    return out
 
 
 class CachedChat:
@@ -232,17 +433,28 @@ class CachedEmbedder:
     def _partition_cache(
         self, texts: Sequence[str]
     ) -> tuple[list[list[float] | None], list[int], list[str]]:
+        # One `WHERE key IN (?, ?, …)` batch lookup instead of N
+        # per-text round trips.  At chunk_size=4096 this turns ~4096
+        # sqlite calls into ~9.  Misses are partitioned the same way
+        # they used to be so the rest of `embed` / `aembed` is
+        # unchanged.
         results: list[list[float] | None] = [None] * len(texts)
         miss_idx: list[int] = []
         miss_text: list[str] = []
-        for i, t in enumerate(texts):
-            key = self._cache.embed_key(self.name, self.model, t)
-            cached = self._cache.embed_get(key)
-            if cached is not None:
-                results[i] = cached
+        keys: list[str] = [
+            self._cache.embed_key(self.name, self.model, t) for t in texts
+        ]
+        found = self._cache.embed_get_many(keys)
+        for i, key in enumerate(keys):
+            vec = found.get(key)
+            if vec is not None:
+                results[i] = vec
             else:
                 miss_idx.append(i)
-                miss_text.append(t)
+                miss_text.append(texts[i])
+        # Account for the misses now that we know the partition; the
+        # legacy per-row `embed_get` flow counted them inline.
+        self._cache._embed_misses += len(miss_idx)  # noqa: SLF001 - sibling helper
         return results, miss_idx, miss_text
 
     def embed(self, texts: Sequence[str]) -> list[list[float]]:
@@ -297,14 +509,19 @@ def with_disk_cache(
     provider: Any,
     *,
     path: str | Path,
+    allowed_root: str | Path | None = None,
 ) -> Any:
     """Wrap `provider` with a disk-cache appropriate to its surface.
 
     Detects whether the input is a chat or embedding provider by
     duck-typing on its public methods. Returns the wrapped provider;
     pass it anywhere the original provider was accepted.
+
+    Repeated calls with the same path return wrappers backed by the
+    same `DiskCache` connection — no duplicate sqlite handles, no
+    racing WAL writers, no double-counted hits.
     """
-    cache = DiskCache(path)
+    cache = _get_or_create_cache(path, allowed_root=allowed_root)
     if hasattr(provider, "chat") and hasattr(provider, "achat"):
         return CachedChat(provider, cache)
     if hasattr(provider, "embed") and hasattr(provider, "aembed"):
@@ -312,3 +529,25 @@ def with_disk_cache(
     raise TypeError(
         f"with_disk_cache: {type(provider).__name__} is neither a chat nor an embedding provider"
     )
+
+
+def _get_or_create_cache(
+    path: str | Path,
+    *,
+    allowed_root: str | Path | None,
+) -> DiskCache:
+    """Return a memoized `DiskCache` for `path` (resolved absolute).
+
+    Two concurrent `with_disk_cache` calls on the same path return the
+    same handle.  Construction is serialized under a module-level lock
+    so a race between two threads ends with exactly one DiskCache
+    open against the file.
+    """
+    resolved = str(_resolve_cache_path(path))
+    with _HANDLE_LOCK:
+        existing = _HANDLES.get(resolved)
+        if existing is not None:
+            return existing
+        cache = DiskCache(path, allowed_root=allowed_root)
+        _HANDLES[resolved] = cache
+        return cache

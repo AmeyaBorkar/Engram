@@ -2,17 +2,23 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 import pytest
 from pydantic import ValidationError
 
 from engram.ids import new_id
 from engram.schemas import (
+    SCHEMA_VERSION,
     Cluster,
+    Conflict,
+    DecayState,
     Embedding,
     Event,
     ItemKind,
     Level,
     MemoryItem,
+    Procedure,
     ProvenanceLink,
 )
 
@@ -135,3 +141,146 @@ def test_retrieval_result_is_frozen() -> None:
     )
     with pytest.raises(ValidationError):
         r.content = "y"  # type: ignore[misc]
+
+
+# ---------------------------------------------------------------------------
+# H-71: SCHEMA_VERSION and extra="forbid" on every persisted model
+# ---------------------------------------------------------------------------
+
+
+def test_schema_version_exported() -> None:
+    assert isinstance(SCHEMA_VERSION, str)
+    assert SCHEMA_VERSION  # non-empty
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "model_cls"),
+    [
+        ({"content": "x", "unknown_field": 1}, Event),
+        ({"level": Level.EVENT, "content": "x", "rogue": True}, MemoryItem),
+        ({"situation": "x", "action": "y", "rogue": "v"}, Procedure),
+        (
+            {
+                "item_id": new_id(),
+                "item_kind": ItemKind.EVENT,
+                "model": "m",
+                "dim": 1,
+                "vector": (0.1,),
+                "rogue": 0,
+            },
+            Embedding,
+        ),
+        (
+            {
+                "memory_item_id": new_id(),
+                "event_id": new_id(),
+                "rogue": True,
+            },
+            ProvenanceLink,
+        ),
+        (
+            {
+                "item_id": new_id(),
+                "item_kind": ItemKind.EVENT,
+                "rogue": True,
+            },
+            DecayState,
+        ),
+    ],
+)
+def test_unknown_fields_rejected(kwargs: dict, model_cls: type) -> None:
+    """`extra="forbid"` surfaces typos at the boundary rather than dropping data."""
+    with pytest.raises(ValidationError):
+        model_cls(**kwargs)
+
+
+def test_conflict_unknown_fields_rejected() -> None:
+    src, tgt = new_id(), new_id()
+    with pytest.raises(ValidationError):
+        Conflict(
+            source_item_id=src,
+            target_item_id=tgt,
+            similarity=0.5,
+            rogue=1,
+        )
+
+
+# ---------------------------------------------------------------------------
+# H-71: frozen=True on every persisted model
+# ---------------------------------------------------------------------------
+
+
+def test_memory_item_is_frozen() -> None:
+    item = MemoryItem(level=Level.EVENT, content="x")
+    with pytest.raises(ValidationError):
+        item.content = "y"  # type: ignore[misc]
+
+
+def test_procedure_is_frozen() -> None:
+    from engram.schemas import Outcome
+
+    p = Procedure(situation="x", action="y")
+    with pytest.raises(ValidationError):
+        p.outcome = Outcome.SUCCESS  # type: ignore[misc]
+
+
+def test_conflict_is_frozen() -> None:
+    src, tgt = new_id(), new_id()
+    c = Conflict(source_item_id=src, target_item_id=tgt, similarity=0.5)
+    with pytest.raises(ValidationError):
+        c.similarity = 0.9  # type: ignore[misc]
+
+
+# ---------------------------------------------------------------------------
+# M-135: temporal-invariants validator does NOT mutate `self.valid_from`
+# ---------------------------------------------------------------------------
+
+
+def test_memory_item_valid_from_defaults_to_created_at_without_mutation() -> None:
+    """A frozen-instance MemoryItem still receives `valid_from = created_at`
+    when the caller omits both — but the default is applied in the
+    `mode="before"` validator, so no post-validate mutation is needed.
+    """
+    item = MemoryItem(level=Level.EVENT, content="x")
+    assert item.valid_from == item.created_at
+    # `created_at` is preserved when the caller supplies it; the `mode="before"`
+    # validator doesn't synthesize a fresh default in that path.
+    when = datetime(2024, 6, 1, tzinfo=timezone.utc)
+    item2 = MemoryItem(level=Level.EVENT, content="x", created_at=when)
+    assert item2.valid_from == when
+
+
+def test_memory_item_revalidate_dict_round_trip_preserves_defaults() -> None:
+    """`model_validate(model.model_dump())` returns an equivalent instance.
+
+    Re-validating round-trips through the `mode="before"` validator
+    again; the dumped dict already has `valid_from` populated, so the
+    default-injection branch is a no-op on a dump-load round trip.
+    """
+    item = MemoryItem(level=Level.EVENT, content="x")
+    rt = MemoryItem.model_validate(item.model_dump())
+    assert rt == item
+    # And direct mutation still raises (frozen contract holds on the
+    # re-loaded instance, not just the original).
+    with pytest.raises(ValidationError):
+        rt.content = "y"  # type: ignore[misc]
+
+
+def test_memory_item_explicit_valid_from_preserved() -> None:
+    when = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    item = MemoryItem(level=Level.EVENT, content="x", valid_from=when)
+    assert item.valid_from == when
+
+
+def test_memory_item_valid_until_before_valid_from_rejected() -> None:
+    earlier = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    later = earlier + timedelta(days=1)
+    with pytest.raises(ValidationError):
+        MemoryItem(
+            level=Level.EVENT, content="x", valid_from=later, valid_until=earlier
+        )
+
+
+def test_memory_item_invalidated_by_requires_invalidated_at() -> None:
+    with pytest.raises(ValidationError, match="invalidated_by"):
+        MemoryItem(level=Level.EVENT, content="x", invalidated_by=new_id())

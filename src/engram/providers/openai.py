@@ -143,6 +143,9 @@ def _build_sdk_kwargs(
     return kwargs
 
 
+_DEFAULT_EMBED_CHUNK: int = 2048
+
+
 class OpenAIEmbedder:
     """OpenAI embeddings adapter (`text-embedding-3-small` by default).
 
@@ -158,6 +161,19 @@ class OpenAIEmbedder:
     Gemini, BGE) reject it. The default auto-detects: known third-party
     models with a recognized native dim skip `dimensions`; everything
     else sends it whenever `dim != native_dim`.
+
+    `chunk_size` caps how many texts are sent in one `embeddings.create`
+    call.  OpenAI accepts up to 2048 inputs per request (and similar
+    third-party endpoints often cap lower); shipping a 50k-haystack as
+    a single request hits the per-request token budget or just times
+    out.  We slice at `chunk_size` boundaries and re-stitch the
+    results.  Set to `0` to disable chunking (legacy single-call
+    behaviour).
+
+    The adapter supports the context-manager protocol — `close()` /
+    `aclose()` shut down the underlying SDK clients so a long-running
+    process can reclaim the (sync + async) httpx pools instead of
+    leaving them alive until interpreter shutdown.
     """
 
     name: str = "openai-embed"
@@ -174,13 +190,17 @@ class OpenAIEmbedder:
         default_headers: dict[str, str] | None = None,
         send_dimensions: bool | None = None,
         timeout: float | None = _DEFAULT_TIMEOUT_SECONDS,
+        chunk_size: int = _DEFAULT_EMBED_CHUNK,
     ) -> None:
         if dim < 1:
             raise ValueError(f"dim must be >= 1, got {dim}")
+        if chunk_size < 0:
+            raise ValueError(f"chunk_size must be >= 0, got {chunk_size}")
         self.model = model
         self.dim = dim
         self._base_url = base_url
         self._default_headers = dict(default_headers) if default_headers else None
+        self._chunk_size = chunk_size
         # If the caller didn't decide, send `dimensions` only for models
         # whose backend accepts it. OpenAI native and OR's `openai/*`
         # routes do; Qwen / Gemini / BGE typically reject the kwarg.
@@ -193,29 +213,82 @@ class OpenAIEmbedder:
             async_client if async_client is not None else _openai_module.AsyncOpenAI(**sdk_kwargs)
         )
 
+    def _chunks(self, texts: Sequence[str]) -> list[Sequence[str]]:
+        """Slice `texts` into `chunk_size`-bounded sublists.
+
+        `chunk_size=0` disables chunking — the entire input flows as a
+        single request, preserving the legacy single-call shape for
+        callers that opt out.
+        """
+        if self._chunk_size <= 0 or len(texts) <= self._chunk_size:
+            return [list(texts)]
+        return [
+            list(texts[i : i + self._chunk_size])
+            for i in range(0, len(texts), self._chunk_size)
+        ]
+
     def embed(self, texts: Sequence[str]) -> list[list[float]]:
-        kwargs: dict[str, Any] = {"model": self.model, "input": list(texts)}
-        if self._send_dimensions and self.dim != _native_dim(self.model):
-            kwargs["dimensions"] = self.dim
-        try:
-            resp = _DEFAULT_RETRY.call(self._client.embeddings.create, **kwargs)
-        except Exception as exc:
-            raise _redact_error(exc) from exc
-        return [list(item.embedding) for item in resp.data]
+        out: list[list[float]] = []
+        for batch in self._chunks(texts):
+            if not batch:
+                continue
+            kwargs: dict[str, Any] = {"model": self.model, "input": list(batch)}
+            if self._send_dimensions and self.dim != _native_dim(self.model):
+                kwargs["dimensions"] = self.dim
+            try:
+                resp = _DEFAULT_RETRY.call(self._client.embeddings.create, **kwargs)
+            except Exception as exc:
+                raise _redact_error(exc) from exc
+            out.extend(list(item.embedding) for item in resp.data)
+        return out
 
     async def aembed(self, texts: Sequence[str]) -> list[list[float]]:
-        kwargs: dict[str, Any] = {"model": self.model, "input": list(texts)}
-        if self._send_dimensions and self.dim != _native_dim(self.model):
-            kwargs["dimensions"] = self.dim
-        try:
-            resp = await _DEFAULT_RETRY.acall(self._aclient.embeddings.create, **kwargs)
-        except Exception as exc:
-            raise _redact_error(exc) from exc
-        return [list(item.embedding) for item in resp.data]
+        out: list[list[float]] = []
+        for batch in self._chunks(texts):
+            if not batch:
+                continue
+            kwargs: dict[str, Any] = {"model": self.model, "input": list(batch)}
+            if self._send_dimensions and self.dim != _native_dim(self.model):
+                kwargs["dimensions"] = self.dim
+            try:
+                resp = await _DEFAULT_RETRY.acall(self._aclient.embeddings.create, **kwargs)
+            except Exception as exc:
+                raise _redact_error(exc) from exc
+            out.extend(list(item.embedding) for item in resp.data)
+        return out
 
     def manifest_hash(self) -> str:
         suffix = f"/base={self._base_url}" if self._base_url else ""
         return f"openai-embed/{self.model}/dim={self.dim}{suffix}/v1"
+
+    # --- lifecycle ----------------------------------------------------------
+
+    def close(self) -> None:
+        """Shut down the sync + async SDK clients (httpx pools).
+
+        Both calls are best-effort: SDKs older than ~1.50 may not expose
+        `close()` on either client, and a freshly constructed adapter
+        may not have made any requests.  Swallow the corresponding
+        `AttributeError` / `RuntimeError` so close() is always safe.
+        """
+        _safe_close(self._client)
+        _safe_close(self._aclient)
+
+    async def aclose(self) -> None:
+        _safe_close(self._client)
+        await _safe_aclose(self._aclient)
+
+    def __enter__(self) -> "OpenAIEmbedder":
+        return self
+
+    def __exit__(self, *_exc: Any) -> None:
+        self.close()
+
+    async def __aenter__(self) -> "OpenAIEmbedder":
+        return self
+
+    async def __aexit__(self, *_exc: Any) -> None:
+        await self.aclose()
 
 
 class OpenAIChat:
@@ -224,6 +297,15 @@ class OpenAIChat:
     Pass `base_url` to point at any OpenAI-compatible chat endpoint
     (Moonshot/Kimi at `https://api.moonshot.ai/v1`, OpenRouter at
     `https://openrouter.ai/api/v1`, Together, vLLM, LM Studio, ...).
+
+    `completion_kwargs` is the constructor-time default applied to
+    every call.  The per-call `kwargs=` argument on `chat()` / `achat()`
+    merges over it (per-call wins) so a caller can override `temperature`
+    or `top_p` for a single message without rebuilding the adapter.
+
+    Supports the context-manager protocol — `close()` / `aclose()` shut
+    down the sync + async SDK clients so a long-running process can
+    reclaim the httpx pools.
     """
 
     name: str = "openai-chat"
@@ -256,25 +338,43 @@ class OpenAIChat:
             async_client if async_client is not None else _openai_module.AsyncOpenAI(**sdk_kwargs)
         )
 
-    def chat(self, messages: Sequence[Message]) -> str:
+    def _merged_kwargs(self, overrides: dict[str, Any] | None) -> dict[str, Any]:
+        """Merge per-call overrides over constructor defaults; per-call wins."""
+        if not overrides:
+            return self._kwargs
+        merged = dict(self._kwargs)
+        merged.update(overrides)
+        return merged
+
+    def chat(
+        self,
+        messages: Sequence[Message],
+        *,
+        kwargs: dict[str, Any] | None = None,
+    ) -> str:
         try:
             resp = _DEFAULT_RETRY.call(
                 self._client.chat.completions.create,
                 model=self.model,
                 messages=_to_openai_messages(messages),
-                **self._kwargs,
+                **self._merged_kwargs(kwargs),
             )
         except Exception as exc:
             raise _redact_error(exc) from exc
         return _extract_openai_content(resp, self.model)
 
-    async def achat(self, messages: Sequence[Message]) -> str:
+    async def achat(
+        self,
+        messages: Sequence[Message],
+        *,
+        kwargs: dict[str, Any] | None = None,
+    ) -> str:
         try:
             resp = await _DEFAULT_RETRY.acall(
                 self._aclient.chat.completions.create,
                 model=self.model,
                 messages=_to_openai_messages(messages),
-                **self._kwargs,
+                **self._merged_kwargs(kwargs),
             )
         except Exception as exc:
             raise _redact_error(exc) from exc
@@ -285,6 +385,60 @@ class OpenAIChat:
         h = hashlib.sha256(kwargs_blob.encode("utf-8")).hexdigest()[:16]
         suffix = f"/base={self._base_url}" if self._base_url else ""
         return f"openai-chat/{self.model}{suffix}/{h}"
+
+    # --- lifecycle ----------------------------------------------------------
+
+    def close(self) -> None:
+        """Shut down the sync + async SDK clients (httpx pools)."""
+        _safe_close(self._client)
+        _safe_close(self._aclient)
+
+    async def aclose(self) -> None:
+        _safe_close(self._client)
+        await _safe_aclose(self._aclient)
+
+    def __enter__(self) -> "OpenAIChat":
+        return self
+
+    def __exit__(self, *_exc: Any) -> None:
+        self.close()
+
+    async def __aenter__(self) -> "OpenAIChat":
+        return self
+
+    async def __aexit__(self, *_exc: Any) -> None:
+        await self.aclose()
+
+
+def _safe_close(client: Any) -> None:
+    """Best-effort `client.close()` — older SDKs may not expose it."""
+    close = getattr(client, "close", None)
+    if not callable(close):
+        return
+    try:
+        close()
+    except Exception:  # pragma: no cover - defensive
+        pass
+
+
+async def _safe_aclose(client: Any) -> None:
+    """Best-effort `await client.aclose()` — falls back to sync close().
+
+    The Anthropic + OpenAI async SDKs use `aclose()` on the AsyncClient;
+    older builds expose plain `close()` that may or may not be a
+    coroutine.  We try both so callers can `await provider.aclose()`
+    irrespective of which SDK version is installed.
+    """
+    aclose = getattr(client, "aclose", None)
+    if callable(aclose):
+        try:
+            result = aclose()
+            if hasattr(result, "__await__"):
+                await result
+        except Exception:  # pragma: no cover - defensive
+            pass
+        return
+    _safe_close(client)
 
 
 # Native output dim per embedding model. -1 means "unknown"; the

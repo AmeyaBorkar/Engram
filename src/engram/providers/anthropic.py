@@ -100,7 +100,16 @@ def _build_sdk_kwargs(api_key: str | None, timeout: float | None) -> dict[str, A
 
 
 class AnthropicChat:
-    """Anthropic Messages API adapter (`claude-haiku-4-5-20251001` by default)."""
+    """Anthropic Messages API adapter (`claude-haiku-4-5-20251001` by default).
+
+    `completion_kwargs` is the constructor-time default applied to every
+    call.  Per-call overrides flow through the `kwargs=` argument on
+    `chat()` / `achat()`; per-call wins.
+
+    Supports the context-manager protocol — `close()` / `aclose()` shut
+    down the sync + async SDK clients so the httpx pools don't outlive
+    a long-running process.
+    """
 
     name: str = "anthropic-chat"
 
@@ -130,18 +139,35 @@ class AnthropicChat:
             else _anthropic_module.AsyncAnthropic(**sdk_kwargs)
         )
 
-    def chat(self, messages: Sequence[Message]) -> str:
-        kwargs = self._build_kwargs(messages)
+    def _merged_kwargs(self, overrides: dict[str, Any] | None) -> dict[str, Any]:
+        if not overrides:
+            return self._kwargs
+        merged = dict(self._kwargs)
+        merged.update(overrides)
+        return merged
+
+    def chat(
+        self,
+        messages: Sequence[Message],
+        *,
+        kwargs: dict[str, Any] | None = None,
+    ) -> str:
+        call_kwargs = self._build_kwargs(messages, overrides=kwargs)
         try:
-            resp = _DEFAULT_RETRY.call(self._client.messages.create, **kwargs)
+            resp = _DEFAULT_RETRY.call(self._client.messages.create, **call_kwargs)
         except Exception as exc:
             raise _redact_error(exc) from exc
         return _join_text_blocks(resp.content, self.model)
 
-    async def achat(self, messages: Sequence[Message]) -> str:
-        kwargs = self._build_kwargs(messages)
+    async def achat(
+        self,
+        messages: Sequence[Message],
+        *,
+        kwargs: dict[str, Any] | None = None,
+    ) -> str:
+        call_kwargs = self._build_kwargs(messages, overrides=kwargs)
         try:
-            resp = await _DEFAULT_RETRY.acall(self._aclient.messages.create, **kwargs)
+            resp = await _DEFAULT_RETRY.acall(self._aclient.messages.create, **call_kwargs)
         except Exception as exc:
             raise _redact_error(exc) from exc
         return _join_text_blocks(resp.content, self.model)
@@ -151,18 +177,70 @@ class AnthropicChat:
         h = hashlib.sha256(kwargs_blob.encode("utf-8")).hexdigest()[:16]
         return f"anthropic-chat/{self.model}/max_tokens={self._max_tokens}/{h}"
 
-    def _build_kwargs(self, messages: Sequence[Message]) -> dict[str, Any]:
+    def _build_kwargs(
+        self,
+        messages: Sequence[Message],
+        *,
+        overrides: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         system_parts = [m.content for m in messages if m.role == "system"]
         non_system = [m for m in messages if m.role != "system"]
         kwargs: dict[str, Any] = {
             "model": self.model,
             "max_tokens": self._max_tokens,
             "messages": [{"role": m.role, "content": m.content} for m in non_system],
-            **self._kwargs,
+            **self._merged_kwargs(overrides),
         }
         if system_parts:
             kwargs["system"] = "\n\n".join(system_parts)
         return kwargs
+
+    # --- lifecycle ----------------------------------------------------------
+
+    def close(self) -> None:
+        _safe_close(self._client)
+        _safe_close(self._aclient)
+
+    async def aclose(self) -> None:
+        _safe_close(self._client)
+        await _safe_aclose(self._aclient)
+
+    def __enter__(self) -> "AnthropicChat":
+        return self
+
+    def __exit__(self, *_exc: Any) -> None:
+        self.close()
+
+    async def __aenter__(self) -> "AnthropicChat":
+        return self
+
+    async def __aexit__(self, *_exc: Any) -> None:
+        await self.aclose()
+
+
+def _safe_close(client: Any) -> None:
+    """Best-effort `client.close()` — older SDKs may not expose it."""
+    close = getattr(client, "close", None)
+    if not callable(close):
+        return
+    try:
+        close()
+    except Exception:  # pragma: no cover - defensive
+        pass
+
+
+async def _safe_aclose(client: Any) -> None:
+    """Best-effort `await client.aclose()` — falls back to sync close()."""
+    aclose = getattr(client, "aclose", None)
+    if callable(aclose):
+        try:
+            result = aclose()
+            if hasattr(result, "__await__"):
+                await result
+        except Exception:  # pragma: no cover - defensive
+            pass
+        return
+    _safe_close(client)
 
 
 def _join_text_blocks(content: Any, model: str) -> str:

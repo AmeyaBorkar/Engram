@@ -125,6 +125,15 @@ class DecayEngine:
         self._kinds = tuple(kinds)
         self._batch_size = batch_size
         self._last_tick: TickResult | None = None
+        # Lazy-initialized asyncio.Lock so `tick_async` calls are
+        # serialized for the duration of the sweep.  Two overlapping
+        # `tick_async` invocations used to race on `_last_tick` and
+        # interleave per-kind transactions; the lock makes the contract
+        # explicit (tick is exclusive) and the class docstring's
+        # atomicity guarantee actually hold.  Allocated on first use so
+        # an engine constructed outside any event loop doesn't fail to
+        # build.
+        self._async_lock: asyncio.Lock | None = None
 
     # --- introspection ------------------------------------------------------
 
@@ -178,6 +187,13 @@ class DecayEngine:
                 params=self._params,
             )
             now_cold = is_cold(new_weight, self._params)
+            # Write the weight/counter updates without touching `cold_at`
+            # — if the new weight crosses the cold threshold we route the
+            # transition through `mark_cold` instead so the storage layer
+            # invalidates the vector + BM25 caches.  Going via
+            # `update_decay_state` for the cold slot bypassed those
+            # dirty-flag flips (H-69 / M-80) and left freshly-cold items
+            # surfacing in retrieval until the next index rebuild.
             new_state = state.model_copy(
                 update={
                     "weight": new_weight,
@@ -185,10 +201,15 @@ class DecayEngine:
                     "corroboration_count": state.corroboration_count + corroboration,
                     "contradiction_count": state.contradiction_count + contradiction,
                     "last_decayed_at": moment,
-                    "cold_at": moment if now_cold else None,
+                    # cold_at is set below via mark_cold if the
+                    # transition fires; until then it stays untouched.
+                    "cold_at": state.cold_at,
                 }
             )
             self._storage.update_decay_state(new_state)
+            if now_cold and state.cold_at is None:
+                self._storage.mark_cold(item_id, kind, at=moment)
+                new_state = new_state.model_copy(update={"cold_at": moment})
             return new_state
 
     def reinforce(
@@ -246,32 +267,34 @@ class DecayEngine:
                 kind_processed = 0
                 kind_pruned = 0
                 kind_deleted = 0
-                # Materialize the hot snapshot so we can update during the
-                # same transaction without disturbing the iterator's view.
-                states = list(self._storage.iter_decay_states(kind, batch_size=self._batch_size))
-                for state in states:
-                    kind_processed += 1
-                    dt = max(0.0, (moment - state.last_decayed_at).total_seconds())
-                    new_weight = apply(weight=state.weight, dt_seconds=dt, params=self._params)
-                    became_cold = is_cold(new_weight, self._params)
-                    if (
-                        new_weight == state.weight
-                        and state.last_decayed_at == moment
-                        and not became_cold
-                    ):
-                        # Nothing changed. Skip the write.
-                        continue
 
-                    new_state = state.model_copy(
-                        update={
-                            "weight": new_weight,
-                            "last_decayed_at": moment,
-                            "cold_at": moment if became_cold else None,
-                        }
-                    )
-                    self._storage.update_decay_state(new_state)
-                    if became_cold:
-                        kind_pruned += 1
+                # Stream `iter_decay_states` instead of materializing
+                # the whole hot snapshot.  The storage layer streams in
+                # `batch_size` chunks via `cursor.fetchmany`; the engine
+                # buffers one chunk at a time and flushes updates per
+                # chunk so memory stays bounded at ~`batch_size *
+                # sizeof(DecayState)` regardless of corpus size.
+                # M-81: per-row UPDATE is intentionally per-state for
+                # now — a future `Storage.update_decay_state_many(...)`
+                # would let us collapse N round trips into one
+                # executemany call.  Leaving the per-row write here
+                # documented as a known perf gap.
+                chunk: list[DecayState] = []
+                iterator = self._storage.iter_decay_states(
+                    kind, batch_size=self._batch_size
+                )
+                for state in iterator:
+                    chunk.append(state)
+                    if len(chunk) >= self._batch_size:
+                        p, c = self._flush_chunk(chunk, kind, moment)
+                        kind_processed += p
+                        kind_pruned += c
+                        chunk.clear()
+                if chunk:
+                    p, c = self._flush_chunk(chunk, kind, moment)
+                    kind_processed += p
+                    kind_pruned += c
+                    chunk.clear()
 
                 if self._prune_policy == "delete":
                     try:
@@ -302,14 +325,67 @@ class DecayEngine:
         self._last_tick = result
         return result
 
+    def _flush_chunk(
+        self,
+        chunk: list[DecayState],
+        kind: ItemKind,
+        moment: datetime,
+    ) -> tuple[int, int]:
+        """Apply decay to one buffered chunk; return (processed, pruned).
+
+        Splits the existing per-row body of the sweep loop into its own
+        method so we can call it once per chunk from a streamed iterator
+        without materializing the entire hot snapshot.  Pruning still
+        routes through `mark_cold` (H-69 / M-80) so the vector + BM25
+        indexes get invalidated when an item transitions to cold during
+        the sweep.
+        """
+        processed = 0
+        pruned = 0
+        for state in chunk:
+            processed += 1
+            dt = max(0.0, (moment - state.last_decayed_at).total_seconds())
+            new_weight = apply(weight=state.weight, dt_seconds=dt, params=self._params)
+            became_cold = is_cold(new_weight, self._params)
+            if (
+                new_weight == state.weight
+                and state.last_decayed_at == moment
+                and not became_cold
+            ):
+                # Nothing changed. Skip the write.
+                continue
+
+            new_state = state.model_copy(
+                update={
+                    "weight": new_weight,
+                    "last_decayed_at": moment,
+                    # Keep cold_at unchanged here; the mark_cold call
+                    # below sets it via the storage path that also
+                    # flips the index dirty flags.
+                    "cold_at": state.cold_at,
+                }
+            )
+            self._storage.update_decay_state(new_state)
+            if became_cold and state.cold_at is None:
+                self._storage.mark_cold(state.item_id, kind, at=moment)
+                pruned += 1
+        return processed, pruned
+
     async def tick_async(self, *, now: datetime | None = None) -> TickResult:
         """Async wrapper around `tick`.
 
         Runs the sync tick on the default thread pool so an asyncio event
-        loop is not blocked. Stage 9 will introduce a native async storage
-        backend; until then this is the canonical async surface.
+        loop is not blocked.  Two concurrent `tick_async` calls used to
+        race on `_last_tick` and interleave per-kind transactions —
+        violating the docstring's atomicity claim — so the sweep is now
+        serialized behind an `asyncio.Lock`.  Stage 9 will introduce a
+        native async storage backend; until then this is the canonical
+        async surface.
         """
-        return await asyncio.to_thread(self.tick, now=now)
+        if self._async_lock is None:
+            self._async_lock = asyncio.Lock()
+        async with self._async_lock:
+            return await asyncio.to_thread(self.tick, now=now)
 
     # --- metrics ------------------------------------------------------------
 

@@ -304,3 +304,136 @@ class TestTickAsync:
             result = asyncio.run(engine.tick_async(now=_now()))
             assert isinstance(result, TickResult)
             assert result.items_processed >= 1
+
+    def test_concurrent_tick_async_serializes(self, tmp_path: Path) -> None:
+        """H-68: two `tick_async` calls must not interleave inside the sweep.
+
+        With the new `asyncio.Lock`, two `await engine.tick_async()` calls
+        scheduled together run one after the other.  Without the lock,
+        both would race on `_last_tick` and the underlying transaction.
+        """
+        with SqliteStorage(tmp_path / "x.db") as storage:
+            for _ in range(5):
+                _seed_event(storage)
+            engine = DecayEngine(storage)
+
+            order: list[str] = []
+            real_tick = engine.tick
+
+            def traced_tick(*args, **kwargs):
+                order.append("enter")
+                out = real_tick(*args, **kwargs)
+                order.append("exit")
+                return out
+
+            engine.tick = traced_tick  # type: ignore[method-assign]
+
+            async def go() -> None:
+                await asyncio.gather(
+                    engine.tick_async(now=_now()),
+                    engine.tick_async(now=_now()),
+                )
+
+            asyncio.run(go())
+            # Each tick must enter and exit before the next one enters
+            # (lock-serialized), so the order is enter-exit-enter-exit
+            # rather than enter-enter-exit-exit.
+            assert order == ["enter", "exit", "enter", "exit"]
+
+
+class TestColdTransitionInvalidatesIndexes:
+    """H-69 / M-80: cold transitions must route through `mark_cold`.
+
+    The previous engine wrote `cold_at = moment` directly via
+    `update_decay_state`, which skipped the index-invalidation hooks in
+    `Storage.mark_cold`.  These tests assert that the engine now calls
+    `mark_cold` when transitioning to cold so the vector + BM25 caches
+    pick up the change.
+    """
+
+    def test_record_cold_transition_calls_mark_cold(
+        self, tmp_path: Path
+    ) -> None:
+        with SqliteStorage(tmp_path / "x.db") as storage:
+            item = _seed_memory_item(storage, weight=0.30)
+            params = DecayParams(half_life_seconds=1e9, delta=0.30, threshold=0.10)
+            engine = DecayEngine(storage, params=params)
+
+            calls: list[tuple] = []
+            real_mark_cold = storage.mark_cold
+
+            def traced_mark_cold(item_id, kind, *, at):
+                calls.append((item_id, kind, at))
+                return real_mark_cold(item_id, kind, at=at)
+
+            storage.mark_cold = traced_mark_cold  # type: ignore[method-assign]
+
+            # Contradict pushes weight to 0.0 -> below threshold -> cold.
+            new_state = engine.contradict(item.id, ItemKind.MEMORY_ITEM, count=1)
+            assert new_state.cold_at is not None
+            # Verify mark_cold was invoked (which transitively flips the
+            # vector-index dirty flag and the BM25 dirty flag if kind is
+            # EVENT).
+            assert len(calls) == 1
+            assert calls[0][0] == item.id
+            assert calls[0][1] is ItemKind.MEMORY_ITEM
+
+    def test_tick_cold_transition_calls_mark_cold_per_event(
+        self, tmp_path: Path
+    ) -> None:
+        with SqliteStorage(tmp_path / "x.db") as storage:
+            event = _seed_event(storage)
+            params = DecayParams(half_life_seconds=1.0, threshold=0.05)
+            engine = DecayEngine(storage, params=params)
+
+            calls: list[tuple] = []
+            real_mark_cold = storage.mark_cold
+
+            def traced_mark_cold(item_id, kind, *, at):
+                calls.append((item_id, kind, at))
+                return real_mark_cold(item_id, kind, at=at)
+
+            storage.mark_cold = traced_mark_cold  # type: ignore[method-assign]
+
+            future = event.created_at + timedelta(seconds=20)
+            engine.tick(now=future)
+            # The single seeded event crosses the threshold during this
+            # tick, so mark_cold must fire exactly once for the EVENT
+            # kind — invalidating the BM25 cache.
+            event_calls = [c for c in calls if c[1] is ItemKind.EVENT]
+            assert len(event_calls) == 1
+            assert event_calls[0][0] == event.id
+
+
+class TestTickStreaming:
+    """H-66: tick must not materialize the full hot snapshot at once."""
+
+    def test_tick_streams_chunks_when_corpus_exceeds_batch_size(
+        self, tmp_path: Path
+    ) -> None:
+        with SqliteStorage(tmp_path / "x.db") as storage:
+            # Seed more events than the engine's `batch_size`.
+            for i in range(7):
+                _seed_event(storage, content=f"e{i}")
+            params = DecayParams(half_life_seconds=1e9, threshold=0.0)
+            # batch_size=2 forces the engine to flush 4 chunks (3 full
+            # + 1 tail) instead of one giant list.
+            engine = DecayEngine(storage, params=params, batch_size=2)
+
+            calls: list[int] = []
+            real_iter = storage.iter_decay_states
+
+            def traced(kind, *, include_cold=False, batch_size=1000):
+                # Record the batch_size that arrives so we can assert
+                # the engine actually drives the streaming contract
+                # rather than calling once with a huge buffer.
+                calls.append(batch_size)
+                yield from real_iter(
+                    kind, include_cold=include_cold, batch_size=batch_size
+                )
+
+            storage.iter_decay_states = traced  # type: ignore[method-assign]
+            engine.tick(now=_now())
+            # iter_decay_states is called once per kind (3 kinds), each
+            # with the engine's configured `batch_size`.
+            assert all(b == 2 for b in calls)

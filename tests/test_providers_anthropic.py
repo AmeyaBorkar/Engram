@@ -130,3 +130,84 @@ def test_anthropic_chat_manifest_hash_pins_model_max_tokens_kwargs() -> None:
     assert a.manifest_hash() != b.manifest_hash()
     assert a.manifest_hash() != c.manifest_hash()
     assert a.manifest_hash() != d.manifest_hash()
+
+
+# ---------------------------------------------------------------------------
+# M-173: per-call kwargs override constructor defaults
+# ---------------------------------------------------------------------------
+
+
+def test_anthropic_chat_per_call_kwargs_override_constructor_kwargs() -> None:
+    client = MagicMock()
+    client.messages.create.return_value = _make_response(_text_block("ok"))
+    c = AnthropicChat(
+        client=client,
+        async_client=AsyncMock(),
+        completion_kwargs={"temperature": 0.0, "top_p": 0.95},
+    )
+    c.chat([Message(role="user", content="x")], kwargs={"temperature": 1.0})
+    kw = client.messages.create.call_args.kwargs
+    # Per-call wins; constructor default for top_p still applies.
+    assert kw["temperature"] == 1.0
+    assert kw["top_p"] == 0.95
+
+
+def test_anthropic_chat_per_call_kwargs_isolated_per_call() -> None:
+    client = MagicMock()
+    client.messages.create.return_value = _make_response(_text_block("ok"))
+    c = AnthropicChat(
+        client=client,
+        async_client=AsyncMock(),
+        completion_kwargs={"temperature": 0.0},
+    )
+    c.chat([Message(role="user", content="x")], kwargs={"temperature": 1.0})
+    c.chat([Message(role="user", content="y")])
+    assert client.messages.create.call_args.kwargs["temperature"] == 0.0
+
+
+def test_anthropic_chat_achat_per_call_kwargs() -> None:
+    aclient = AsyncMock()
+    aclient.messages.create.return_value = _make_response(_text_block("ok"))
+    c = AnthropicChat(
+        client=MagicMock(),
+        async_client=aclient,
+        completion_kwargs={"temperature": 0.0},
+    )
+    asyncio.run(c.achat([Message(role="user", content="x")], kwargs={"temperature": 0.5}))
+    assert aclient.messages.create.call_args.kwargs["temperature"] == 0.5
+
+
+# ---------------------------------------------------------------------------
+# M-94: close() / aclose() / context manager
+# ---------------------------------------------------------------------------
+
+
+def test_anthropic_chat_close_calls_sdk_close() -> None:
+    client = MagicMock()
+    aclient = MagicMock()
+    c = AnthropicChat(client=client, async_client=aclient)
+    c.close()
+    assert client.close.call_count == 1
+    assert aclient.close.call_count == 1
+
+
+def test_anthropic_chat_context_manager() -> None:
+    client = MagicMock()
+    aclient = MagicMock()
+    with AnthropicChat(client=client, async_client=aclient) as c:
+        assert c is not None
+    assert client.close.call_count == 1
+    assert aclient.close.call_count == 1
+
+
+def test_anthropic_chat_async_context_manager() -> None:
+    client = MagicMock()
+    aclient = MagicMock()
+    aclient.aclose = AsyncMock()
+
+    async def go() -> None:
+        async with AnthropicChat(client=client, async_client=aclient) as c:
+            assert c is not None
+
+    asyncio.run(go())
+    assert aclient.aclose.call_count == 1

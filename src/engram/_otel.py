@@ -21,6 +21,7 @@ surface, which is stable and lightweight. The SDK is for callers.
 
 from __future__ import annotations
 
+import logging
 import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -40,6 +41,9 @@ try:
     INSTRUMENTATION_VERSION: str = _pkg_version("engrampy")
 except _PNFE:  # pragma: no cover - dev tree without install
     INSTRUMENTATION_VERSION = "0.0.0+unknown"
+
+
+_LOG = logging.getLogger("engram.otel")
 
 
 try:
@@ -88,6 +92,25 @@ def is_otel_available() -> bool:
     return _OTEL_AVAILABLE
 
 
+def _safe_set_attribute(span: "Span", key: str, value: Any) -> None:
+    """Set `key=value` on `span`, swallowing type errors.
+
+    OTel rejects attribute values outside `bool | int | float | str |
+    Sequence[bool | int | float | str]`.  Caller code passes mixed
+    payloads (UUIDs, datetimes, enums, model objects) — letting the
+    `TypeError` / `ValueError` propagate kills the span, the wrapped
+    operation succeeds without telemetry, and the surface error is
+    confusing.  We log at DEBUG and move on so a bad attribute key
+    doesn't break the user-visible call.
+    """
+    try:
+        span.set_attribute(key, value)
+    except (TypeError, ValueError) as exc:  # pragma: no cover - defensive
+        _LOG.debug(
+            "otel: rejected attribute %s=%r: %s", key, value, exc
+        )
+
+
 @contextmanager
 def span(name: str, **attributes: Any) -> Iterator[Span | None]:
     """Wrap a block of code in a span if OTel is available.
@@ -99,8 +122,21 @@ def span(name: str, **attributes: Any) -> Iterator[Span | None]:
             if s is not None:
                 s.set_attribute("memory.event_id", str(event.id))
 
+    Common attributes the rest of the codebase passes here:
+
+      * `k` — retrieve top-k count
+      * `mode` — retrieve routing path (`base`/`hyde`/`multi`/...)
+      * `tenant_id` — multi-tenant scope key (memory.py retrieve / observe
+        call sites pass this when set so dashboards can break down the
+        per-tenant call rate without scraping each Memory instance)
+      * `engram.event_id` / `engram.retrieve.n_results` — emitted by
+        the wrapped operation, not at span entry.
+
     The `s` yielded is the underlying `Span` or `None`. Callers can
     add attributes conditionally; the no-op path costs almost nothing.
+    Attribute values that OTel rejects (anything outside `bool | int |
+    float | str | Sequence[...]`) are swallowed by `_safe_set_attribute`
+    so a bad attribute key doesn't tear down the surrounding span.
     """
     if not _OTEL_AVAILABLE:
         yield None
@@ -109,7 +145,7 @@ def span(name: str, **attributes: Any) -> Iterator[Span | None]:
     with tracer.start_as_current_span(name) as s:
         for key, value in attributes.items():
             if value is not None:
-                s.set_attribute(key, value)
+                _safe_set_attribute(s, key, value)
         yield s
 
 
@@ -134,6 +170,13 @@ class _Metrics:
         self._observe_count: Counter | None = None
         self._consolidate_count: Counter | None = None
         self._reconcile_count: Counter | None = None
+        # I-05: observability gaps — counters added so dashboards can
+        # alert on transient failure modes that the engine previously
+        # swallowed without signal.
+        self._reinforce_error_count: Counter | None = None
+        self._auto_temporal_fallback_count: Counter | None = None
+        self._verify_parse_fallback_count: Counter | None = None
+        self._merge_fallback_count: Counter | None = None
 
     def _init(self) -> None:
         if self._initialized or not _OTEL_AVAILABLE:
@@ -166,12 +209,52 @@ class _Metrics:
             "engram.reconcile.calls",
             description="Total number of Memory.reconcile calls",
         )
+        self._reinforce_error_count = meter.create_counter(
+            "engram.reinforce.errors",
+            description=(
+                "Reinforcement signals that the storage layer rejected "
+                "(item missing, already cold, etc.).  A non-zero rate "
+                "indicates retrieve↔storage drift."
+            ),
+        )
+        self._auto_temporal_fallback_count = meter.create_counter(
+            "engram.retrieve.auto_temporal_fallback",
+            description=(
+                "Auto-temporal retrieves that produced zero hits and "
+                "fell back to dropping the lexical_filter for a re-run."
+            ),
+        )
+        self._verify_parse_fallback_count = meter.create_counter(
+            "engram.verify.parse_fallback",
+            description=(
+                "Verify calls that failed to parse the judge response "
+                "and fell back to the supported=True default."
+            ),
+        )
+        self._merge_fallback_count = meter.create_counter(
+            "engram.reconcile.merge_fallback",
+            description=(
+                "Merge resolutions that exhausted retries and fell back "
+                "to one parent's content (audit-trail signal: a non-zero "
+                "rate means human review is overdue)."
+            ),
+        )
         self._initialized = True
 
-    def retrieve_call(self, k: int) -> None:
+    def retrieve_call(self, k: int, *, mode: str | None = None) -> None:
+        """Record one retrieve call.
+
+        `mode` distinguishes the routing path
+        (`"base"`/`"hyde"`/`"multi"`/`"decompose"`/`"temporal"`) so a
+        dashboard can break the call rate down by feature without
+        re-instrumenting Memory.retrieve.  Defaults to `"base"` when
+        the caller doesn't specify — the unannotated retrieves still
+        attribute to a known bucket.
+        """
         self._init()
         if self._retrieve_count is not None:
-            self._retrieve_count.add(1, {"k": k})
+            attrs: dict[str, Any] = {"k": k, "mode": mode or "base"}
+            self._retrieve_count.add(1, attrs)
 
     def retrieve_latency(self, ms: float, *, k: int) -> None:
         self._init()
@@ -192,6 +275,38 @@ class _Metrics:
         self._init()
         if self._reconcile_count is not None:
             self._reconcile_count.add(1, {"resolution": resolution})
+
+    def reinforce_error(self, *, reason: str | None = None) -> None:
+        """Record a swallowed reinforcement error.
+
+        `reason` is a short tag (`"missing"`, `"cold"`, `"transient"`)
+        for downstream attribution; omitted when the caller can't
+        cleanly classify.
+        """
+        self._init()
+        if self._reinforce_error_count is not None:
+            attrs: dict[str, Any] = {}
+            if reason is not None:
+                attrs["reason"] = reason
+            self._reinforce_error_count.add(1, attrs)
+
+    def auto_temporal_fallback(self) -> None:
+        """Record one auto-temporal lexical-filter drop fallback."""
+        self._init()
+        if self._auto_temporal_fallback_count is not None:
+            self._auto_temporal_fallback_count.add(1)
+
+    def verify_parse_fallback(self) -> None:
+        """Record one verify-judge parse failure that defaulted to supported=True."""
+        self._init()
+        if self._verify_parse_fallback_count is not None:
+            self._verify_parse_fallback_count.add(1)
+
+    def merge_fallback(self) -> None:
+        """Record one merge resolution that exhausted retries."""
+        self._init()
+        if self._merge_fallback_count is not None:
+            self._merge_fallback_count.add(1)
 
 
 METRICS = _Metrics()

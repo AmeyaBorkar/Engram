@@ -180,3 +180,80 @@ class TestInstrumentationName:
 def test_otel_available() -> None:
     """Smoke: the dev environment ships opentelemetry-api."""
     assert is_otel_available()
+
+
+# ---------------------------------------------------------------------------
+# I-05: new counters + mode attribute on retrieve_call
+# ---------------------------------------------------------------------------
+
+
+class TestObservabilityCounters:
+    def test_retrieve_call_accepts_mode_keyword(self) -> None:
+        """METRICS.retrieve_call(k, mode=...) must accept all modes
+        without raising, even before OTel is wired."""
+        from engram._otel import METRICS
+
+        for mode in ("base", "hyde", "multi", "decompose", "temporal", None):
+            METRICS.retrieve_call(k=10, mode=mode)
+
+    def test_reinforce_error_counter_exists(self) -> None:
+        from engram._otel import METRICS
+
+        METRICS.reinforce_error(reason="missing")
+        METRICS.reinforce_error()  # reason omitted
+
+    def test_auto_temporal_fallback_counter_exists(self) -> None:
+        from engram._otel import METRICS
+
+        METRICS.auto_temporal_fallback()
+
+    def test_verify_parse_fallback_counter_exists(self) -> None:
+        from engram._otel import METRICS
+
+        METRICS.verify_parse_fallback()
+
+    def test_merge_fallback_counter_exists(self) -> None:
+        from engram._otel import METRICS
+
+        METRICS.merge_fallback()
+
+
+# ---------------------------------------------------------------------------
+# M-202: span.set_attribute guarded against TypeError / ValueError
+# ---------------------------------------------------------------------------
+
+
+class TestSpanSafeSetAttribute:
+    def test_span_swallows_unsupported_attribute_type(
+        self, span_exporter: InMemorySpanExporter
+    ) -> None:
+        """OTel rejects values outside its supported scalar/sequence types;
+        the helper must log + continue rather than tearing down the span.
+        """
+        from engram._otel import span as span_cm
+
+        class _Weird:
+            def __repr__(self) -> str:
+                return "<weird>"
+
+        # `set_attribute(..., _Weird())` raises TypeError in OTel; the
+        # helper must catch it (the assertion is that no exception
+        # surfaces here).
+        with span_cm("engram.test.attr_guard", weird=_Weird()) as s:
+            assert s is not None
+            # Inside the block, a stray set_attribute on a weird value
+            # also must not propagate.
+            from engram._otel import _safe_set_attribute
+
+            _safe_set_attribute(s, "ok", "yes")
+            _safe_set_attribute(s, "bad", _Weird())
+
+        spans = span_exporter.get_finished_spans()
+        # The span finished cleanly — its name + the safe attributes
+        # land in the export; the bad ones are dropped.
+        attr_guard_span = next(
+            sp for sp in spans if sp.name == "engram.test.attr_guard"
+        )
+        attrs = dict(attr_guard_span.attributes or {})
+        assert attrs.get("ok") == "yes"
+        assert "bad" not in attrs
