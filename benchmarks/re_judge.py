@@ -36,6 +36,7 @@ import argparse
 import importlib.util
 import json
 import logging
+import os
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -46,6 +47,31 @@ from typing import Any
 # Suite module lives outside the package; load it the way the bench loader does.
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _SUITE_PATH = _REPO_ROOT / "benchmarks" / "suites" / "longmemeval.py"
+
+
+def _load_env_file(path: Path) -> bool:
+    """Best-effort `.env` loading. Mirrors engram.bench._cli._load_env_file
+    so this script works the same way the bench CLI does without
+    importing a private helper. Existing env vars take precedence.
+    """
+    if not path.exists():
+        return False
+    try:
+        from dotenv import load_dotenv  # type: ignore[import-not-found]
+    except ImportError:
+        with path.open("r", encoding="utf-8") as f:
+            for raw in f:
+                line = raw.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, _, value = line.partition("=")
+                key = key.strip()
+                value = value.strip().strip('"').strip("'")
+                if key and key not in os.environ:
+                    os.environ[key] = value
+        return True
+    load_dotenv(path, override=False)
+    return True
 
 
 def _load_suite_module() -> Any:
@@ -173,9 +199,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output", type=Path, default=None,
                         help="Output report JSON path. Default: "
                              "benchmarks/re_judge_<manifest-stem>_<ts>.json")
+    parser.add_argument("--env-file", type=Path, default=Path(".env"),
+                        help="Path to a .env file to load before resolving "
+                             "the provider (default: .env in cwd). Existing "
+                             "environment variables take precedence.")
     parser.add_argument("--log-level", default="INFO",
                         choices=("DEBUG", "INFO", "WARNING", "ERROR"))
     args = parser.parse_args(argv)
+
+    if _load_env_file(args.env_file):
+        print(f"loaded {args.env_file}", file=sys.stderr)
 
     logging.basicConfig(
         level=args.log_level,
