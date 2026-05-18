@@ -234,7 +234,7 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument(
         "--prompt-version",
         default="v1",
-        choices=("v1", "v2", "v2a", "v2b", "v2c"),
+        choices=("v1", "v2", "v2a", "v2b", "v2c", "v3"),
         help=(
             "Answer-prompt template version (longmemeval only). "
             "v1 = original. "
@@ -242,8 +242,11 @@ def build_parser() -> argparse.ArgumentParser:
             "v2a = abstain anchoring only, softened (no qtype hints, no CoT). "
             "v2b = per-qtype format hints only (no abstain, no CoT). "
             "v2c = v2a + v2b combined. "
-            "Default v1. See JOURNEY section 23 and the v2 follow-up for the "
-            "design rationale per variant."
+            "v3 = cap-fix-era residual cleanup: explanatory abstain in base "
+            "prompt (recovers _abs questions wanting 'you didn't mention X "
+            "but mentioned Y') + sss-preference synthesis hint (recovers "
+            "preference questions where the model defaults to 'I don't know'). "
+            "Default v1. See JOURNEY section 23 / 24 for the design rationale."
         ),
     )
     run.add_argument(

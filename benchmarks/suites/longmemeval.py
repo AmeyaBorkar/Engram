@@ -175,6 +175,24 @@ _V2B_QTYPE_HINTS: dict[str, str] = {
     "knowledge-update": ("Expected answer form: the most recent value for the fact. 1-5 words."),
 }
 
+# v3 qtype hints. Designed to address residual failures after the cap fix
+# (JOURNEY §24 + commit 52a25bf): with the 1024-token cliff gone, the model
+# now produces clean concise answers BUT still defaults to "I don't know"
+# on (a) `_abs` abstain questions where the gold expects "you didn't
+# mention X, you mentioned Y" and (b) sss-preference questions where the
+# gold is a tailored synthesis starting with "The user would prefer ...".
+# v3 attacks (a) at the base-prompt level (see longmemeval_answer_v3.txt)
+# and (b) via this per-qtype hint.
+_V3_QTYPE_HINTS: dict[str, str] = {
+    "single-session-preference": (
+        "This is a PREFERENCE question. Synthesize a single-sentence "
+        "tailored suggestion starting with 'The user would prefer ...'. "
+        "Do NOT say 'I don't know' for preference questions -- infer "
+        "from the user's stated interests / past purchases / topic "
+        "patterns visible in memory."
+    ),
+}
+
 # Map prompt_version -> (template_filename_version, qtype_hints_dict).
 # Centralizing this here keeps _answer_with_phase_e simple and gives the
 # CLI / test code one place to look for available variants.
@@ -183,12 +201,17 @@ _V2B_QTYPE_HINTS: dict[str, str] = {
 # - v2a: abstain anchoring only, softened.  No qtype hints.
 # - v2b: per-qtype format hints only.  No abstain anchoring, no scratchpad.
 # - v2c: abstain (softened) + per-qtype format hints, no scratchpad.
+# - v3:  cap-fix-era residual cleanup -- explanatory abstain in base prompt
+#        + sss-preference synthesis hint.  No CoT, no qtype hints on the
+#        qtypes the cap fix already lifted (multi-session / temporal /
+#        knowledge-update) to avoid overfitting the 80% n=100 manifest.
 _PROMPT_VARIANTS: dict[str, tuple[str, dict[str, str]]] = {
     "v1": ("v1", {}),
     "v2": ("v2", _V2_QTYPE_HINTS),
     "v2a": ("v2a", {}),
     "v2b": ("v2b", _V2B_QTYPE_HINTS),
     "v2c": ("v2c", _V2B_QTYPE_HINTS),
+    "v3": ("v3", _V3_QTYPE_HINTS),
 }
 
 # Question-type-specific hints for the judge, taken verbatim from the

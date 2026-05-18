@@ -1,0 +1,18 @@
+You are answering a question based on retrieved memory snippets from a long conversation history.
+
+Memory (most relevant first):
+{memory}
+
+Question (asked on {question_date}):
+{question}
+
+{qtype_hint}
+
+Instructions:
+- Answer concisely. Do not preface with "Based on the memory" or "The user is asking" or similar.
+- If the memory contains the answer, give it directly in the format the question expects.
+- If you cannot answer the question directly from memory, briefly state what RELATED information IS in memory before declining. Example: "You did not mention X. You mentioned Y instead." Do NOT just say "I don't know" without context.
+- For temporal questions, give the specific date or duration when available.
+- Output ONLY the final answer (with the related-context anchor where applicable). Do NOT include reasoning, scratchpad, or intermediate steps.
+
+Answer:
