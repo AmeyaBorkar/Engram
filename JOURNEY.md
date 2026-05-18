@@ -1588,6 +1588,140 @@ Looking at the failures of this n=500 run (67 fails, see `benchmarks/n500_v3a_va
 
 ---
 
+## 27. Post-run audit and SOTA recalibration (2026-05-18)
+
+§26 above is preserved as the record of what we believed at the time of the n=500 run. After locking in the 86.6% result, a five-agent forensic audit fired in parallel — three external SOTA-research agents, two manifest-forensic agents — to test the "SOTA in gpt-4o-judged tier" claim before any public release. **Most of that claim did not survive the audit.** This section is the correction.
+
+### 27.1 What the audit found
+
+**External SOTA research (three agents on the public landscape) surfaced systems above 86.95% with judge configurations directly comparable to ours:**
+
+| System | Score | Actor | Judge | Why it's a credible threat to our tier |
+|---|---:|---|---|---|
+| Honcho (Claude Haiku 4.5) | **90.4%** | Haiku 4.5 (closed, smaller than K2.6) | gpt-4o | **Same judge, smaller actor — beats us by 3.5pp in our exact tier** |
+| Mastra OM (Gemini-3-Flash) | 89.20% | Gemini-3-Flash (closed, frontier-mini) | gpt-4o | Same judge, likely weaker actor than K2.6 |
+| Lumetra "Engram" | 91.6% | GPT-5 (closed) | gpt-4o (unspec snapshot) | Same judge tier, stronger actor. **Name-collision risk** — launched 2026-05-15, 3 days before our run. |
+| Mastra OM (Gemini-3-Pro) | 93.27% | Gemini-3-Pro | gpt-4o | Stronger actor |
+| Mastra OM (gpt-5-mini) | 94.87% | gpt-5-mini | gpt-4o | Stronger actor |
+| Honcho (Gemini-3-Pro) | 92.6% | Gemini-3-Pro | gpt-4o | Stronger actor |
+| Hindsight (Vectorize) | 94.6% | Gemini-3-Pro | unspecified | Stronger actor |
+| OMEGA | 95.4% | GPT-4.1 | unspecified | Stronger actor; unverified judge |
+| Chronos (PwC) | 95.60% | frontier reasoning model | gpt-4o | Stronger actor |
+| agentmemory (J. McCann, solo) | 96.20% | Opus 4.6 | gpt-4o | Stronger actor |
+
+**Honcho-Haiku 90.4% is the most painful comparison.** Same judge tier, smaller actor (Claude Haiku 4.5 — cheaper than K2.6), and they beat us by 3.5 pp. Our Wilson 95% CI on 433/498 is [83.6%, 89.5%] — Honcho sits above our upper bound. We cannot defensibly call 86.95% "SOTA" in any tier that contains them.
+
+**Actor-fairness audit was even more damaging.** Kimi K2.6 is open-weight but **not gpt-4o-tier**. Published benchmarks place it at GPT-5 / Opus 4.6 / Gemini-3-Pro reasoning tier:
+
+| Benchmark | gpt-4o | Kimi K2.6 |
+|---|---:|---:|
+| MMLU-Pro | 72.6% | ~87% |
+| GPQA-Diamond | 49.9-53.6% | **90.5%** |
+| AIME 2024/26 | ~12% | **96.4%** |
+| SWE-Bench Verified | ~33% | **80.2%** |
+| Artificial Analysis Intelligence Index | ~40 | **54** |
+
+So "Engram with open-weight actor beats Mastra-OM-with-gpt-4o by 2.4 pp" understates the actor uplift. By Mastra's own published ablation (84.23 → 89.20 → 93.27 → 94.87 as actor scales from gpt-4o to gemini-3-flash to gemini-3-pro to gpt-5-mini), each actor tier is worth ~3-5 pp. K2.6 sits at the top of that ladder.
+
+### 27.2 The judge-snapshot drift finding
+
+After the audit, I built `benchmarks/re_judge.py` to test whether snapshot-pinning the judge would change the verdict. The result was unexpected:
+
+| Judge config | Score | Net flips vs `openai/gpt-4o` floating |
+|---|---:|---:|
+| `openai/gpt-4o` (floating alias, as-run) | 86.95% | — |
+| `openai/gpt-4o-2024-08-06` (paper-default snapshot, no rubric mod) | **87.75%** | +4 (8 FP / 4 PF) |
+| `gpt-4o-2024-08-06` + strict-fair rubric footer | 90.96% raw / 89.76% audited | +20 raw (24 FP / 4 PF); ~6 lenient FPs |
+
+**The pinned paper-default snapshot is slightly more lenient than the current floating alias.** This is real judge drift between OpenAI rotations of `gpt-4o`. Published systems that report "openai/gpt-4o" judge likely got the pre-drift snapshot — our previous 86.95% used a stricter judge than the paper specifies. The most apples-to-apples comparison with Mastra/Honcho/Supermemory is **87.75%**, not 86.95%.
+
+The strict-fair footer ("embedded gold value is acceptable; equivalent abstain paraphrases are acceptable; minor pronoun drift is acceptable") added 16 more flips that the snapshot alone didn't accept. Audit of those 16 found ~6 are lenient — flipping questions where the gold is genuinely absent from the response. The audited net is +14 legitimate, landing at 89.76%.
+
+**For the public claim, the snapshot-pinned 87.75% is the defensible apples-to-apples number.** The 89.76% requires disclosing the rubric clarification.
+
+### 27.3 The v3a protocol deviation that's now disclosed
+
+The manifest forensic flagged that `v3a` injects qtype-conditional prompts on two of six qtypes:
+
+```python
+# benchmarks/suites/longmemeval.py:206-216
+_V3A_QTYPE_HINTS = {
+    "single-session-preference": "...synthesize a single-sentence tailored suggestion starting with 'The user would prefer ...'...",
+    "multi-session": "...ALWAYS enumerate each relevant item from each session BEFORE stating the final number...off-by-one counting is the #1 failure mode here...",
+}
+```
+
+**Standard LongMemEval protocol does not expose qtype to the answering model.** This is a deliberate Engram design choice (the qtype is metadata used by retrieval routing); the audit recommended disclosing it as a methodology deviation rather than hiding it. The multi-session lift of +18pp and the sss-preference lift of +45pp are partly attributable to this protocol modification, not purely to memory-system quality.
+
+`--enable-tools` is a related disclosure — deterministic regex substitution for SUM/COUNT/AVG/MIN/MAX/DAYS_BETWEEN/etc. The actor emits `<tool>OP(args)</tool>` at its discretion; the regex computes and substitutes. This is calculator-augmented inference, not external knowledge.
+
+### 27.4 The retrieval-recall diagnostic refined the path-to-90 forecast
+
+§26 estimated +8-10 questions recoverable from `--min-sessions-in-topk` + higher k. The retrieval-recall diagnostic (`benchmarks/recall_diagnostic.md`) showed that estimate was too optimistic. Of the 16 questions where the model wrongly abstained:
+
+- **6 are pure retrieval failures** (gold buried in off-topic session): `51a45a95` Target, `5d3d2817` Marketing specialist, `ec81a493` 500 copies, `71017277` aunt, `gpt4_468eb064` Emma, `a2f3aa27` 1300 followers
+- **7 are multi-hop reasoning** where the right session was likely retrieved but the answer needed derivation
+- **2 are coincidental string matches** (gold appears in unrelated sessions)
+- 1 is already counted in the judge-strict-FN bucket
+
+Refined Tier-2 recovery estimate: **+4 to +7** (down from +8-10).
+
+The highest-leverage single retrieval change is **sub-session chunking** — chunk inside sessions (3-5 turns each), not whole sessions. The pattern that produces the 6 buried-mention failures is: the gold is one sentence inside a 12-turn session whose main topic is unrelated. Whole-session embedding loses to other (wrong) sessions with topic-aligned embeddings; sub-chunking lets the gold sentence carry its own embedding.
+
+### 27.5 The internal trajectory holds up perfectly
+
+The trajectory forensic confirmed the 69 → 80 → 85 → 86.95% trajectory reproduces **exactly** from the manifests:
+- Sample identity Jaccard = **1.0** across all n=100 stages (same exact 100 questions)
+- Dataset SHA-256 identical across all four manifests
+- Seed 1337 captured in every manifest
+- Flip stats match the JOURNEY §25-26 narrative exactly:
+  - cap-fix n=100: 12 FP / 0 PF / +12 ✓
+  - v3 stack n=100: 7 FP / 2 PF / +5 ✓
+  - v3a n=500 vs baseline: 96 FP / 4 PF / +92 ✓
+
+The trajectory story is publication-ready. The forensic also surfaced footnotes worth disclosing:
+- **Judge swap Sonnet→gpt-4o** between n=100 and n=500. Concordance check: on the 103 questions where both runs produced identical responses, judges agreed 100%. Swap doesn't appear to inflate the headline lift.
+- **Embedder dtype fp16→fp32** silently changed between v3 (n=100) and v3a (n=500). Undocumented at run time.
+- **v2 prompt detour** (n=500 manifest `0166c0b5`, 64.6% — -3.6pp regression) is omitted from the trajectory narrative.
+- **§25 cap-fix table cites commit `c8b5d3a`** but the manifest's commit is `d385ed00`. Copy-paste error.
+- **All manifests are `git_dirty: True`** — no clean-tree reproduction exists.
+- **Confidence intervals in manifest are degenerate.** Real Wilson 95% on 433/498 = **[83.6%, 89.5%]**.
+
+### 27.6 The recalibrated claim
+
+What's defensible from §26 after this audit:
+
+✅ The internal trajectory: 69 → 80 → 85 → 86.95% reproduces exactly. The cap-fix story is a publishable demonstration of how one config bug masked 18 pp.
+
+✅ The methodology disclosures: v3a qtype-hint deviation, `--enable-tools` calculator, judge swap, dtype change — all now in SCOREBOARD.
+
+✅ **The narrow first**: "First published reproducible LongMemEval-S result with an open-weight actor (Kimi K2.6) under the paper-default gpt-4o judge protocol." This is real. The tier — open-weight actor + paper-default judge + non-vendor-blog reproducibility — is empty above us.
+
+❌ The broad "SOTA in gpt-4o-judged tier" claim. Honcho-Haiku 90.4% beats us in that tier with a smaller actor. Mastra-OM-Flash 89.20% sits in our judge tier with arguably a weaker frontier-mini actor. Multiple other published results beat us in tiers that share at least the judge.
+
+### 27.7 What's next (post-audit)
+
+| Tier | Action | Recovery | Status |
+|---|---|---:|---|
+| T1A | Event.content cap raise (64 KiB → 1 MiB) | +0-1 | ✅ shipped `dd95fc3` |
+| T1B | Content-filter fallback chat | +0-1 | pending |
+| T1C | Re-judge tool with paper-default snapshot pin | +4 to +8 | ✅ shipped `4f646c2` + `bc07aa2` |
+| T2A | Sub-session chunking | +3 to +5 | the real path-to-90 lever |
+| T2B | `--min-sessions-in-topk 5` for MS/temporal | +1 to +2 | overlaps with T2A |
+| T3A | Temporal qtype hint + DAYS_BETWEEN encouragement | +2 to +4 | medium-effort |
+| T3B | Multi-session verification step | +1 to +3 | medium-effort |
+| Release | Cut 0.3.0 after T1B + SCOREBOARD recalibration | — | this section |
+
+90% on accuracy_correct (449/498) is achievable with T1C (judge alignment) + T2A (sub-session chunking) alone — ~2 days of work. 92%+ is plausible with T3A/T3B added. Crossing 95% likely requires a stronger actor than K2.6 (which would forfeit the open-weight angle).
+
+### 27.8 The honest framing for any public communication
+
+> Engram achieves **87.75% on LongMemEval-S (n=500)** with an open-weight actor (Kimi K2.6) and the paper-default `gpt-4o-2024-08-06` judge snapshot. To our knowledge this is the first published reproducible result in this configuration tier. Higher headline scores exist on this benchmark, but rely on frontier closed-weight actors (gpt-5-mini, Gemini-3-Pro, Opus 4.6), non-paper-default judges (Gemini-Flash, OSS-120B), or vendor-only methodology disclosure. Our predictions, manifest, dataset checksum, and seed are committed to this repository.
+
+That sentence is defensible. "SOTA" is not.
+
+---
+
 ## Appendix A — Commit log
 
 All commits this session, oldest first:

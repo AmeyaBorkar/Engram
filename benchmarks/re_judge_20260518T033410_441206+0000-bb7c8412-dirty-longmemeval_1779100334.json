@@ -1,0 +1,109 @@
+{
+  "source_manifest": "benchmarks\\runs\\20260518T033410_441206+0000-bb7c8412-dirty-longmemeval.json",
+  "judge_provider": "openrouter",
+  "judge_model": "openai/gpt-4o-2024-08-06",
+  "strict_fair_rubric": false,
+  "only_failures": false,
+  "n_records_re_judged": 500,
+  "elapsed_s": 47.80065035820007,
+  "flips": {
+    "PF_was_right_now_wrong": [
+      {
+        "qid": "8a137a7f",
+        "qtype": "single-session-user",
+        "gold": "Philips LED bulb",
+        "response": "You did not mention replacing a bulb in your bedside lamp. You mentioned that you've been using a Philips LED bulb in your bedside lamp.",
+        "new_raw": "No"
+      },
+      {
+        "qid": "09ba9854_abs",
+        "qtype": "multi-session",
+        "gold": "The information provided is not enough. You did not mention how much will the bus take.",
+        "response": "You mentioned a taxi from the airport to your hotel would cost around $60, and the Airport Limousine Bus would cost around $10\u2013$20. Taking the bus instead would save you $40\u2013$50.",
+        "new_raw": "No."
+      },
+      {
+        "qid": "618f13b2",
+        "qtype": "knowledge-update",
+        "gold": "six",
+        "response": "You mentioned six times on May 30, 2023 at 17:45, and four times later that same day at 22:16.",
+        "new_raw": "No."
+      },
+      {
+        "qid": "4b24c848",
+        "qtype": "knowledge-update",
+        "gold": "five",
+        "response": "You mentioned three tops from H&M on 2023/08/11 and five tops on 2023/09/30 \u2014 5 total.",
+        "new_raw": "No"
+      }
+    ],
+    "FP_was_wrong_now_right": [
+      {
+        "qid": "7024f17c",
+        "qtype": "multi-session",
+        "gold": "0.5 hours",
+        "response": "You did not mention any jogging or yoga sessions from last week. You logged a 30-minute jog on Saturday, May 20, and on May 23 you mentioned hoping to do one or two yoga sessions that coming week.",
+        "new_raw": "Yes"
+      },
+      {
+        "qid": "gpt4_372c3eed_abs",
+        "qtype": "multi-session",
+        "gold": "The information provided is not enough. You mentioned 4 years in high school (2010-2014), 2 years at PCC (2014-2016), and 4 years at UCLA (2016-2020). But you didn't mention the number of years you spend getting the Master's degree",
+        "response": "You did not mention completing a Master's degree. You mentioned attending Arcadia High School from 2010 to 2014 (4 years), earning an Associate's degree from Pasadena City College in May 2016 before joining UCLA, and completing a Bachelor's in Computer Science at UCLA in 2020 after four years.",
+        "new_raw": "Yes"
+      },
+      {
+        "qid": "57f827a0",
+        "qtype": "single-session-preference",
+        "gold": "The user would prefer responses that take into account their existing plans to replace the bedroom dresser and their interest in mid-century modern style, suggesting furniture layouts that accommodate the new dresser and incorporate elements of this design aesthetic. They might not prefer general furniture arrangement tips or suggestions that do not consider their specific design preferences.",
+        "response": "The user would prefer a bedroom arrangement that emphasizes mid-century modern flow by anchoring the bed as the central focal point and positioning the walnut dresser against a wall to preserve clean sight lines, while keeping a nightstand within easy reach to support their pre-sleep reading routine",
+        "new_raw": "Yes."
+      },
+      {
+        "qid": "2311e44b_abs",
+        "qtype": "multi-session",
+        "gold": "The information provided is not enough. You did not mention how many paged do you have left to read in 'Sapiens'.",
+        "response": "You mentioned reading \"Sapiens\" at a pace of 10\u201320 pages a week, but you did not mention your current page number or the book's total page count.",
+        "new_raw": "Yes."
+      },
+      {
+        "qid": "ba358f49_abs",
+        "qtype": "multi-session",
+        "gold": "The information provided is not enough. You did not mention how old Rachel is right now, nor when will you get married.",
+        "response": "You did not mention your own wedding date or Rachel's age. You mentioned that Rachel is getting married next year (as of May 2023) and that you are 32.",
+        "new_raw": "Yes"
+      },
+      {
+        "qid": "07741c44",
+        "qtype": "knowledge-update",
+        "gold": "under my bed",
+        "response": "Under the bed.",
+        "new_raw": "Yes."
+      },
+      {
+        "qid": "45dc21b6",
+        "qtype": "knowledge-update",
+        "gold": "3",
+        "response": "You mentioned trying 2 of Emma's recipes on 2023/05/29 and 3 on 2023/05/30 \u2014 3 total.",
+        "new_raw": "Yes."
+      },
+      {
+        "qid": "22d2cb42",
+        "qtype": "knowledge-update",
+        "gold": "The music shop on Main St.",
+        "response": "Rhythm Central on Main St.",
+        "new_raw": "Yes."
+      }
+    ],
+    "errors": [
+      {
+        "qid": "0f05491a",
+        "qtype": "knowledge-update",
+        "error": "RuntimeError: OpenAI chat returned zero choices for model 'openai/gpt-4o-2024-08-06'; the response may have been content-filter blocked or the endpoint is misbehaving."
+      }
+    ]
+  },
+  "old_accuracy_correct": 0.8694779116465864,
+  "new_accuracy_correct": 0.8775100401606426,
+  "delta_accuracy_correct": 0.008032128514056214
+}

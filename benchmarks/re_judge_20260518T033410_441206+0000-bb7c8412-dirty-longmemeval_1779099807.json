@@ -1,0 +1,215 @@
+{
+  "source_manifest": "benchmarks\\runs\\20260518T033410_441206+0000-bb7c8412-dirty-longmemeval.json",
+  "judge_provider": "openrouter",
+  "judge_model": "openai/gpt-4o-2024-08-06",
+  "strict_fair_rubric": true,
+  "only_failures": false,
+  "n_records_re_judged": 500,
+  "elapsed_s": 47.772595167160034,
+  "flips": {
+    "PF_was_right_now_wrong": [
+      {
+        "qid": "09d032c9",
+        "qtype": "single-session-preference",
+        "gold": "The user would prefer responses that build upon their previous mention of purchasing a portable power bank, such as suggestions on how to optimize its use, like ensuring it's fully charged before use. They might also appreciate tips on utilizing battery-saving features on their phone. The user may not prefer responses that suggest alternative solutions or unrelated advice.",
+        "response": "The user would prefer keeping a compact portable power bank like the Anker PowerCore 5000 or Mophie Powerstation Mini in their travel case to address phone battery issues, aligning with their prior interest in organizing tech accessories.",
+        "new_raw": "No"
+      },
+      {
+        "qid": "0a34ad58",
+        "qtype": "single-session-preference",
+        "gold": "The user would prefer responses that utilize their existing resources, such as their Suica card and TripIt app, to provide personalized tips for navigating Tokyo's public transportation. They might not prefer general tips or recommendations that do not take into account their prior preparations.",
+        "response": "The user would prefer using their Suica card to navigate Tokyo\u2019s trains and buses with confidence, tapping in and out at station gates while planning routes in advance with Google Maps or a transit app to ease their anxiety.",
+        "new_raw": "No"
+      },
+      {
+        "qid": "09ba9854_abs",
+        "qtype": "multi-session",
+        "gold": "The information provided is not enough. You did not mention how much will the bus take.",
+        "response": "You mentioned a taxi from the airport to your hotel would cost around $60, and the Airport Limousine Bus would cost around $10\u2013$20. Taking the bus instead would save you $40\u2013$50.",
+        "new_raw": "No"
+      },
+      {
+        "qid": "gpt4_21adecb5",
+        "qtype": "temporal-reasoning",
+        "gold": "6 months",
+        "response": "5 months",
+        "new_raw": "No"
+      }
+    ],
+    "FP_was_wrong_now_right": [
+      {
+        "qid": "51a45a95",
+        "qtype": "single-session-user",
+        "gold": "Target",
+        "response": "You did not mention the store where you redeemed the $5 coffee creamer coupon. You mentioned that you found it in your email inbox and redeemed it last Sunday instead.",
+        "new_raw": "Yes"
+      },
+      {
+        "qid": "5d3d2817",
+        "qtype": "single-session-user",
+        "gold": "Marketing specialist at a small startup",
+        "response": "You did not mention your previous occupation. You mentioned having a \"new role\" on May 24, 2023, being a panelist at the Industry Summit in April, and selling soaps at farmers' markets.",
+        "new_raw": "Yes"
+      },
+      {
+        "qid": "ec81a493",
+        "qtype": "single-session-user",
+        "gold": "500",
+        "response": "You did not mention how many copies of the debut album were released worldwide. You mentioned that the signed poster from your favorite artist's debut album was a limited edition of 500 copies worldwide instead.",
+        "new_raw": "Yes"
+      },
+      {
+        "qid": "0862e8bf_abs",
+        "qtype": "single-session-user",
+        "gold": "You did not mention this information. You mentioned your cat Luna but not your hamster.",
+        "response": "You did not mention a hamster. You mentioned a cat named Luna instead.",
+        "new_raw": "yes"
+      },
+      {
+        "qid": "d682f1a2",
+        "qtype": "multi-session",
+        "gold": "3",
+        "response": "You mentioned Domino's Pizza (May 22), Fresh Fusion (May 30), and Uber Eats (May 27) \u2014 1 total.",
+        "new_raw": "Yes"
+      },
+      {
+        "qid": "7024f17c",
+        "qtype": "multi-session",
+        "gold": "0.5 hours",
+        "response": "You did not mention any jogging or yoga sessions from last week. You logged a 30-minute jog on Saturday, May 20, and on May 23 you mentioned hoping to do one or two yoga sessions that coming week.",
+        "new_raw": "Yes"
+      },
+      {
+        "qid": "gpt4_731e37d7",
+        "qtype": "multi-session",
+        "gold": "$720",
+        "response": "You spent $500 on a digital marketing workshop, $200 on a two-day writing workshop in November, and $20 on a half-day mindfulness workshop on December 12 \u2014 720 total for those three. You also mentioned attending an entrepreneurship workshop and one other workshop in that period but did not state the",
+        "new_raw": "Yes"
+      },
+      {
+        "qid": "eeda8a6d_abs",
+        "qtype": "multi-session",
+        "gold": "The information provided is not enough. You did not mention that you have a 30-gallon tank.",
+        "response": "You did not mention a 30-gallon tank. You mentioned a 20-gallon tank with 10 neon tetras, 5 golden honey gouramis, and a small pleco catfish, and a 10-gallon tank with your betta, Bubbles.",
+        "new_raw": "Yes"
+      },
+      {
+        "qid": "gpt4_372c3eed_abs",
+        "qtype": "multi-session",
+        "gold": "The information provided is not enough. You mentioned 4 years in high school (2010-2014), 2 years at PCC (2014-2016), and 4 years at UCLA (2016-2020). But you didn't mention the number of years you spend getting the Master's degree",
+        "response": "You did not mention completing a Master's degree. You mentioned attending Arcadia High School from 2010 to 2014 (4 years), earning an Associate's degree from Pasadena City College in May 2016 before joining UCLA, and completing a Bachelor's in Computer Science at UCLA in 2020 after four years.",
+        "new_raw": "Yes"
+      },
+      {
+        "qid": "afdc33df",
+        "qtype": "single-session-preference",
+        "gold": "The user would prefer responses that acknowledge and build upon their existing efforts to organize their kitchen, such as utilizing their new utensil holder to keep countertops clutter-free. They would also appreciate tips that address their concern for maintaining their granite surface, particularly around the sink area. Preferred responses would provide practical and actionable steps to maintain cleanliness, leveraging the user's current tools and setup. They might not prefer generic or vague suggestions that do not take into account their specific kitchen setup or concerns.",
+        "response": "The user would prefer keeping their kitchen clean by maximizing countertop space with organized storage solutions like divided utensil holders, performing regular maintenance on appliances such as the garbage disposal and faucet to prevent messes and buildup, and protecting surfaces like granite fro",
+        "new_raw": "Yes"
+      },
+      {
+        "qid": "37f165cf",
+        "qtype": "multi-session",
+        "gold": "856",
+        "response": "You did not mention finishing any novels in January or March. You mentioned reading *The Power* by Naomi Alderman (341 pages) in December, a 416-page novel you had just finished in May, and *The Nightingale* by Kristin Hannah (440 pages) in May.",
+        "new_raw": "Yes"
+      },
+      {
+        "qid": "2311e44b_abs",
+        "qtype": "multi-session",
+        "gold": "The information provided is not enough. You did not mention how many paged do you have left to read in 'Sapiens'.",
+        "response": "You mentioned reading \"Sapiens\" at a pace of 10\u201320 pages a week, but you did not mention your current page number or the book's total page count.",
+        "new_raw": "Yes"
+      },
+      {
+        "qid": "ba358f49_abs",
+        "qtype": "multi-session",
+        "gold": "The information provided is not enough. You did not mention how old Rachel is right now, nor when will you get married.",
+        "response": "You did not mention your own wedding date or Rachel's age. You mentioned that Rachel is getting married next year (as of May 2023) and that you are 32.",
+        "new_raw": "Yes"
+      },
+      {
+        "qid": "gpt4_468eb063",
+        "qtype": "temporal-reasoning",
+        "gold": "9 days ago. 10 days (including the last day) is also acceptable.",
+        "response": "You did not mention when you met Emma. You mentioned on 2023/04/11 that Emma had success with Instagram targeting and ads.",
+        "new_raw": "Yes"
+      },
+      {
+        "qid": "6e984301",
+        "qtype": "temporal-reasoning",
+        "gold": "3",
+        "response": "You'd been taking sculpting classes for about 6 weeks as of February 11 and bought your tools on March 4 (3 weeks later), so at that point you'd been taking classes for about 9 weeks.",
+        "new_raw": "Yes"
+      },
+      {
+        "qid": "71017277",
+        "qtype": "temporal-reasoning",
+        "gold": "my aunt",
+        "response": "You did not mention receiving a piece of jewelry last Saturday. On Saturday, March 4, you mentioned receiving a crystal chandelier from your aunt.",
+        "new_raw": "yes"
+      },
+      {
+        "qid": "gpt4_468eb064",
+        "qtype": "temporal-reasoning",
+        "gold": "Emma",
+        "response": "You did not mention meeting anyone for lunch last Tuesday. You discussed a trip to Nikko, Chicago restaurants, and your LinkedIn profile instead.",
+        "new_raw": "Yes"
+      },
+      {
+        "qid": "0bc8ad93",
+        "qtype": "temporal-reasoning",
+        "gold": "No, you did not visit with a friend.",
+        "response": "You did not mention a museum visit two months ago. You mentioned visiting the Natural History Museum on February 17 with your dad, and a behind-the-scenes tour of the Science Museum on October 22 with a friend who's a chemistry professor.",
+        "new_raw": "Yes"
+      },
+      {
+        "qid": "d01c6aa8",
+        "qtype": "temporal-reasoning",
+        "gold": "27",
+        "response": "You did not mention your age when you moved to the United States. You mentioned being a 32-year-old male with a master's degree in data science from NYU.",
+        "new_raw": "Yes"
+      },
+      {
+        "qid": "gpt4_93159ced_abs",
+        "qtype": "temporal-reasoning",
+        "gold": "The information provided is not enough. From the information provided, You haven't started working at Google yet.",
+        "response": "You did not mention working at Google. You mentioned that you currently work at NovaTech, where you've been for about 4 years and 3 months, and that you've been working professionally for 9 years total.",
+        "new_raw": "Yes"
+      },
+      {
+        "qid": "07741c44",
+        "qtype": "knowledge-update",
+        "gold": "under my bed",
+        "response": "Under the bed.",
+        "new_raw": "Yes"
+      },
+      {
+        "qid": "45dc21b6",
+        "qtype": "knowledge-update",
+        "gold": "3",
+        "response": "You mentioned trying 2 of Emma's recipes on 2023/05/29 and 3 on 2023/05/30 \u2014 3 total.",
+        "new_raw": "Yes"
+      },
+      {
+        "qid": "1cea1afa",
+        "qtype": "knowledge-update",
+        "gold": "600",
+        "response": "You mentioned having 600 followers on May 28, but you did not mention your follower count on June 14.",
+        "new_raw": "Yes"
+      },
+      {
+        "qid": "a2f3aa27",
+        "qtype": "knowledge-update",
+        "gold": "1300",
+        "response": "You mentioned having 1,250 Instagram followers on May 25, 2023, and later that same day being close to 1,300, but you did not mention your current follower count.",
+        "new_raw": "Yes"
+      }
+    ],
+    "errors": []
+  },
+  "old_accuracy_correct": 0.8694779116465864,
+  "new_accuracy_correct": 0.9096385542168675,
+  "delta_accuracy_correct": 0.04016064257028107
+}
