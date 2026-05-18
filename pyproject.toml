@@ -16,7 +16,7 @@ build-backend = "hatchling.build"
 # requests for both `engram` and `engram-memory` are tracked
 # separately; if they succeed we'll mirror future releases.
 name = "engrampy"
-version = "0.2.1"
+version = "0.3.0"
 description = "Hierarchical memory with consolidation and principled decay for LLM agents and assistants."
 readme = "README.md"
 license = { file = "LICENSE" }

@@ -6,6 +6,77 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Onc
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-05-18
+
+A correctness, security, and benchmark release. 236 commits since `0.2.1`. The headline is a seven-cluster security + correctness audit that landed real fixes across storage, retrieval, consolidation, reconcile, providers, decay, OTel, schemas, and the bench harness. The LongMemEval-S benchmark grew a lot: a single-line `max_tokens=1024` cap bug was diagnosed and fixed, prompt variants `v2 / v2a / v2b / v2c / v3 / v3a` were added with explanatory abstain + sss-preference synthesis + multi-session counting enumeration directives, deterministic calculator tools landed via `--enable-tools`, and a 5-agent forensic audit recalibrated the SOTA framing in `benchmarks/SCOREBOARD.md` and `JOURNEY.md` §27.
+
+The library API surface is unchanged from `0.2.x`. Existing callers upgrade by `pip install --upgrade engrampy`.
+
+**LongMemEval-S result snapshot for this release** (n=500, full population, manifest `bb7c8412`, seed 1337, Kimi K2.6 actor, BAAI/bge-large-en-v1.5 fp32 embedder, bge-reranker-v2-m3, v3a prompt, tools enabled):
+- **86.95% accuracy_correct** with the `openai/gpt-4o` floating-alias judge (as-run)
+- **87.75% accuracy_correct** with the pinned `openai/gpt-4o-2024-08-06` paper-default snapshot (most apples-to-apples vs published systems)
+- Wilson 95% binomial CI on 433/498: **[83.6%, 89.5%]**
+
+This is **NOT a SOTA claim.** A 5-agent audit on 2026-05-18 surfaced multiple published systems above us with comparable judge configurations (Honcho 90.4% with Claude Haiku 4.5 actor, Mastra-OM-Gemini-Flash 89.20%, Lumetra 91.6% with GPT-5 actor). The defensible framing is: **first published reproducible LongMemEval-S result with an open-weight actor under the paper-default gpt-4o judge protocol.** See `JOURNEY.md` §27 for the full audit and `benchmarks/SCOREBOARD.md` for the recalibrated comparison table and methodology disclosures.
+
+### Security & correctness audit (7 clusters)
+
+- **Cluster 1 — Storage transactions / locks / migrations**: wrap `delete_cold_items`, `set_validity_window`, `resolve_conflict`, and `delete_memory_item` in transactions; per-shard RLock on the vector index with rebuild-in-progress coalescing; RLock on BM25 cache fields; chunk IN-list batches at 500; reject magic URIs in `SqliteStorage` path (allow `:memory:` only); wrap migration bootstrap in `BEGIN IMMEDIATE` and reject open transactions; cap `tenant_id` at 256 characters; guard mixed-dim embedding corruption.
+- **Cluster 2 — Retrieve pipeline correctness**: proper per-ranking weight + dedupe in RRF fusion; MMR over un-boosted scores (recency applied last); reranker fallback path; preserve dense cosine as confidence across RRF / reranker stages; `RetrieveParams.replace()` helper for leaf-param propagation; surface LLM-call failures from the temporal extractor; harden temporal year extraction.
+- **Cluster 3 — Consolidation + reconcile correctness**: `pass_deadline_s` budget on sync `consolidate()`; dedupe contradiction conflicts + assert cluster member uniqueness; filter invalidated items from contradiction recall; vectorize agglomerative clustering triangle walk + unit-norm guard; promotion gate consults persistent `Conflict` rows; `aconsolidate` batches abstraction embeds and offloads the embedder; tenant + singleton invariants and transactional snapshot in reconcile; `MergeResponse` rejects empty / whitespace-only merged content; dedicated `ConcurrentResolveError` exception class.
+- **Cluster 4 — Providers / decay / schemas / OTel hardening**: `SCHEMA_VERSION` constant + `extra="forbid"` on persisted Pydantic models; widen `Cluster.cohesion` to `[-1, 1]` to match the mean pairwise cosine math; OTel version sync + safe attributes + gap-fill counters + thread-safe init; decay chunked streaming + `mark_cold` routing + concurrency guard + alpha cache; non-callable clock raises `TypeError` instead of silently falling back; expand prompt-injection detection to cover Unicode confusables, RTL marks, base64 payloads, and multilingual variants.
+- **Cluster 5a — Bench harness + scripts hardening**: provider build-time validation; refuse fake-embedder + real-chat pairings that produce meaningless retrievals (H-81); manifest captures the resolved chat + embedder model so a `--chat-model` sweep produces distinguishable scoreboard rows; finalize stratified-sample stability under seeded RNG.
+- **Cluster 5b — Test suite + pyproject hardening**: pyproject metadata tightened; coverage gates raised on correctness-critical modules.
+- **Cluster 6 — Test suite invariants**: pick up agent-worktree net-new value (helpers + migrations + tests); seven audit-cluster worktree branches merged into mainline (A1..B3).
+
+Plus a full `SECURITY.md` rewrite as a proper threat model and a `JOURNEY.md` cataloguing of audit findings that affect SOTA claims.
+
+### LongMemEval benchmark improvements
+
+- **The cap fix (JOURNEY §24).** `_opencode_go_chat`'s default `max_tokens` was raising the floor under Kimi K2.6's thinking-mode generation; 1024 truncated mid-reason on hard questions, producing the "verbose then suddenly stops at ~4500 chars" failure mode that masked 18 pp of architectural performance for ~6 weeks. Raised to 8192, then 65536 (effectively unlimited — opencode-go is unmetered on output tokens, so the model's natural stop decides when to finish). `finish_reason=='length'` now surfaces as a WARNING log so a future cap-related regression is visible immediately.
+- **`--chat-max-tokens N`** — general-purpose CLI override for any OpenAI-compatible provider. Required when routing a thinking-mode model through OpenRouter or a similar endpoint that inherits OpenAIChat's 1024-token safety guard.
+- **`--chat-fallback NAME[:MODEL]`** — opt-in fallback chat that catches provider content-filter rejections (HTTP 400 + `content_filter` / `high risk` / `ResponsibleAIPolicyViolation` markers) and retries against a secondary provider. Non-filter errors still propagate. Targets Kimi K2.6's false-positive content-filter on benign LongMemEval questions.
+- **Prompt versions `v2 / v2a / v2b / v2c / v3 / v3a`** — explanatory abstain ("state related context before saying IDK"), single-session-preference synthesis hint ("The user would prefer ..."), multi-session enumeration directive ("ALWAYS enumerate each item BEFORE stating the final count"), per-qtype hints scaffolding. **Note**: v3a leaks qtype to the actor for two of six qtypes (multi-session and sss-preference); this is a documented deviation from standard LongMemEval protocol — see `SCOREBOARD.md` methodology disclosures.
+- **`--enable-tools`** — deterministic regex substitution for `<tool>SUM/COUNT/AVG/MIN/MAX/DAYS_BETWEEN/WEEKS_BETWEEN/MONTHS_BETWEEN/YEARS_BETWEEN(args)</tool>` tags. The model emits the tag at its discretion; a regex computes and substitutes before judging. Calculator-augmented, not external knowledge.
+- **`--distill-chat`** — Two-Pass Answer Distillation: a secondary chat takes the primary's verbose answer and emits a concise extracted answer for judging. Optional; targets verbose-then-trimmed failure modes.
+- **`--answer-form structured`** — JSON output extraction layer.
+- **`--context-format grouped`** — session-grouped answer context format.
+- **`--min-sessions-in-topk N`** — per-session diversity floor in top-k retrieval. Targets multi-session questions where retrieval saturates on one dominant session.
+- **`--within-session-oversample`** — within-session boundary-turn oversample for sub-session relevance.
+- **Stratified sampling** — `--sample N --seed 1337` produces near-perfect proxy of the full n=500 population at n=100; validated in JOURNEY §23.
+- **Parallel question evaluation** — `--parallel N` runs the questions through a `ThreadPoolExecutor`; `--gpu-concurrency` caps concurrent GPU operations (essential for 12 GB cards running stella + reranker concurrently).
+- **`accuracy_correct`** — split from `accuracy` excluding `n_errored` (H-77), so a vendor outage doesn't deflate the reported accuracy without disclosure.
+- **180s timeout on `opencode-go`** chat builder (vs OpenAIChat's 60s default) — Kimi K2.6's thinking mode legitimately takes longer than 60s on hard questions; one consistent failure on n=100 validation (`gpt4_7abb270c`) hit `APITimeoutError` on all 3 SDK retries at the 60s cap.
+
+### Benchmark analysis & tooling
+
+- **`benchmarks/re_judge.py`** — re-scores a LongMemEval manifest against a pinned judge snapshot (default `openai/gpt-4o-2024-08-06`) with an optional `--strict-fair` rubric clarification footer. Parallel by default. Outputs a JSON report with per-question PF / FP flip records, the new accuracy delta, and stdout flip tables.
+- **`benchmarks/compare_manifests.py`** — per-question diff between two LongMemEval manifests (qid, qtype, gold, both responses, both verdicts). Used in JOURNEY §25-26 for the cap-fix → v3 → v3a flip analysis.
+- **`benchmarks/cum_accuracy.py`** — per-question cumulative accuracy trajectory from a manifest; `--by-qtype` and `--csv` flags; per-qtype summary footer.
+- **`benchmarks/recall_diagnostic.md`** — refined retrieval-recall failure mode analysis (sub-session chunking identified as highest-leverage retrieval change for path-to-90).
+- **Manifest enrichment**: capture primary chat + embedder in `engram_config`; include `ingest_ms` in `latency_ms`; full RNG seeding (numpy + torch + torch.cuda + transformers) via `engram._seed.seed_everything`; raise on unknown qtype instead of silent rubric fallback.
+
+### Library improvements (non-audit)
+
+- **Schemas**: raise `_MAX_CONTENT_LEN` from 64 KiB to 1 MiB (`Event.content`, `MemoryItem.content`, `Procedure.situation`/`action`, `MergeResponse.merged`). Recovers ingestion of long documents (e.g., pasted MediaWiki pages) without losing the attacker-shaped multi-MB blob defense. Three regression tests pin the new cap.
+- **Storage**: `close_thread()` for clean per-worker teardown; dedupe of `fetch_*_content` helpers; surface non-JSON metadata as `ValueError`; migration `0011` adds partial indexes on `cold_at IS NULL` for hot-row scans.
+- **Memory**: `observe_many` batched ingest; serial-fallback `_parallel_leaf_retrieves` on `:memory:` databases (M-25); protect `_USER_STATE_FLAG` from caller metadata overlay (M-181, M-188); reject empty / whitespace-only `tenant_id` at construction.
+- **Retrieve**: vectorize recency boost; `VectorIndex` fast-path hook; lazy-load `BGEReranker`; async reranker wrapper.
+- **Agent**: `achat` async surface (M-186); verify-retry symmetry — no double-reinforce, vote on retry (M-47, M-187); source-tag auto-observed user vs assistant events (H-07).
+- **Decay**: chunked streaming; `mark_cold` routing; concurrency guard; alpha cache.
+- **Consolidation**: `Verdict` re-exported from `engram.schemas`; warning log when judge returns `UNRELATED` on parse failure.
+
+### Integrations
+
+- **llamaindex**: `get_all` surfaces memory history (M-52); honor `token_limit` / `chat_history_limit` kwargs, log others.
+- **langgraph**: accept `config` arg + add `ainvoke` (M-50, M-185); inline memory content in `format_context` (H-11); correct module docstring's lazy-import claim (H-08).
+
+### CI
+
+- `ruff check` + `ruff format` clean across `src/`, `benchmarks/`, `tests/`, `scripts/`, `examples/`.
+- `mypy --strict src/engram` reports zero issues across 77 source files.
+- `pytest -x -q` runs 1267 tests in ~63s; 1 skipped (hdbscan-installed branch), 17 deselected.
+
 ## [0.2.1] — 2026-05-12
 
 ### Fixed
