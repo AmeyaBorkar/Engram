@@ -89,25 +89,31 @@ def test_openrouter_chat_default_no_max_tokens_override() -> None:
     assert chat._kwargs["max_tokens"] == 1024
 
 
-def test_opencode_go_chat_default_uses_8192() -> None:
-    """opencode-go's hardcoded 8192 default survives when --chat-max-tokens is unset.
+def test_opencode_go_chat_default_uses_effectively_unlimited_cap() -> None:
+    """opencode-go's hardcoded default is set high enough that the model's
+    own generation ceiling is the binding constraint, not us.
 
-    Regression guard for the commit `52a25bf` fix: anyone running
-    `--chat opencode-go --chat-model kimi-k2.6` without specifying
-    a cap should still get 8192 (not the 1024 default that bit us).
+    History (JOURNEY §24): 1024 default cut Kimi K2.6 thinking-mode
+    mid-reason. 8192 was the first fix, but raised the fair question
+    "if 1024 wasn't enough, how do we know 8192 is?" Answer: pick a
+    cap so high that finish_reason='length' is a real signal of model
+    failure, not config truncation. 65536 is well above any plausible
+    Kimi thinking trace AND opencode-go is unmetered on output, so
+    the usual cost-pressure reason for a tight cap doesn't apply.
+    Regression guard for that decision.
     """
     from engram.bench._real_provider import build_chat
 
     with _stub_openai_sdk(), patch.dict(os.environ, {"OPENCODE_API_KEY": "sk-test"}, clear=False):
         chat = build_chat("opencode-go", model="kimi-k2.6")
 
-    assert chat._kwargs["max_tokens"] == 8192
+    assert chat._kwargs["max_tokens"] == 65536
 
 
 def test_opencode_go_chat_explicit_override_wins() -> None:
-    """An explicit `--chat-max-tokens` overrides opencode-go's 8192 default
+    """An explicit `--chat-max-tokens` overrides opencode-go's generous default
     (caller knows best -- some smaller models on the Go endpoint don't
-    need 8K)."""
+    need that much, or the caller wants to bound a runaway generation)."""
     from engram.bench._real_provider import build_chat
 
     with _stub_openai_sdk(), patch.dict(os.environ, {"OPENCODE_API_KEY": "sk-test"}, clear=False):

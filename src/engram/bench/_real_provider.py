@@ -122,13 +122,23 @@ def _opencode_go_chat(model: str | None, max_tokens: int | None = None) -> ChatP
     Default model is `kimi-k2.6` because it's the strongest general
     open-weight model on the plan at the time of writing.
 
-    `max_tokens` defaults to 8192 because Kimi K2.6 (and other thinking-
-    capable open-weight models on this endpoint) reason for 1000-3000
-    tokens before emitting the final answer. The OpenAIChat default of
-    1024 is a safety guard for unknown endpoints, but here it would cut
-    the model off mid-reasoning before any answer is emitted -- see
-    JOURNEY §24 for the diagnostic trail. An explicit `max_tokens` arg
-    (e.g. from `--chat-max-tokens`) overrides this default.
+    `max_tokens` defaults to 65536 (effectively unlimited). The
+    OpenCode Go plan is unmetered on output tokens, so there's no
+    cost incentive to cap. Setting it well above any plausible
+    thinking-mode generation length lets the MODEL's natural stop
+    decide when to finish, not our config -- which means
+    `finish_reason == "length"` becomes a real signal that
+    something went wrong (the model genuinely wanted to keep going
+    past 65K tokens), not background noise from a too-tight cap.
+
+    History: previous defaults (1024 then 8192) both bit us. JOURNEY
+    §24 documents the 1024 cliff and the move to 8192. The user
+    asked: "if 1024 wasn't enough, how do we know 8192 is?" -- this
+    is the answer. Pick a number high enough that the upstream
+    provider's clamp (Kimi's own max output ceiling) is the binding
+    constraint, not us. An explicit `max_tokens` (e.g. from
+    `--chat-max-tokens`) still overrides if the caller needs to
+    bound a runaway generation.
     """
     from engram.providers.openai import OpenAIChat
 
@@ -136,7 +146,7 @@ def _opencode_go_chat(model: str | None, max_tokens: int | None = None) -> ChatP
         model=model or "kimi-k2.6",
         api_key=_opencode_api_key(),
         base_url="https://opencode.ai/zen/go/v1",
-        max_tokens=max_tokens if max_tokens is not None else 8192,
+        max_tokens=max_tokens if max_tokens is not None else 65536,
     )
 
 
