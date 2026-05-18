@@ -1,0 +1,114 @@
+[
+  {
+    "qid": "51a45a95",
+    "qtype": "single-session-user",
+    "gold": "Target",
+    "question": "Where did I redeem a $5 coupon on coffee creamer?",
+    "response": "You did not mention the store where you redeemed the $5 coffee creamer coupon. You mentioned that you found it in your email inbox and redeemed it last Sunday instead."
+  },
+  {
+    "qid": "5d3d2817",
+    "qtype": "single-session-user",
+    "gold": "Marketing specialist at a small startup",
+    "question": "What was my previous occupation?",
+    "response": "You did not mention your previous occupation. You mentioned having a \"new role\" on May 24, 2023, being a panelist at the Industry Summit in April, and selling soaps at farmers' markets."
+  },
+  {
+    "qid": "ec81a493",
+    "qtype": "single-session-user",
+    "gold": "500",
+    "question": "How many copies of my favorite artist's debut album were released worldwide?",
+    "response": "You did not mention how many copies of the debut album were released worldwide. You mentioned that the signed poster from your favorite artist's debut album was a limited edition of 500 copies worldwide instead."
+  },
+  {
+    "qid": "7024f17c",
+    "qtype": "multi-session",
+    "gold": "0.5 hours",
+    "question": "How many hours of jogging and yoga did I do last week?",
+    "response": "You did not mention any jogging or yoga sessions from last week. You logged a 30-minute jog on Saturday, May 20, and on May 23 you mentioned hoping to do one or two yoga sessions that coming week."
+  },
+  {
+    "qid": "7405e8b1",
+    "qtype": "multi-session",
+    "gold": "Yes.",
+    "question": "Did I receive a higher percentage discount on my first order from HelloFresh, compared to my first UberEats order?",
+    "response": "You received 40% off your first HelloFresh order. You mentioned getting 20% off an UberEats order last week, but you did not specify that it was your first UberEats order, and you did not mention what discount (if any) you received on your first UberEats order."
+  },
+  {
+    "qid": "37f165cf",
+    "qtype": "multi-session",
+    "gold": "856",
+    "question": "What was the page count of the two novels I finished in January and March?",
+    "response": "You did not mention finishing any novels in January or March. You mentioned reading *The Power* by Naomi Alderman (341 pages) in December, a 416-page novel you had just finished in May, and *The Nightingale* by Kristin Hannah (440 pages) in May."
+  },
+  {
+    "qid": "b46e15ed",
+    "qtype": "temporal-reasoning",
+    "gold": "2",
+    "question": "How many months have passed since I participated in two charity events in a row, on consecutive days?",
+    "response": "You mentioned participating in a \"24-Hour Bike Ride\" charity event around February 14, 2023, a \"Ride to Cure Cancer\" charity bike ride before February 15, 2023, and a \"Walk for Hunger\" charity event on March 19, 2023, but you did not specify that any two charity events occurred on consecutive days."
+  },
+  {
+    "qid": "gpt4_a1b77f9c",
+    "qtype": "temporal-reasoning",
+    "gold": "2 weeks for 'The Nightingale', 4 weeks for 'Sapiens: A Brief History of Humankind', and 2 weeks for 'The Power', so a total of 8 weeks.",
+    "question": "How many weeks in total do I spent on reading 'The Nightingale' and listening to 'Sapiens: A Brief History of Humankind' and 'The Power'?",
+    "response": "You did not mention when you started reading *The Nightingale*; you mentioned finishing it on 2022/01/15. You spent 4 weeks listening to *Sapiens: A Brief History of Humankind* (2022/02/01 to 2022/03/01) and 2 weeks listening to *The Power* (2022/03/06 to 2022/03/20)."
+  },
+  {
+    "qid": "gpt4_468eb063",
+    "qtype": "temporal-reasoning",
+    "gold": "9 days ago. 10 days (including the last day) is also acceptable.",
+    "question": "How many days ago did I meet Emma?",
+    "response": "You did not mention when you met Emma. You mentioned on 2023/04/11 that Emma had success with Instagram targeting and ads."
+  },
+  {
+    "qid": "71017277",
+    "qtype": "temporal-reasoning",
+    "gold": "my aunt",
+    "question": "I received a piece of jewelry last Saturday from whom?",
+    "response": "You did not mention receiving a piece of jewelry last Saturday. On Saturday, March 4, you mentioned receiving a crystal chandelier from your aunt."
+  },
+  {
+    "qid": "gpt4_468eb064",
+    "qtype": "temporal-reasoning",
+    "gold": "Emma",
+    "question": "Who did I meet with during the lunch last Tuesday?",
+    "response": "You did not mention meeting anyone for lunch last Tuesday. You discussed a trip to Nikko, Chicago restaurants, and your LinkedIn profile instead."
+  },
+  {
+    "qid": "0bc8ad93",
+    "qtype": "temporal-reasoning",
+    "gold": "No, you did not visit with a friend.",
+    "question": "I mentioned visiting a museum two months ago. Did I visit with a friend or not?",
+    "response": "You did not mention a museum visit two months ago. You mentioned visiting the Natural History Museum on February 17 with your dad, and a behind-the-scenes tour of the Science Museum on October 22 with a friend who's a chemistry professor."
+  },
+  {
+    "qid": "6e984302",
+    "qtype": "temporal-reasoning",
+    "gold": "I got my own set of sculpting tools.",
+    "question": "I mentioned an investment for a competition four weeks ago? What did I buy?",
+    "response": "You did not mention buying anything on 2023/03/04. You said you'd been experimenting with polymer clay and resin for a sculpture competition and were looking for eco-friendly material ideas."
+  },
+  {
+    "qid": "d01c6aa8",
+    "qtype": "temporal-reasoning",
+    "gold": "27",
+    "question": "How old was I when I moved to the United States?",
+    "response": "You did not mention your age when you moved to the United States. You mentioned being a 32-year-old male with a master's degree in data science from NYU."
+  },
+  {
+    "qid": "1cea1afa",
+    "qtype": "knowledge-update",
+    "gold": "600",
+    "question": "How many Instagram followers do I currently have?",
+    "response": "You mentioned having 600 followers on May 28, but you did not mention your follower count on June 14."
+  },
+  {
+    "qid": "a2f3aa27",
+    "qtype": "knowledge-update",
+    "gold": "1300",
+    "question": "How many followers do I have on Instagram now?",
+    "response": "You mentioned having 1,250 Instagram followers on May 25, 2023, and later that same day being close to 1,300, but you did not mention your current follower count."
+  }
+]
