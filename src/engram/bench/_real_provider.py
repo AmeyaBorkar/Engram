@@ -20,9 +20,11 @@ from __future__ import annotations
 
 import hashlib
 import os
+from collections.abc import Sequence
 from typing import Any
 
 from engram.providers import ChatProvider, EmbeddingProvider, FakeChat, FakeEmbedder
+from engram.providers._message import Message
 
 
 class _MixedProvider:
@@ -326,6 +328,100 @@ def _anthropic_chat(model: str | None, max_tokens: int | None = None) -> ChatPro
     return AnthropicChat(**kwargs)
 
 
+# Markers a provider may emit when its content filter rejects a request.
+# Kept lowercase; matching is case-insensitive against `str(exc)`.
+# Observed in the wild on `opencode-go` / Kimi K2.6 (LongMemEval question
+# `06f04340`, a benign dinner-recipe question): "request rejected because
+# it was considered high risk" + HTTP 400 + the explicit string
+# "content_filter" in the JSON metadata. Other providers (OpenAI moderation,
+# Anthropic safety, Azure content filter) emit similar phrases.
+_CONTENT_FILTER_MARKERS: tuple[str, ...] = (
+    "content_filter",
+    "content filter",
+    "high risk",
+    "considered high risk",
+    "rejected because",
+    "responsibleaipolicyviolation",  # Azure
+    "prompt_blocked",
+)
+
+
+def _is_content_filter_error(exc: BaseException) -> bool:
+    """True if the exception looks like a provider content-filter rejection.
+
+    Conservative: requires the error to look like an HTTP 4xx AND to carry
+    one of the known filter-marker phrases. A bare 400 ('bad request') is
+    NOT classified as content filter -- those should still raise so the
+    bench surfaces the malformed call, not silently retry.
+    """
+    msg = str(exc).lower()
+    # The marker must be present
+    if not any(m in msg for m in _CONTENT_FILTER_MARKERS):
+        return False
+    # AND it should look like a client error (4xx), so an upstream 500 /
+    # transient outage doesn't get redirected to the fallback.
+    is_http_4xx = (
+        "400" in msg
+        or "403" in msg
+        or "badrequest" in msg
+        or "permissiondenied" in msg
+        or "forbidden" in msg
+    )
+    return is_http_4xx
+
+
+class _ContentFilterFallbackChat:
+    """Wrap a primary `ChatProvider` so content-filter rejections fall back
+    to a secondary provider.
+
+    Observed in `opencode-go` (Kimi K2.6) on benign questions where the
+    provider's filter false-positived -- LongMemEval question `06f04340`
+    consistently failed with HTTP 400 + `content_filter` despite being a
+    plain dinner-recipe question.  The bench scored it 0/1; with a
+    fallback chat (e.g. `gpt-4o-mini` via OpenRouter) the question would
+    have completed and been judged on merit.
+
+    Non-filter errors (network failure, 5xx, timeout) propagate normally
+    so the bench's existing per-question error handling sees them. Only
+    the narrow content-filter case is rerouted.
+
+    The wrapper preserves `manifest_hash()` composition (primary hash +
+    fallback hash) so the manifest fingerprint distinguishes runs that
+    used a fallback from runs that didn't.
+    """
+
+    name: str = "content-filter-fallback"
+
+    def __init__(self, *, primary: ChatProvider, fallback: ChatProvider) -> None:
+        self._primary = primary
+        self._fallback = fallback
+        # Use primary's model for display / manifest legibility; the
+        # fallback is recorded in manifest_hash() but doesn't dominate
+        # the bench's "this run used model X" reporting.
+        self.model = primary.model
+
+    def chat(self, messages: Sequence[Message]) -> str:
+        try:
+            return self._primary.chat(messages)
+        except Exception as exc:
+            if _is_content_filter_error(exc):
+                return self._fallback.chat(messages)
+            raise
+
+    async def achat(self, messages: Sequence[Message]) -> str:
+        try:
+            return await self._primary.achat(messages)
+        except Exception as exc:
+            if _is_content_filter_error(exc):
+                return await self._fallback.achat(messages)
+            raise
+
+    def manifest_hash(self) -> str:
+        ph = self._primary.manifest_hash()
+        fh = self._fallback.manifest_hash()
+        return f"{ph}|fallback={fh}"
+
+
 _CHAT_BUILDERS: dict[str, Any] = {
     "fake": lambda model, max_tokens=None: FakeChat(),  # noqa: ARG005
     "openai": _openai_chat,
@@ -357,6 +453,7 @@ def build_chat(
     model: str | None = None,
     *,
     max_tokens: int | None = None,
+    fallback: ChatProvider | None = None,
 ) -> ChatProvider:
     """Construct a standalone chat provider by name.
 
@@ -369,10 +466,17 @@ def build_chat(
     (the default) preserves backwards compat -- each builder applies
     whatever cap it chose (opencode-go's 8192 for thinking-mode Kimi,
     others fall through to OpenAIChat's 1024 safety guard).
+
+    `fallback`, when set, wraps the primary in `_ContentFilterFallbackChat`
+    so provider content-filter rejections (Kimi K2.6 on benign questions,
+    Azure ResponsibleAI, etc.) reroute to the fallback instead of failing
+    the question. Non-filter errors still propagate.
     """
     if name not in _CHAT_BUILDERS:
         raise ValueError(f"unknown chat {name!r}; choose from {sorted(_CHAT_BUILDERS)}")
     chat: ChatProvider = _CHAT_BUILDERS[name](model, max_tokens)
+    if fallback is not None:
+        chat = _ContentFilterFallbackChat(primary=chat, fallback=fallback)
     return chat
 
 
@@ -386,6 +490,8 @@ def build_provider(
     embed_dtype: str = "auto",
     chat_model: str | None = None,
     chat_max_tokens: int | None = None,
+    chat_fallback_name: str | None = None,
+    chat_fallback_model: str | None = None,
 ) -> _MixedProvider:
     """Construct a bench Provider from CLI flags.
 
@@ -409,6 +515,14 @@ def build_provider(
 
     embedder = _EMBEDDER_BUILDERS[embedder_name](embed_model, embed_dim, embed_device, embed_dtype)
     chat = _CHAT_BUILDERS[chat_name](chat_model, chat_max_tokens)
+    if chat_fallback_name is not None:
+        if chat_fallback_name not in _CHAT_BUILDERS:
+            raise ValueError(
+                f"unknown chat fallback {chat_fallback_name!r}; choose from "
+                f"{sorted(_CHAT_BUILDERS)}"
+            )
+        fallback = _CHAT_BUILDERS[chat_fallback_name](chat_fallback_model, chat_max_tokens)
+        chat = _ContentFilterFallbackChat(primary=chat, fallback=fallback)
     # M-151: name includes the resolved model so a sweep over
     # `--chat-model` produces distinguishable rows in the
     # SCOREBOARD's first column. Pre-fix the name collapsed every

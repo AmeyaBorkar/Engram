@@ -33,6 +33,24 @@ def _configure_logging(level_name: str) -> None:
         logging.getLogger().setLevel(level)
 
 
+def _parse_chat_fallback(spec: str | None) -> tuple[str | None, str | None]:
+    """Parse `--chat-fallback NAME[:MODEL]` into (name, model).
+
+    Empty / None spec -> (None, None) -- no fallback. Otherwise splits
+    on the FIRST colon: "openrouter" -> ("openrouter", None);
+    "openrouter:openai/gpt-4o-mini" -> ("openrouter", "openai/gpt-4o-mini").
+    Splitting on the first colon (rather than `split(":", 1)` semantics)
+    means model names containing further colons (some Anthropic /
+    versioned IDs) round-trip unchanged.
+    """
+    if not spec:
+        return None, None
+    if ":" in spec:
+        name, _, model = spec.partition(":")
+        return name.strip() or None, model.strip() or None
+    return spec.strip() or None, None
+
+
 def _load_env_file(path: Path) -> bool:
     """Best-effort `.env` loading. Existing env vars take precedence.
 
@@ -163,6 +181,20 @@ def build_parser() -> argparse.ArgumentParser:
             "and truncates mid-reasoning. JOURNEY §24 documents the cliff. "
             "Suggested values: 8192 for Kimi K2.6 thinking, 4096 for most "
             "non-thinking models, leave unset for short-answer suites."
+        ),
+    )
+    run.add_argument(
+        "--chat-fallback",
+        default=None,
+        help=(
+            "Fallback chat provider used when the primary chat returns a "
+            "content-filter rejection (HTTP 400 + 'content_filter' / 'high "
+            "risk' / similar marker). Format: NAME[:MODEL]. Examples: "
+            "'openrouter' (uses openrouter's default haiku-4-5 model), "
+            "'openrouter:openai/gpt-4o-mini' (specific model), "
+            "'openai:gpt-4o-mini'. Non-filter errors still propagate. "
+            "Observed in the wild on opencode-go (Kimi K2.6) false-positiving "
+            "on benign LongMemEval questions (e.g. `06f04340` dinner recipe)."
         ),
     )
     run.add_argument(
@@ -656,6 +688,7 @@ def _resolve_provider(args: argparse.Namespace) -> tuple[Provider, str]:
     # CLI uses "fp16"/"fp32" as shorthand; the embedder accepts the
     # full names so map here.
     dtype_map = {"auto": "auto", "fp16": "float16", "fp32": "float32"}
+    fallback_name, fallback_model = _parse_chat_fallback(args.chat_fallback)
     real_provider = build_provider(
         embedder_name=embedder,
         chat_name=chat,
@@ -665,6 +698,8 @@ def _resolve_provider(args: argparse.Namespace) -> tuple[Provider, str]:
         embed_dtype=dtype_map[args.dtype],
         chat_model=args.chat_model,
         chat_max_tokens=args.chat_max_tokens,
+        chat_fallback_name=fallback_name,
+        chat_fallback_model=fallback_model,
     )
     # Snapshot the manifest hash BEFORE wrapping -- H-73. The disk-cache
     # wrapper doesn't proxy `manifest_hash`, so a post-wrap capture
