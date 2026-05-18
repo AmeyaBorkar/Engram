@@ -38,6 +38,35 @@ def test_event_is_frozen() -> None:
         e.content = "world"  # type: ignore[misc]
 
 
+def test_event_content_accepts_128k_payload() -> None:
+    """A 128 KiB content blob must ingest cleanly.
+
+    Regression: LongMemEval-S question 852ce960 contains a pasted
+    MediaWiki page exceeding the previous 64 KiB cap.  The benchmark
+    counted that question as score=0 because of the cap, masking the
+    underlying model performance.  Bumped to 1 MiB; verify the new
+    headroom by ingesting a realistic-large blob below the new cap.
+    """
+    payload = "x" * (128 * 1024)
+    e = Event(content=payload)
+    assert len(e.content) == 128 * 1024
+
+
+def test_event_content_accepts_1mib_payload() -> None:
+    """Right at the 1 MiB cap is still accepted; 1 byte over is rejected."""
+    at_cap = "y" * (1024 * 1024)
+    Event(content=at_cap)  # exactly at cap
+    over_cap = "z" * (1024 * 1024 + 1)
+    with pytest.raises(ValidationError, match="String should have at most"):
+        Event(content=over_cap)
+
+
+def test_memory_item_content_accepts_128k_payload() -> None:
+    """MemoryItem.content cap tracks Event.content; same 1 MiB headroom."""
+    item = MemoryItem(level=Level.EVENT, content="z" * (128 * 1024))
+    assert len(item.content) == 128 * 1024
+
+
 def test_memory_item_defaults() -> None:
     item = MemoryItem(level=Level.EVENT, content="x")
     assert item.weight == 1.0

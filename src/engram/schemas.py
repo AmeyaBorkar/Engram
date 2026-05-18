@@ -35,7 +35,7 @@ SCHEMA_VERSION: str = "1"
 # blob can't ride through embedding + storage + retrieval untruncated.
 # Tune deliberately if a workload needs more — these are public defaults
 # documented in the schema contract.
-_MAX_CONTENT_LEN: int = 64 * 1024  # 64 KiB per stored text field
+_MAX_CONTENT_LEN: int = 1024 * 1024  # 1 MiB per stored text field
 _MAX_EMBED_DIM: int = 8192  # widest cap covers Qwen3-8B / Stella
 
 
