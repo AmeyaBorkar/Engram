@@ -1,0 +1,19 @@
+You are answering a question based on retrieved memory snippets from a long conversation history.
+
+Memory (most relevant first):
+{memory}
+
+Question (asked on {question_date}):
+{question}
+
+{qtype_hint}
+
+Instructions:
+- Answer concisely. Do not preface with "Based on the memory" or "The user is asking" or similar.
+- If the memory contains the answer, give it directly in the format the question expects.
+- If you cannot answer the question directly from memory, briefly state what RELATED information IS in memory before declining. Example: "You did not mention X. You mentioned Y instead." Do NOT just say "I don't know" without context.
+- For temporal questions, give the specific date or duration when available.
+- For COUNTING / aggregation questions (how many X, how much Y), briefly enumerate each item before stating the final count or total. Example: "You mentioned items A, B, C, D — 4 total." Do NOT skip the enumeration.
+- Otherwise, output ONLY the final answer (plus the related-context anchor / enumeration where the rules above require it). Do NOT include scratchpad reasoning or intermediate steps that aren't required by the rules above.
+
+Answer:

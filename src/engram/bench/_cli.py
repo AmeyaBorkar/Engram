@@ -234,7 +234,7 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument(
         "--prompt-version",
         default="v1",
-        choices=("v1", "v2", "v2a", "v2b", "v2c", "v3"),
+        choices=("v1", "v2", "v2a", "v2b", "v2c", "v3", "v3a"),
         help=(
             "Answer-prompt template version (longmemeval only). "
             "v1 = original. "
@@ -246,7 +246,12 @@ def build_parser() -> argparse.ArgumentParser:
             "prompt (recovers _abs questions wanting 'you didn't mention X "
             "but mentioned Y') + sss-preference synthesis hint (recovers "
             "preference questions where the model defaults to 'I don't know'). "
-            "Default v1. See JOURNEY section 23 / 24 for the design rationale."
+            "v3a = v3 + multi-session counting hint (required enumeration "
+            "before stating count/total) + softened 'output ONLY' line so "
+            "counting questions can enumerate. Targets the 5 counting fails "
+            "and the 2 PF regressions observed on the v3 n=100 validation "
+            "(manifest e8682d19). "
+            "Default v1. See JOURNEY section 23 / 24 / 25 for the rationale."
         ),
     )
     run.add_argument(

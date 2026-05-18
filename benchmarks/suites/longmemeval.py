@@ -193,6 +193,28 @@ _V3_QTYPE_HINTS: dict[str, str] = {
     ),
 }
 
+# v3a qtype hints. Extends v3 with explicit multi-session counting guidance
+# after the n=100 A+B+C validation (manifest e8682d19) revealed:
+#   - 5 of 15 remaining fails are multi-session counting errors where the
+#     model under-counted (off by 1-2) or summed wrong amounts
+#   - 2 PF regressions (vs cap-fix-only) were multi-session questions where
+#     v3's "output ONLY final answer" stripped the enumeration that
+#     happened to contain the correct count in passing
+# v3a's base prompt (longmemeval_answer_v3a.txt) explicitly REQUIRES
+# enumeration for counting questions ("You mentioned items A, B, C, D --
+# 4 total"). This hint reinforces the enumeration discipline.
+_V3A_QTYPE_HINTS: dict[str, str] = {
+    "single-session-preference": _V3_QTYPE_HINTS["single-session-preference"],
+    "multi-session": (
+        "This is a MULTI-SESSION aggregation question. For COUNTS / TOTALS, "
+        "ALWAYS enumerate each relevant item from each session BEFORE stating "
+        "the final number. Example: 'You mentioned A (session 1), B (session "
+        "3), C (session 5) -- 3 total.' Off-by-one counting is the #1 failure "
+        "mode here; the enumeration discipline catches it. For sums of money "
+        "or quantities, list each value before adding."
+    ),
+}
+
 # Map prompt_version -> (template_filename_version, qtype_hints_dict).
 # Centralizing this here keeps _answer_with_phase_e simple and gives the
 # CLI / test code one place to look for available variants.
@@ -212,6 +234,7 @@ _PROMPT_VARIANTS: dict[str, tuple[str, dict[str, str]]] = {
     "v2b": ("v2b", _V2B_QTYPE_HINTS),
     "v2c": ("v2c", _V2B_QTYPE_HINTS),
     "v3": ("v3", _V3_QTYPE_HINTS),
+    "v3a": ("v3a", _V3A_QTYPE_HINTS),
 }
 
 # Question-type-specific hints for the judge, taken verbatim from the

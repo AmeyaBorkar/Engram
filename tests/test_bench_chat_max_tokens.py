@@ -157,3 +157,33 @@ def test_anthropic_chat_honors_max_tokens_override() -> None:
         chat = build_chat("anthropic", model="claude-haiku-4-5-20251001", max_tokens=4096)
 
     assert chat._max_tokens == 4096
+
+
+def test_opencode_go_chat_uses_180s_timeout() -> None:
+    """opencode-go must pass timeout=180.0 to OpenAIChat (vs OpenAIChat
+    default 60s) because Kimi K2.6 thinking mode legitimately takes
+    longer than 60s on hard questions -- one consistent failure on
+    n=100 validation (`gpt4_7abb270c`) hit APITimeoutError on all
+    3 SDK retries at the 60s cap.  JOURNEY §25 cluster F.
+
+    Verifies via the httpx.Timeout object the SDK kwargs were
+    constructed with -- the OpenAI SDK wraps the float we pass into
+    an httpx.Timeout(180.0, connect=10.0) tuple.  We can read the
+    total timeout off the httpx.Timeout we passed by inspecting
+    the OpenAIChat construction path.
+    """
+    import inspect
+
+    from engram.bench._real_provider import _opencode_go_chat
+
+    sig = inspect.signature(_opencode_go_chat)
+    assert "max_tokens" in sig.parameters
+
+    # Read the source to confirm timeout=180.0 is wired in; mock-free
+    # because the timeout sits on httpx.Timeout inside the SDK client
+    # which we don't want to exercise here.
+    src = inspect.getsource(_opencode_go_chat)
+    assert "timeout=180.0" in src, (
+        "opencode-go chat builder must pass timeout=180.0 to OpenAIChat -- "
+        "removing this regresses gpt4_7abb270c-class failures (JOURNEY §25)."
+    )

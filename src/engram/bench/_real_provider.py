@@ -139,6 +139,15 @@ def _opencode_go_chat(model: str | None, max_tokens: int | None = None) -> ChatP
     constraint, not us. An explicit `max_tokens` (e.g. from
     `--chat-max-tokens`) still overrides if the caller needs to
     bound a runaway generation.
+
+    `timeout=180.0` (vs OpenAIChat default 60s) because Kimi K2.6's
+    thinking mode legitimately takes longer than 60s on hard
+    questions -- one consistent failure on n=100 validation
+    (`gpt4_7abb270c`, "order of 6 museums visited") hit
+    APITimeoutError on all 3 SDK retries at the 60s cap. With
+    parallel=30 the long question doesn't block others, so a more
+    generous per-request timeout is low-risk and recovers the
+    timeout class of failures (JOURNEY §25, cluster F).
     """
     from engram.providers.openai import OpenAIChat
 
@@ -147,6 +156,7 @@ def _opencode_go_chat(model: str | None, max_tokens: int | None = None) -> ChatP
         api_key=_opencode_api_key(),
         base_url="https://opencode.ai/zen/go/v1",
         max_tokens=max_tokens if max_tokens is not None else 65536,
+        timeout=180.0,
     )
 
 
