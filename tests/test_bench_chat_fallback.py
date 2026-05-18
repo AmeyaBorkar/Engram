@@ -91,9 +91,9 @@ def test_predicate_detects_kimi_content_filter_pattern() -> None:
     err = Exception(
         "BadRequestError: Error code: 400 - {'error': {'message': "
         "'Error from provider: Provider returned error', 'code': 400, "
-        "'metadata': {'raw': '{\"error\":{\"code\":400,\"message\":"
-        "\"The request was rejected because it was considered high risk\","
-        "\"type\":\"content_filter\"}}'}}}"
+        '\'metadata\': {\'raw\': \'{"error":{"code":400,"message":'
+        '"The request was rejected because it was considered high risk",'
+        '"type":"content_filter"}}\'}}}'
     )
     assert _is_content_filter_error(err) is True
 
@@ -293,10 +293,14 @@ def test_cli_parser_accepts_chat_fallback() -> None:
     parser = build_parser()
     args = parser.parse_args(
         [
-            "run", "noop",
-            "--chat", "opencode-go",
-            "--embedder", "fake",
-            "--chat-fallback", "openrouter:openai/gpt-4o-mini",
+            "run",
+            "noop",
+            "--chat",
+            "opencode-go",
+            "--embedder",
+            "fake",
+            "--chat-fallback",
+            "openrouter:openai/gpt-4o-mini",
         ]
     )
     assert args.chat_fallback == "openrouter:openai/gpt-4o-mini"
@@ -306,9 +310,7 @@ def test_cli_parser_chat_fallback_defaults_to_none() -> None:
     from engram.bench._cli import build_parser
 
     parser = build_parser()
-    args = parser.parse_args(
-        ["run", "noop", "--chat", "fake", "--embedder", "fake"]
-    )
+    args = parser.parse_args(["run", "noop", "--chat", "fake", "--embedder", "fake"])
     assert args.chat_fallback is None
 
 
@@ -345,8 +347,9 @@ def test_build_chat_no_fallback_returns_bare_chat() -> None:
 def _stub_openai_sdk():
     """Mirror tests/test_bench_chat_max_tokens.py — stub the openai SDK
     so chat builders can construct without a real API key."""
-    from engram.providers import openai as _openai_adapter
     from unittest.mock import patch as _patch
+
+    from engram.providers import openai as _openai_adapter
 
     fake_client = type("FakeClient", (), {"chat": None, "embeddings": None})
     return _patch.multiple(
@@ -364,10 +367,13 @@ def test_build_provider_wires_chat_fallback() -> None:
         build_provider,
     )
 
-    with _stub_openai_sdk(), patch.dict(
-        os.environ,
-        {"OPENCODE_API_KEY": "sk-test", "OPENROUTER_API_KEY": "sk-test"},
-        clear=False,
+    with (
+        _stub_openai_sdk(),
+        patch.dict(
+            os.environ,
+            {"OPENCODE_API_KEY": "sk-test", "OPENROUTER_API_KEY": "sk-test"},
+            clear=False,
+        ),
     ):
         provider = build_provider(
             embedder_name="fake",
@@ -383,13 +389,17 @@ def test_build_provider_wires_chat_fallback() -> None:
 
 
 def test_build_provider_rejects_unknown_fallback_name() -> None:
-    from engram.bench._real_provider import build_provider
     import pytest
 
-    with _stub_openai_sdk(), patch.dict(
-        os.environ,
-        {"OPENCODE_API_KEY": "sk-test"},
-        clear=False,
+    from engram.bench._real_provider import build_provider
+
+    with (
+        _stub_openai_sdk(),
+        patch.dict(
+            os.environ,
+            {"OPENCODE_API_KEY": "sk-test"},
+            clear=False,
+        ),
     ):
         with pytest.raises(ValueError, match="unknown chat fallback"):
             build_provider(

@@ -75,10 +75,7 @@ def _emit_per_qtype(per_question: list[dict], *, csv: bool) -> None:
         if csv:
             print(f"{i},{qt},{int(s['n'])},{s['correct']:.1f},{cum_acc_qt:.4f}")
         else:
-            print(
-                f"{i:>4}  {qt:<22}  {int(s['n']):>4}  "
-                f"{s['correct']:>5.1f}  {cum_acc_qt:>10.4f}"
-            )
+            print(f"{i:>4}  {qt:<22}  {int(s['n']):>4}  {s['correct']:>5.1f}  {cum_acc_qt:>10.4f}")
 
 
 def _emit_summary(per_question: list[dict]) -> None:
@@ -96,9 +93,9 @@ def _emit_summary(per_question: list[dict]) -> None:
     print(f"{'-' * 22}  {'-' * 4}  {'-' * 5}  {'-' * 7}")
     for qt in sorted(by_qt):
         s = by_qt[qt]
-        print(f"{qt:<22}  {int(s['n']):>4}  {s['correct']:>5.1f}  {s['correct']/s['n']:>7.4f}")
+        print(f"{qt:<22}  {int(s['n']):>4}  {s['correct']:>5.1f}  {s['correct'] / s['n']:>7.4f}")
     print(f"{'-' * 22}  {'-' * 4}  {'-' * 5}  {'-' * 7}")
-    print(f"{'TOTAL':<22}  {int(total_n):>4}  {total_cor:>5.1f}  {total_cor/total_n:>7.4f}")
+    print(f"{'TOTAL':<22}  {int(total_n):>4}  {total_cor:>5.1f}  {total_cor / total_n:>7.4f}")
 
 
 def main(argv: list[str] | None = None) -> int:

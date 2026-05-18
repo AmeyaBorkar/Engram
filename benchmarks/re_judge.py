@@ -78,10 +78,9 @@ def _load_suite_module() -> Any:
     if "_re_judge_longmemeval" in sys.modules:
         return sys.modules["_re_judge_longmemeval"]
     sys.path.insert(0, str(_REPO_ROOT))
-    spec = importlib.util.spec_from_file_location(
-        "_re_judge_longmemeval", _SUITE_PATH
-    )
-    assert spec is not None and spec.loader is not None
+    spec = importlib.util.spec_from_file_location("_re_judge_longmemeval", _SUITE_PATH)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"could not load suite module from {_SUITE_PATH}")
     mod = importlib.util.module_from_spec(spec)
     sys.modules["_re_judge_longmemeval"] = mod
     spec.loader.exec_module(mod)
@@ -117,6 +116,7 @@ class _ReJudgeResult:
 def _build_judge_chat(provider: str, model: str) -> Any:
     """Use the same chat builder the bench uses, so providers behave identically."""
     from engram.bench._real_provider import build_chat
+
     return build_chat(provider, model=model, max_tokens=None)
 
 
@@ -138,14 +138,24 @@ def _re_judge_one(
     # re-judging -- those can't flip.
     if "error" in record or not response:
         return _ReJudgeResult(
-            qid=qid, qtype=qtype, gold=gold, response=response,
-            old_score=old_score, new_score=old_score, new_raw="(skipped: errored or empty)",
+            qid=qid,
+            qtype=qtype,
+            gold=gold,
+            response=response,
+            old_score=old_score,
+            new_score=old_score,
+            new_raw="(skipped: errored or empty)",
         )
 
     if qtype not in suite._JUDGE_INSTRUCTIONS:
         return _ReJudgeResult(
-            qid=qid, qtype=qtype, gold=gold, response=response,
-            old_score=old_score, new_score=old_score, new_raw="",
+            qid=qid,
+            qtype=qtype,
+            gold=gold,
+            response=response,
+            old_score=old_score,
+            new_score=old_score,
+            new_raw="",
             error=f"unknown qtype {qtype!r}",
         )
 
@@ -167,44 +177,78 @@ def _re_judge_one(
         verdict = suite._parse_judge_verdict(raw)
     except Exception as exc:  # noqa: BLE001 -- surface any provider error in the report
         return _ReJudgeResult(
-            qid=qid, qtype=qtype, gold=gold, response=response,
-            old_score=old_score, new_score=old_score, new_raw="",
+            qid=qid,
+            qtype=qtype,
+            gold=gold,
+            response=response,
+            old_score=old_score,
+            new_score=old_score,
+            new_raw="",
             error=f"{type(exc).__name__}: {exc}",
         )
     new_score = 1.0 if verdict else 0.0
     return _ReJudgeResult(
-        qid=qid, qtype=qtype, gold=gold, response=response,
-        old_score=old_score, new_score=new_score, new_raw=raw,
+        qid=qid,
+        qtype=qtype,
+        gold=gold,
+        response=response,
+        old_score=old_score,
+        new_score=new_score,
+        new_raw=raw,
     )
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--manifest", required=True, type=Path,
-                        help="Path to the LongMemEval manifest JSON to re-judge.")
-    parser.add_argument("--judge", default="openrouter",
-                        help="Chat provider for the judge (openrouter, openai, ...).")
-    parser.add_argument("--judge-model", default="openai/gpt-4o-2024-08-06",
-                        help="Pinned judge model. Use a DATED snapshot; "
-                             "floating aliases like 'openai/gpt-4o' drift.")
-    parser.add_argument("--strict-fair", action="store_true",
-                        help="Append the strict-fair rubric clarification to "
-                             "every qtype's instructions.")
-    parser.add_argument("--only-failures", action="store_true",
-                        help="Only re-judge questions with score=0 (faster, "
-                             "but won't catch lenient-FP risk). Default is "
-                             "re-judge all questions for an honest delta.")
-    parser.add_argument("--parallel", type=int, default=10,
-                        help="Concurrent judge calls. Default 10.")
-    parser.add_argument("--output", type=Path, default=None,
-                        help="Output report JSON path. Default: "
-                             "benchmarks/re_judge_<manifest-stem>_<ts>.json")
-    parser.add_argument("--env-file", type=Path, default=Path(".env"),
-                        help="Path to a .env file to load before resolving "
-                             "the provider (default: .env in cwd). Existing "
-                             "environment variables take precedence.")
-    parser.add_argument("--log-level", default="INFO",
-                        choices=("DEBUG", "INFO", "WARNING", "ERROR"))
+    parser.add_argument(
+        "--manifest",
+        required=True,
+        type=Path,
+        help="Path to the LongMemEval manifest JSON to re-judge.",
+    )
+    parser.add_argument(
+        "--judge",
+        default="openrouter",
+        help="Chat provider for the judge (openrouter, openai, ...).",
+    )
+    parser.add_argument(
+        "--judge-model",
+        default="openai/gpt-4o-2024-08-06",
+        help="Pinned judge model. Use a DATED snapshot; "
+        "floating aliases like 'openai/gpt-4o' drift.",
+    )
+    parser.add_argument(
+        "--strict-fair",
+        action="store_true",
+        help="Append the strict-fair rubric clarification to every qtype's instructions.",
+    )
+    parser.add_argument(
+        "--only-failures",
+        action="store_true",
+        help="Only re-judge questions with score=0 (faster, "
+        "but won't catch lenient-FP risk). Default is "
+        "re-judge all questions for an honest delta.",
+    )
+    parser.add_argument(
+        "--parallel", type=int, default=10, help="Concurrent judge calls. Default 10."
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help="Output report JSON path. Default: benchmarks/re_judge_<manifest-stem>_<ts>.json",
+    )
+    parser.add_argument(
+        "--env-file",
+        type=Path,
+        default=Path(".env"),
+        help="Path to a .env file to load before resolving "
+        "the provider (default: .env in cwd). Existing "
+        "environment variables take precedence.",
+    )
+    parser.add_argument(
+        "--log-level", default="INFO", choices=("DEBUG", "INFO", "WARNING", "ERROR")
+    )
     args = parser.parse_args(argv)
 
     if _load_env_file(args.env_file):
@@ -225,15 +269,21 @@ def main(argv: list[str] | None = None) -> int:
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     records = manifest["per_question"]
-    log.info("Loaded manifest: %d questions, original accuracy=%.4f",
-             len(records), manifest["aggregate_metrics"].get("accuracy", -1))
+    log.info(
+        "Loaded manifest: %d questions, original accuracy=%.4f",
+        len(records),
+        manifest["aggregate_metrics"].get("accuracy", -1),
+    )
 
     targets = [r for r in records if (not args.only_failures or r["score"] == 0.0)]
-    log.info("Re-judging %d questions (%s) with judge=%s/%s%s",
-             len(targets),
-             "score=0 only" if args.only_failures else "all",
-             args.judge, args.judge_model,
-             " + strict-fair rubric" if args.strict_fair else "")
+    log.info(
+        "Re-judging %d questions (%s) with judge=%s/%s%s",
+        len(targets),
+        "score=0 only" if args.only_failures else "all",
+        args.judge,
+        args.judge_model,
+        " + strict-fair rubric" if args.strict_fair else "",
+    )
 
     chat = _build_judge_chat(args.judge, args.judge_model)
     log.info("Judge chat built. Beginning re-judge...")
@@ -242,20 +292,18 @@ def main(argv: list[str] | None = None) -> int:
     results: list[_ReJudgeResult] = []
     with ThreadPoolExecutor(max_workers=args.parallel) as ex:
         futures = {
-            ex.submit(_re_judge_one, suite=suite, chat=chat,
-                      record=r, use_strict_fair=args.strict_fair): r
+            ex.submit(
+                _re_judge_one, suite=suite, chat=chat, record=r, use_strict_fair=args.strict_fair
+            ): r
             for r in targets
         }
-        completed = 0
-        for fut in as_completed(futures):
+        for completed, fut in enumerate(as_completed(futures), start=1):
             results.append(fut.result())
-            completed += 1
             if completed % 25 == 0:
                 log.info("  progress: %d/%d", completed, len(targets))
 
     elapsed = time.time() - t0
-    log.info("Re-judge complete in %.1fs (%.2fs/q)",
-             elapsed, elapsed / max(1, len(targets)))
+    log.info("Re-judge complete in %.1fs (%.2fs/q)", elapsed, elapsed / max(1, len(targets)))
 
     # Compute flip stats
     pf = [r for r in results if r.old_score == 1.0 and r.new_score == 0.0]  # was right, now wrong
@@ -281,14 +329,16 @@ def main(argv: list[str] | None = None) -> int:
     new_acc_correct = new_correct / max(1, n_completed)
     old_acc_correct = manifest["aggregate_metrics"].get("accuracy_correct", -1)
 
-    log.info("Accuracy_correct: old=%.4f  new=%.4f  Δ=%+.4f",
-             old_acc_correct, new_acc_correct,
-             new_acc_correct - old_acc_correct)
+    log.info(
+        "Accuracy_correct: old=%.4f  new=%.4f  Δ=%+.4f",
+        old_acc_correct,
+        new_acc_correct,
+        new_acc_correct - old_acc_correct,
+    )
 
     # Output report
     out_path = args.output or (
-        manifest_path.parent.parent
-        / f"re_judge_{manifest_path.stem}_{int(time.time())}.json"
+        manifest_path.parent.parent / f"re_judge_{manifest_path.stem}_{int(time.time())}.json"
     )
     report = {
         "source_manifest": str(manifest_path),
@@ -300,19 +350,26 @@ def main(argv: list[str] | None = None) -> int:
         "elapsed_s": elapsed,
         "flips": {
             "PF_was_right_now_wrong": [
-                {"qid": r.qid, "qtype": r.qtype, "gold": r.gold,
-                 "response": r.response[:300], "new_raw": r.new_raw[:200]}
+                {
+                    "qid": r.qid,
+                    "qtype": r.qtype,
+                    "gold": r.gold,
+                    "response": r.response[:300],
+                    "new_raw": r.new_raw[:200],
+                }
                 for r in pf
             ],
             "FP_was_wrong_now_right": [
-                {"qid": r.qid, "qtype": r.qtype, "gold": r.gold,
-                 "response": r.response[:300], "new_raw": r.new_raw[:200]}
+                {
+                    "qid": r.qid,
+                    "qtype": r.qtype,
+                    "gold": r.gold,
+                    "response": r.response[:300],
+                    "new_raw": r.new_raw[:200],
+                }
                 for r in fp
             ],
-            "errors": [
-                {"qid": r.qid, "qtype": r.qtype, "error": r.error}
-                for r in errs
-            ],
+            "errors": [{"qid": r.qid, "qtype": r.qtype, "error": r.error} for r in errs],
         },
         "old_accuracy_correct": old_acc_correct,
         "new_accuracy_correct": new_acc_correct,

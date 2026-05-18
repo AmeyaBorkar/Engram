@@ -21,9 +21,7 @@ def _load_re_judge():
     if "_test_re_judge_module" in sys.modules:
         return sys.modules["_test_re_judge_module"]
     sys.path.insert(0, str(_REPO_ROOT))
-    spec = importlib.util.spec_from_file_location(
-        "_test_re_judge_module", _RE_JUDGE_PATH
-    )
+    spec = importlib.util.spec_from_file_location("_test_re_judge_module", _RE_JUDGE_PATH)
     assert spec is not None and spec.loader is not None
     mod = importlib.util.module_from_spec(spec)
     sys.modules["_test_re_judge_module"] = mod
@@ -85,11 +83,11 @@ def test_re_judge_one_skips_errored_records() -> None:
         _JUDGE_INSTRUCTIONS = {"multi-session": "fake instructions"}
 
         @staticmethod
-        def _read_prompt(name: str) -> str:  # noqa: ARG004
+        def _read_prompt(name: str) -> str:
             return "fake prompt {instructions} {question} {gold} {response}"
 
         @staticmethod
-        def _parse_judge_verdict(raw: str) -> bool:  # noqa: ARG004
+        def _parse_judge_verdict(raw: str) -> bool:
             return False
 
         class Message:  # type: ignore[no-untyped-def]
@@ -102,13 +100,19 @@ def test_re_judge_one_skips_errored_records() -> None:
             raise AssertionError("chat must not be called for errored records")
 
     record = {
-        "question_id": "q1", "question_type": "multi-session",
-        "question": "Q?", "gold": "G", "response": "",
-        "score": 0.0, "error": "BadRequestError",
+        "question_id": "q1",
+        "question_type": "multi-session",
+        "question": "Q?",
+        "gold": "G",
+        "response": "",
+        "score": 0.0,
+        "error": "BadRequestError",
     }
     result = mod._re_judge_one(
-        suite=FakeSuite, chat=FakeChat(),
-        record=record, use_strict_fair=False,
+        suite=FakeSuite,
+        chat=FakeChat(),
+        record=record,
+        use_strict_fair=False,
     )
     assert result.new_score == result.old_score == 0.0
     assert "skipped" in result.new_raw.lower()
@@ -123,7 +127,7 @@ def test_re_judge_one_calls_chat_for_normal_records() -> None:
         _JUDGE_INSTRUCTIONS = {"multi-session": "answer yes or no"}
 
         @staticmethod
-        def _read_prompt(name: str) -> str:  # noqa: ARG004
+        def _read_prompt(name: str) -> str:
             return "{instructions}\n{question}\n{gold}\n{response}"
 
         @staticmethod
@@ -141,13 +145,18 @@ def test_re_judge_one_calls_chat_for_normal_records() -> None:
             return "yes"  # flip wrong -> right
 
     record = {
-        "question_id": "q2", "question_type": "multi-session",
-        "question": "How many?", "gold": "3",
-        "response": "...3 total.", "score": 0.0,
+        "question_id": "q2",
+        "question_type": "multi-session",
+        "question": "How many?",
+        "gold": "3",
+        "response": "...3 total.",
+        "score": 0.0,
     }
     result = mod._re_judge_one(
-        suite=FakeSuite, chat=FakeChat(),
-        record=record, use_strict_fair=False,
+        suite=FakeSuite,
+        chat=FakeChat(),
+        record=record,
+        use_strict_fair=False,
     )
     assert len(calls) == 1
     assert result.old_score == 0.0
@@ -164,11 +173,11 @@ def test_re_judge_strict_fair_appends_footer_to_prompt() -> None:
         _JUDGE_INSTRUCTIONS = {"knowledge-update": "base rubric"}
 
         @staticmethod
-        def _read_prompt(name: str) -> str:  # noqa: ARG004
+        def _read_prompt(name: str) -> str:
             return "{instructions}|||{question}|||{gold}|||{response}"
 
         @staticmethod
-        def _parse_judge_verdict(raw: str) -> bool:  # noqa: ARG004
+        def _parse_judge_verdict(raw: str) -> bool:
             return True
 
         class Message:  # type: ignore[no-untyped-def]
@@ -182,12 +191,18 @@ def test_re_judge_strict_fair_appends_footer_to_prompt() -> None:
             return "yes"
 
     record = {
-        "question_id": "q3", "question_type": "knowledge-update",
-        "question": "?", "gold": "G", "response": "R", "score": 0.0,
+        "question_id": "q3",
+        "question_type": "knowledge-update",
+        "question": "?",
+        "gold": "G",
+        "response": "R",
+        "score": 0.0,
     }
     mod._re_judge_one(
-        suite=FakeSuite, chat=CaptureChat(),
-        record=record, use_strict_fair=True,
+        suite=FakeSuite,
+        chat=CaptureChat(),
+        record=record,
+        use_strict_fair=True,
     )
     assert "Clarifications:" in captured["prompt"]
     assert "verbatim" in captured["prompt"] or "embedded" in captured["prompt"].lower()

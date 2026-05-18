@@ -360,14 +360,13 @@ def _is_content_filter_error(exc: BaseException) -> bool:
         return False
     # AND it should look like a client error (4xx), so an upstream 500 /
     # transient outage doesn't get redirected to the fallback.
-    is_http_4xx = (
+    return (
         "400" in msg
         or "403" in msg
         or "badrequest" in msg
         or "permissiondenied" in msg
         or "forbidden" in msg
     )
-    return is_http_4xx
 
 
 class _ContentFilterFallbackChat:
