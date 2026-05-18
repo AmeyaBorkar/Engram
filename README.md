@@ -2,7 +2,7 @@
 
 > Hierarchical memory with consolidation and principled decay for LLM agents and assistants.
 
-[![PyPI](https://img.shields.io/pypi/v/engrampy?color=blue)](https://pypi.org/project/engrampy/)
+[![PyPI](https://img.shields.io/pypi/v/engrampy?color=blue&cacheSeconds=600)](https://pypi.org/project/engrampy/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Tests](https://img.shields.io/badge/tests-1267_passing-success)](#status)
 [![mypy](https://img.shields.io/badge/mypy-strict-success)](#status)
